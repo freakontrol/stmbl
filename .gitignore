@@ -18,7 +18,7 @@
 *.jdebug
 *.jdebug.user
 
-.vscode/*
+.vscode
 
 tools/pycrc*
 
@@ -40,6 +40,14 @@ hw/kicad/*.bak
 hw/kicad/*/*.bak
 hw/kicad/*/*/*.bak
 hw/kicad/*/*-bak
+hw/kicad/*/_autosave*.kicad_sch
+hw/kicad/*/#auto_saved_files#
+hw/kicad/*/*.kicad_pcb.zip
+hw/kicad/*/fp-info-cache
+hw/kicad/*/fp-lib-table
+hw/kicad/*/sym-lib-table
+hw/kicad/*/*.kicad_prl
+
 
 # Eagle project file
 # It contains a serial number and references to the file structure

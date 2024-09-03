@@ -159,11 +159,11 @@ int main(void) {
   MX_ADC3_Init();
   MX_ADC4_Init();
   MX_DAC_Init();
-  //COMP1 in+ pa1(ADC1_IN2)  in- pa4(dac1_ch1)
+  //COMP1 in+ pa1(ADC1_IN2)  in- pa4(dac1_ch1) out TIM8 BRK2
   COMP1->CSR = COMP_CSR_COMPxINSEL_2 | COMP1_CSR_COMP1OUTSEL_2 | COMP_CSR_COMPxEN;
-  //COMP2 in+ pa7(ADC2_IN4)  in- pa4(dac1_ch1) COMP_CSR_COMPxNONINSEL
+  //COMP2 in+ pa7(ADC2_IN4)  in- pa4(dac1_ch1) out TIM8 BRK_ACTH COMP_CSR_COMPxNONINSEL
   COMP2->CSR = COMP_CSR_COMPxINSEL_2 | COMP2_CSR_COMP2OUTSEL_0 | COMP2_CSR_COMP2OUTSEL_1 | COMP_CSR_COMPxEN;
-  //COMP4 in+ pb0(ADC3_IN12) in- pa4(dac1_ch1)
+  //COMP4 in+ pb0(ADC3_IN12) in- pa4(dac1_ch1)  out TIM8 BRK
   COMP4->CSR = COMP_CSR_COMPxINSEL_2 | COMP4_CSR_COMP4OUTSEL_0 | COMP4_CSR_COMP4OUTSEL_1 | COMP_CSR_COMPxEN;
   MX_OPAMP1_Init();
   MX_OPAMP2_Init();
@@ -329,8 +329,7 @@ int main(void) {
   hal_parse("curpid0.ld = ls0.l");
   hal_parse("curpid0.lq = ls0.l");
   hal_parse("curpid0.psi = ls0.psi");
-  hal_parse("curpid0.kp = ls0.cur_p");
-  hal_parse("curpid0.ki = ls0.cur_i");
+  hal_parse("curpid0.cur_bw = ls0.cur_bw");
   hal_parse("curpid0.ff = ls0.cur_ff");
   hal_parse("curpid0.kind = ls0.cur_ind");
   hal_parse("curpid0.max_cur = ls0.max_cur");

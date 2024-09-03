@@ -1,11 +1,3 @@
-(module Measurement_Point_Round-SMD-Pad_Small (layer F.Cu) (tedit 5833960D)
-  (descr "Mesurement Point, Round, SMD Pad, DM 1.5mm,")
-  (tags "Mesurement Point, Round, SMD Pad, DM 1.5mm,")
-  (fp_text reference T44 (at 0 -2.54) (layer F.SilkS)
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-  (fp_text value testpoint (at 1.27 2.54) (layer F.Fab)
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-  (pad 1 smd circle (at 0 0) (size 1 1) (layers F.Cu F.Mask))
-)
+version https://git-lfs.github.com/spec/v1
+oid sha256:717cd8bc6f740c3cc5ed0655f7a1b8394a7eaaf35a86dce2db75be7d6fcee852
+size 467

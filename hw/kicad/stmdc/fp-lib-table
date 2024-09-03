@@ -1,3 +1,0 @@
-(fp_lib_table
-  (lib (name stmdc)(type KiCad)(uri "$(KIPRJMOD)/stmdc.pretty")(options "")(descr ""))
-)

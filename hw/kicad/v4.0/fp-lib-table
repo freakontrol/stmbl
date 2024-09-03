@@ -1,3 +1,0 @@
-(fp_lib_table
-  (lib (name stmbl)(type KiCad)(uri "$(KIPRJMOD)/../lib/stmbl.pretty")(options "")(descr ""))
-)

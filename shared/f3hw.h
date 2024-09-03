@@ -21,13 +21,13 @@
 #define PWM_V TIM8->CCR2
 #define PWM_W TIM8->CCR1
 
-#define PWM_DEADTIME 0
-//#define PWM_DEADTIME 29 // 1/144e6 * 29 = 201ns
+//#define PWM_DEADTIME 0
+#define PWM_DEADTIME 60 // 1/144e6 * 58 = 402ns
 #define PWM_RES 4800
 
-#define ABS_MAX_TEMP 100.0
-#define ABS_MAX_VOLT 410.0
-#define ABS_MAX_CURRENT 30.0
+#define ABS_MAX_TEMP 110.0
+#define ABS_MAX_VOLT 400.0
+#define ABS_MAX_CURRENT 35.0
 
 //io board
 //#define USB_CONNECT_PIN GPIO_PIN_15

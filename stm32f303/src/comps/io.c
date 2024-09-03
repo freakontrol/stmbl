@@ -76,7 +76,7 @@ struct io_ctx_t {
 #define ARES 4096.0  // analog resolution, 12 bit
 #define ADC(a) ((a) / ARES * AREF)
 
-#define HV_TEMP_PULLUP 10000
+#define HV_TEMP_PULLUP 3600
 #define HV_R(a) (HV_TEMP_PULLUP / (AREF / (a)-1))
 
 #define MOT_TEMP_PULLUP 10000
@@ -99,7 +99,7 @@ float r2temp(float r) {
   const int step  = 10;
   const int start = -10;
   //-10..100
-  const float temp[] = {271.7, 158.2, 95.23, 59.07, 37.64, 24.59, 16.43, 11.21, 7.798, 5.518, 3.972, 2.902};
+  const float temp[] = {500.0, 250.0, 200.0, 125.00, 65, 50, 29.972, 20.515, 14.315, 10.169, 7.345, 5.388, 4.009, 3.024, 2.639};
 
   for(int i = 1; i < ARRAY_SIZE(temp); i++) {
     if(temp[i] < r) {
@@ -176,8 +176,8 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 #ifdef HV_EN_PIN
   GPIO_InitStruct.Pin   = HV_EN_PIN;
   GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull  = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
   HAL_GPIO_Init(HV_EN_PORT, &GPIO_InitStruct);
 #endif
 
@@ -255,8 +255,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         //set timer master out enable
         TIM8->BDTR |= TIM_BDTR_MOE;
 #ifdef HV_EN_PIN
-        //set driver enable pin
-        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
+        //clear driver enable pin
+        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
 #endif
         ctx->enabled = 1;
       }
@@ -275,16 +275,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       } else {
         ctx->fault_pin_error = 0;
 #ifdef HV_EN_PIN
-        //clear driver enable pin
-        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
+        //set driver enable pin
+        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
 #endif
       }
     } else {
       ctx->enabled = 0;
       ctx->fault   = NO_ERROR;
 #ifdef HV_EN_PIN
-      //clear driver enable pin
-      HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
+      //set driver enable pin
+      HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
 #endif
     }
 
@@ -318,7 +318,7 @@ void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, BLINK(led) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 
   PIN(hv_temp)  = r2temp(HV_R(ADC(ctx->hv_temp >> 16))) * 0.01 + PIN(hv_temp) * 0.99;
-  PIN(mot_temp) = MOT_R(MOT_REF(ADC(ctx->mot_temp >> 16)));
+  PIN(mot_temp) = r2temp(MOT_R(MOT_REF(ADC(ctx->mot_temp >> 16)))) * 0.01 + PIN(mot_temp) * 0.99;
 }
 
 hal_comp_t io_comp_struct = {
