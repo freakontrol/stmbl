@@ -72,3 +72,7 @@ there were several other components that have been replaced because they have be
 - ZLDO1117G33TA (LDO 3.3V 1A) replaced with its new version [LDL1117S33R](https://www.mouser.it/ProductDetail/511-LDL1117S33R) from STMicroelettronics
 - both microUSB connectors have been updated to the more modern USBc
 
+* * * 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/freakontrol)
+
+If you want to get a prototype of this board contact us in [![Join the chat at https://gitter.im/rene-dev/stmbl](https://badges.gitter.im/rene-dev/stmbl.svg)](https://gitter.im/rene-dev/stmbl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
