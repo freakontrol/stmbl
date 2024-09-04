@@ -31,8 +31,9 @@ We are proposing a new revision of the project making significant improvements a
 - Heat dissipation components and case
 - Other obsolete components
 
-<img src="./img/stmbl_case.jpg" alt="image" width="600"/> 
-<img src="./img/stmbl_top.jpg" alt="image" width="300"/> <img src="./img/stmbl_bottom.jpg" alt="image" width="300"/> 
+<img src="./img/stmbl_case.jpg" alt="image" width="640"/> 
+
+<img src="./img/front.jpg" alt="image" width="300"/> <img src="./img/back.jpg" alt="image" width="335"/> 
 
 ## H-Bridge
 First we needed to replace the original and obsolete H-bridge IRAM256 with a more powerful and easily available one.
