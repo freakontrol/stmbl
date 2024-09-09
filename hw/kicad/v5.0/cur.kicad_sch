@@ -1,3 +1,2274 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:22c9582bbe11583db11ba2aeeabbeb843f6a8036e3b726fc13c3310d9d50c1a1
-size 35636
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "c62df576-c0a7-4b7d-bf9a-2e5070e6d13e")
+	(paper "A4")
+	(lib_symbols
+		(symbol "stmbl:+3.3VP"
+			(power)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 3.81 -1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+3.3VP"
+				(at 0 2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+3.3VP_0_0"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0) hide
+					(name "+3.3VP"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "+3.3VP_0_1"
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 1.016) (xy 0 1.016)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.508 0.762) (xy 0 1.016) (xy -0.508 0.762) (xy -0.254 1.778) (xy 0.254 1.778) (xy 0.508 0.762)
+						(xy 0.508 0.762)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+		)
+		(symbol "stmbl:C"
+			(pin_numbers hide)
+			(pin_names
+				(offset 0.254)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "C"
+				(at 0.635 2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "C"
+				(at 0.635 -2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0.9652 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "C? C_????_* C_???? SMD*_c Capacitor*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "C_0_1"
+				(polyline
+					(pts
+						(xy -2.032 -0.762) (xy 2.032 -0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -2.032 0.762) (xy 2.032 0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "C_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 2.794)
+					(name "~"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 2.794)
+					(name "~"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+			)
+		)
+		(symbol "stmbl:GNDPWR"
+			(power)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -5.08 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "GNDPWR"
+				(at 0 -3.302 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 -1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 -1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "GNDPWR_0_1"
+				(polyline
+					(pts
+						(xy 0 -1.27) (xy 0 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.016 -1.27) (xy -1.27 -2.032) (xy -1.27 -2.032)
+					)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -0.508 -1.27) (xy -0.762 -2.032) (xy -0.762 -2.032)
+					)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 -1.27) (xy -0.254 -2.032) (xy -0.254 -2.032)
+					)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.508 -1.27) (xy 0.254 -2.032) (xy 0.254 -2.032)
+					)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.016 -1.27) (xy -1.016 -1.27) (xy -1.016 -1.27)
+					)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.016 -1.27) (xy 0.762 -2.032) (xy 0.762 -2.032) (xy 0.762 -2.032)
+					)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "GNDPWR_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0) hide
+					(name "GNDPWR"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+		)
+		(symbol "stmbl:R"
+			(pin_numbers hide)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 2.032 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -1.778 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "R_* Resistor_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_0_1"
+				(rectangle
+					(start -1.016 -2.54)
+					(end 1.016 2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+		)
+	)
+	(junction
+		(at 149.86 76.2)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "0b795325-372a-4703-8f6b-762decd40a53")
+	)
+	(junction
+		(at 119.38 76.2)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "74dd7257-9e04-47f1-817d-adc3268a11e2")
+	)
+	(junction
+		(at 180.34 76.2)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "d2e9e9d0-4dad-4c52-9e62-e9ec4ade8b98")
+	)
+	(wire
+		(pts
+			(xy 180.34 63.5) (xy 180.34 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "011dafbf-319d-4146-8c5b-840536591d10")
+	)
+	(wire
+		(pts
+			(xy 149.86 63.5) (xy 149.86 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "06aeea3f-2898-4c4d-8711-46c35d47eb8d")
+	)
+	(wire
+		(pts
+			(xy 106.68 76.2) (xy 109.22 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0fc802c2-92ee-4d10-9516-f94f22826aa5")
+	)
+	(wire
+		(pts
+			(xy 180.34 78.74) (xy 180.34 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "28110745-82f8-4c84-8f07-1fa3cd403d5b")
+	)
+	(wire
+		(pts
+			(xy 149.86 88.9) (xy 149.86 86.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2c987a57-27ca-4506-bb2f-0fcb7a54bab7")
+	)
+	(wire
+		(pts
+			(xy 147.32 76.2) (xy 149.86 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "52ea1b02-9685-4542-a3fa-53385c7f5241")
+	)
+	(wire
+		(pts
+			(xy 119.38 76.2) (xy 119.38 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "646cb679-4ff5-4952-8b43-26cf55add15d")
+	)
+	(wire
+		(pts
+			(xy 180.34 88.9) (xy 180.34 86.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "684afa89-4861-4aec-9112-50e5c16ed23c")
+	)
+	(wire
+		(pts
+			(xy 137.16 76.2) (xy 139.7 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "71f9f264-8021-469d-bb5e-b9dd7ccd4d29")
+	)
+	(wire
+		(pts
+			(xy 149.86 76.2) (xy 152.4 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7500b8a8-d706-489b-9316-e22475af6270")
+	)
+	(wire
+		(pts
+			(xy 119.38 63.5) (xy 119.38 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "75839cc9-659c-4f88-bdbe-3f7e5436740c")
+	)
+	(wire
+		(pts
+			(xy 167.64 76.2) (xy 170.18 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "822212ca-32b4-4af3-82fc-81832dc5f2f2")
+	)
+	(wire
+		(pts
+			(xy 180.34 76.2) (xy 180.34 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "967e75fe-19e7-4808-a689-16fac0aac9a0")
+	)
+	(wire
+		(pts
+			(xy 177.8 76.2) (xy 180.34 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9e1ffdbd-227a-4cb4-af22-30458a26646a")
+	)
+	(wire
+		(pts
+			(xy 149.86 76.2) (xy 149.86 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a054e95c-ea8f-4a56-9feb-6365dade761a")
+	)
+	(wire
+		(pts
+			(xy 119.38 88.9) (xy 119.38 86.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a283c363-3526-4b01-a9a5-fafd5d00bf06")
+	)
+	(wire
+		(pts
+			(xy 180.34 76.2) (xy 182.88 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b211622a-8230-4335-8c9e-565653a9dd09")
+	)
+	(wire
+		(pts
+			(xy 119.38 76.2) (xy 121.92 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "be27789b-897d-4536-ac5f-5f1c8cd45998")
+	)
+	(wire
+		(pts
+			(xy 119.38 78.74) (xy 119.38 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c8deece7-d44f-4cfa-9023-4632c6cc672b")
+	)
+	(wire
+		(pts
+			(xy 149.86 78.74) (xy 149.86 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ee3ddd0c-644e-4288-9319-9561c532ce46")
+	)
+	(wire
+		(pts
+			(xy 116.84 76.2) (xy 119.38 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f9add731-fb9d-41db-a116-dd901918cb1e")
+	)
+	(text "+-25A = 0.1V +-0.1V"
+		(exclude_from_sim no)
+		(at 137.16 52.07 0)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify left bottom)
+		)
+		(uuid "e9e8c277-cf34-4ad1-a37d-6e1098697b13")
+	)
+	(hierarchical_label "A_IU"
+		(shape input)
+		(at 121.92 76.2 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify left)
+		)
+		(uuid "009eb27d-cf1c-4dda-944a-86fc9ccf3e86")
+	)
+	(hierarchical_label "A_IW"
+		(shape input)
+		(at 182.88 76.2 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify left)
+		)
+		(uuid "3cd995ad-b8cc-48be-9fef-39b6cfd1622f")
+	)
+	(hierarchical_label "A_IV"
+		(shape input)
+		(at 152.4 76.2 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify left)
+		)
+		(uuid "5558c270-8c92-4fb1-94fa-bee8d28cb1f0")
+	)
+	(hierarchical_label "IW"
+		(shape input)
+		(at 167.64 76.2 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify right)
+		)
+		(uuid "61caffe1-86aa-4540-91e8-e42e29d23c47")
+	)
+	(hierarchical_label "IU"
+		(shape input)
+		(at 106.68 76.2 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify right)
+		)
+		(uuid "e810621e-cea8-4238-b1e0-5a920b12bb27")
+	)
+	(hierarchical_label "IV"
+		(shape input)
+		(at 137.16 76.2 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.524 1.524)
+			)
+			(justify right)
+		)
+		(uuid "e8f24f99-1716-477d-bd57-90a62d6639b1")
+	)
+	(symbol
+		(lib_id "stmbl:+3.3VP")
+		(at 119.38 63.5 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747146")
+		(property "Reference" "#PWR064"
+			(at 123.19 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3VP"
+			(at 119.38 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 119.38 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 119.38 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 119.38 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "978b138f-c8a9-4188-bbcb-56de20066fe3")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "#PWR064")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:GNDPWR")
+		(at 119.38 88.9 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-00005774715a")
+		(property "Reference" "#PWR065"
+			(at 119.38 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 119.38 92.202 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 119.38 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 119.38 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 119.38 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b86fb6f1-8192-4c01-babc-4a588ce29978")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "#PWR065")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:R")
+		(at 113.03 76.2 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-00005774716e")
+		(property "Reference" "R46"
+			(at 113.03 78.232 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "470"
+			(at 113.03 76.2 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "stmbl:R_0603"
+			(at 113.03 74.422 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 113.03 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 36.83 -36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 113.03 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 113.03 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" ""
+			(at 113.03 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 113.03 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "1%"
+			(at 113.03 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 36.83 -36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "6709708d-7e2b-4f6d-a892-2ee62d5fca8c")
+		)
+		(pin "2"
+			(uuid "c3e769c2-e891-4a38-a9fc-7f66b2a22411")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "R46")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:C")
+		(at 119.38 82.55 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747194")
+		(property "Reference" "C33"
+			(at 120.015 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "18p"
+			(at 120.015 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "stmbl:C_0603"
+			(at 120.3452 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 119.38 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 0 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 119.38 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 119.38 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" "50V"
+			(at 119.38 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 119.38 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "X5R"
+			(at 119.38 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 0 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "c5851f0d-fdcf-49ac-a1cd-40b38ba9e3af")
+		)
+		(pin "2"
+			(uuid "03dd264d-a7db-4ebe-8842-73992171f151")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "C33")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:R")
+		(at 119.38 69.85 180)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747224")
+		(property "Reference" "R58"
+			(at 117.348 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "15k"
+			(at 119.38 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "stmbl:R_0603"
+			(at 121.158 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 119.38 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 238.76 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 119.38 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 119.38 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" ""
+			(at 119.38 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 119.38 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "1%"
+			(at 119.38 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 238.76 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "fc23ac1d-6929-4fad-9783-9df5fa06cf23")
+		)
+		(pin "2"
+			(uuid "7622e88d-f50b-4a51-9f57-1ab89b051436")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "R58")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:+3.3VP")
+		(at 149.86 63.5 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747506")
+		(property "Reference" "#PWR066"
+			(at 153.67 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3VP"
+			(at 149.86 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 149.86 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 149.86 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 149.86 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "8db89230-1a2e-480b-b00e-861b05cfd7d2")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "#PWR066")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:GNDPWR")
+		(at 149.86 88.9 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-00005774750c")
+		(property "Reference" "#PWR067"
+			(at 149.86 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 149.86 92.202 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 149.86 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 149.86 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 149.86 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "088f0548-7ba2-4f91-ac63-7b24d429db71")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "#PWR067")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:R")
+		(at 143.51 76.2 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747512")
+		(property "Reference" "R84"
+			(at 143.51 78.232 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "470"
+			(at 143.51 76.2 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "stmbl:R_0603"
+			(at 143.51 74.422 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 143.51 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 67.31 -67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 143.51 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 143.51 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" ""
+			(at 143.51 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 143.51 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "1%"
+			(at 143.51 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 67.31 -67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "d682f25f-c1a1-4720-b737-1b3a27b568ab")
+		)
+		(pin "2"
+			(uuid "8444e4fb-3a31-4820-96a4-92dcbc8da7a3")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "R84")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:C")
+		(at 149.86 82.55 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747518")
+		(property "Reference" "C45"
+			(at 150.495 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "18p"
+			(at 150.495 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "stmbl:C_0603"
+			(at 150.8252 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 149.86 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 0 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 149.86 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 149.86 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" "50V"
+			(at 149.86 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 149.86 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "X5R"
+			(at 149.86 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 0 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "45b90654-f220-412d-a604-cfdcefc10054")
+		)
+		(pin "2"
+			(uuid "90bdd876-2150-4335-a472-b0ed20a1d5f5")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "C45")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:R")
+		(at 149.86 69.85 180)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-00005774751e")
+		(property "Reference" "R90"
+			(at 147.828 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "15k"
+			(at 149.86 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "stmbl:R_0603"
+			(at 151.638 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 149.86 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 299.72 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 149.86 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 149.86 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" ""
+			(at 149.86 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 149.86 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "1%"
+			(at 149.86 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 299.72 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "e1a86d9e-d90a-4b95-b089-6a184c84e0a4")
+		)
+		(pin "2"
+			(uuid "4aa87808-f827-41b6-9655-83d9ba7b91a7")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "R90")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:+3.3VP")
+		(at 180.34 63.5 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-00005774767b")
+		(property "Reference" "#PWR068"
+			(at 184.15 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3VP"
+			(at 180.34 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 180.34 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 180.34 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 180.34 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "6cd8aa54-7d6b-4871-b3bf-d3267a186609")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "#PWR068")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:GNDPWR")
+		(at 180.34 88.9 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747681")
+		(property "Reference" "#PWR069"
+			(at 180.34 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 180.34 92.202 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 180.34 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 180.34 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 180.34 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "139f007b-fd03-428e-9895-803a2c0e9ba2")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "#PWR069")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:R")
+		(at 173.99 76.2 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747687")
+		(property "Reference" "R100"
+			(at 173.99 78.232 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "470"
+			(at 173.99 76.2 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "stmbl:R_0603"
+			(at 173.99 74.422 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 97.79 -97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 173.99 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 173.99 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" ""
+			(at 173.99 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 173.99 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "1%"
+			(at 173.99 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 97.79 -97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b14d4841-8f34-4118-9fd6-4618d5b177dc")
+		)
+		(pin "2"
+			(uuid "8033c65e-42f4-4ea4-8c96-e19a6dda49d6")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "R100")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:C")
+		(at 180.34 82.55 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-00005774768d")
+		(property "Reference" "C57"
+			(at 180.975 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "18p"
+			(at 180.975 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "stmbl:C_0603"
+			(at 181.3052 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 180.34 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 0 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 180.34 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 180.34 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" "50V"
+			(at 180.34 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 180.34 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "X5R"
+			(at 180.34 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 0 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "6eb7571a-1533-4088-9224-ddcc8232cde8")
+		)
+		(pin "2"
+			(uuid "1f289f01-2c5a-4f6f-9214-2875d06c9e74")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "C57")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:R")
+		(at 180.34 69.85 180)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-0000-0000-000057747693")
+		(property "Reference" "R107"
+			(at 178.308 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "15k"
+			(at 180.34 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "stmbl:R_0603"
+			(at 182.118 69.85 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 180.34 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 360.68 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 180.34 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 180.34 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" ""
+			(at 180.34 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 180.34 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "1%"
+			(at 180.34 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at 360.68 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b6503e32-d5e2-4f49-b15c-6b6bbbe6b81a")
+		)
+		(pin "2"
+			(uuid "cee0fbf1-bf15-4d0e-a64f-15d3ad7bc96b")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000057745b52"
+					(reference "R107")
+					(unit 1)
+				)
+			)
+		)
+	)
+)
