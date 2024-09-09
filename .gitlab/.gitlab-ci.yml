@@ -1,0 +1,24 @@
+image: debian
+
+before_script:
+- apt update
+- apt install -y gcc-arm-none-eabi make python3 git
+
+build:
+  stage: build
+  script:
+  - make clean
+  - make
+  - make binall
+  - echo $(git branch --show-current)
+  artifacts:
+    paths:
+     - obj_app
+     - obj_boot
+     - obj_f3_boot
+     - obj_hvf3
+     - stmbl.dfu
+     - f3.bin
+     - f3.dfu
+     - f4.bin
+     - f4.dfu
