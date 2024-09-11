@@ -58,7 +58,7 @@ Instead internally we kept a more compact MKP Polypropylene snubber capacitor fo
 We also optimized heat dissipation components and layout, reducing overall volume by half compared to the original design.
 
 <img src="./img/airflow1.png" alt="image" width="600"/> 
-<img src="./img/temp.png" alt="image" width="600"/> 
+<img src="./img/copper.png" alt="image" width="600"/> 
 
 
 ## Other obsolete components
