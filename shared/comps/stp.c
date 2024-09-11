@@ -41,7 +41,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   float max_acc = MAX(PIN(max_acc), 0.01);
   float max_vel = MAX(PIN(max_vel), 0.01);
-  
+
   // jog input
   float acc_ext_cmd = LIMIT(PIN(acc_ext_cmd), PIN(max_acc) * 0.99);
   float vel_ext_cmd = LIMIT(PIN(vel_ext_cmd) + PIN(jog) * max_vel, PIN(max_vel) * 0.99);
@@ -51,7 +51,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   // pos input
   float target = CLAMP(PIN(target), PIN(min_pos), PIN(max_pos));
-  PIN(target) = target;
+  PIN(target)  = target;
 
   // update
   PIN(pos) += PIN(vel_cmd) * period + PIN(acc_cmd) * period * period / 2.0;
@@ -68,30 +68,29 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   // calc new acc
   float acc = 0.0;
-  if(periods_to_go){
+  if(periods_to_go) {
     acc = 2.0 * to_go / (periods_to_go * periods_to_go * period * period);
   }
 
   float vel = acc * periods_to_go * period;
-  vel = LIMIT(vel, max_vel);
-  acc = (vel - PIN(vel_cmd)) / period;
-  acc = LIMIT(acc, max_acc);
+  vel       = LIMIT(vel, max_vel);
+  acc       = (vel - PIN(vel_cmd)) / period;
+  acc       = LIMIT(acc, max_acc);
 
-  if(time_to_go < period && ABS(PIN(vel_cmd)) < max_acc * period){
-    acc = 0.0;
+  if(time_to_go < period && ABS(PIN(vel_cmd)) < max_acc * period) {
+    acc          = 0.0;
     PIN(vel_cmd) = 0.0;
-    PIN(pos) = PIN(target);
+    PIN(pos)     = PIN(target);
   }
 
   PIN(acc_cmd) = acc;
-  PIN(dtg) = to_go;
-  PIN(ttg) = periods_to_go * period;
-  PIN(mpos) = mod(PIN(pos));
+  PIN(dtg)     = to_go;
+  PIN(ttg)     = periods_to_go * period;
+  PIN(mpos)    = mod(PIN(pos));
 
-  if((periods_to_go <= 1) & (ABS(PIN(vel_cmd)) < max_vel / 10000.0)){
+  if((periods_to_go <= 1) & (ABS(PIN(vel_cmd)) < max_vel / 10000.0)) {
     PIN(at_target) = 1.0;
-  }
-  else{
+  } else {
     PIN(at_target) = 0.0;
   }
 }

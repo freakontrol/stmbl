@@ -13,16 +13,16 @@ HAL_PIN(offset);
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct auto_ac_ctx_t * ctx = (struct auto_ac_ctx_t *)ctx_ptr;
   struct auto_ac_pin_ctx_t *pins = (struct auto_ac_pin_ctx_t *)pin_ptr;
-  PIN(lpf) = 1.0;
-  PIN(th) = -1.0;
-  PIN(offset) = 0.0;
+  PIN(lpf)                       = 1.0;
+  PIN(th)                        = -1.0;
+  PIN(offset)                    = 0.0;
 }
 
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct auto_ac_pin_ctx_t *pins = (struct auto_ac_pin_ctx_t *)pin_ptr;
 
-  if(ABS(PIN(in)) <= PIN(th)){
+  if(ABS(PIN(in)) <= PIN(th)) {
     PIN(offset) = PIN(in) * LP_HZ(PIN(lpf)) + (1.0 - LP_HZ(PIN(lpf))) * PIN(offset);
   }
 

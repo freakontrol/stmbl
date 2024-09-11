@@ -12,7 +12,6 @@
 HAL_COMP(endat);
 
 
-
 HAL_PIN(pos);
 HAL_PIN(mpos);
 
@@ -63,7 +62,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //SPI3
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3, ENABLE);
-  
+
   SPI3->CR1 |= SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
 
   //PC12 spi3 mosi
@@ -107,15 +106,15 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // DMA_DeInit(DMA1_Stream2);
   // DMA_Init(DMA1_Stream2, &dma_rx_config);
 
-  PIN(pos_len) = 18; // 17
-  PIN(mpos_len) = 12; // 15
+  PIN(pos_len)     = 18;  // 17
+  PIN(mpos_len)    = 12;  // 15
   PIN(endat_state) = 13;
-  PIN(swap) = 1;
-  PIN(skip) = 10;
-  PIN(bytes) = 7;
+  PIN(swap)        = 1;
+  PIN(skip)        = 10;
+  PIN(bytes)       = 7;
 }
 
-union{
+union {
   uint64_t data;
   uint8_t dataa[8];
 } df, df1, df2;
@@ -130,177 +129,179 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct endat_ctx_t *ctx      = (struct endat_ctx_t *)ctx_ptr;
   struct endat_pin_ctx_t *pins = (struct endat_pin_ctx_t *)pin_ptr;
 
-  req = 0;
-  uint8_t addr = 0; 
+  req          = 0;
+  uint8_t addr = 0;
 
-  ctx->data.pos_bits = PIN(pos_len);
+  ctx->data.pos_bits  = PIN(pos_len);
   ctx->data.mpos_bits = PIN(mpos_len);
 
-  switch((int)PIN(endat_state)){
-    case 0: // reset error
+  switch((int)PIN(endat_state)) {
+    case 0:  // reset error
       req = ENDAT_RESET;
-    break;
+      break;
 
-    case 1: // select mem state
-      req = ENDAT_SELECT_MEM;
+    case 1:  // select mem state
+      req  = ENDAT_SELECT_MEM;
       addr = ENDAT_MEM_STATE;
-    break;
+      break;
 
-    case 2: // read error
-      req = ENDAT_READ_ADDR;
+    case 2:  // read error
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_ERROR;
-    break;
+      break;
 
-    case 3: // read warning
-      req = ENDAT_READ_ADDR;
+    case 3:  // read warning
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_WARNING;
-    break;
+      break;
 
-    case 4: // select mem 0
-      req = ENDAT_SELECT_MEM;
+    case 4:  // select mem 0
+      req  = ENDAT_SELECT_MEM;
       addr = ENDAT_MEM_PARAM0;
-    break;
+      break;
 
-    case 5: // read len
-      req = ENDAT_READ_ADDR;
+    case 5:  // read len
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_POS_LEN;
-    break;
+      break;
 
-    case 6: // read type
-      req = ENDAT_READ_ADDR;
+    case 6:  // read type
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_TYPE;
-    break;
+      break;
 
-    case 7: // select mem 1
-      req = ENDAT_SELECT_MEM;
+    case 7:  // select mem 1
+      req  = ENDAT_SELECT_MEM;
       addr = ENDAT_MEM_PARAM1;
-    break;
+      break;
 
-    case 8: // read multi
-      req = ENDAT_READ_ADDR;
+    case 8:  // read multi
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_MULTITURN;
-    break;
+      break;
 
-    case 9: // read res low
-      req = ENDAT_READ_ADDR;
+    case 9:  // read res low
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_RES_LOW;
-    break;
+      break;
 
-    case 10: // read res high
-      req = ENDAT_READ_ADDR;
+    case 10:  // read res high
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_RES_HIGH;
-    break;
+      break;
 
-    case 11: // select mem 2
-      req = ENDAT_SELECT_MEM;
+    case 11:  // select mem 2
+      req  = ENDAT_SELECT_MEM;
       addr = ENDAT_MEM_PARAM2;
-    break;
+      break;
 
-    case 12: // read max vel
-      req = ENDAT_READ_ADDR;
+    case 12:  // read max vel
+      req  = ENDAT_READ_ADDR;
       addr = ENDAT_ADDR_MAX_VEL;
-    break;
+      break;
 
-    case 13: // read pos
+    case 13:  // read pos
       req = ENDAT_READ_POS;
-    break;
+      break;
   }
 
-  if(PIN(req) > 0){
+  if(PIN(req) > 0) {
     req = PIN(req);
   }
 
-  SPI3->CR1 &= ~SPI_CR1_SPE;//disable spi
+  SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
   SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
 
   uint32_t bits = endat_tx(req, addr, 0, df.dataa, &(ctx->data));
-  df2.data = df.data;
+  df2.data      = df.data;
 
-  GPIO_SetBits(GPIOD, GPIO_Pin_15);//tx enable
-  SPI3->CR1 |= SPI_CR1_BIDIOE;//enable output
-  SPI3->CR1 |= SPI_CR1_SPE;//enable spi
+  GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
+  SPI3->CR1 |= SPI_CR1_BIDIOE;       //enable output
+  SPI3->CR1 |= SPI_CR1_SPE;          //enable spi
 
-  for(int i = 0; i < (bits + 7) / 8; i++){
+  for(int i = 0; i < (bits + 7) / 8; i++) {
     SPI3->DR = df.dataa[i];
-    while(!(SPI3->SR & SPI_SR_TXE));
-    while(SPI3->SR & SPI_SR_BSY);
+    while(!(SPI3->SR & SPI_SR_TXE))
+      ;
+    while(SPI3->SR & SPI_SR_BSY)
+      ;
   }
-  
-  SPI3->CR1 &= ~SPI_CR1_BIDIOE;//disable output, this activates the clock
-  GPIO_ResetBits(GPIOD, GPIO_Pin_15);//tx disable
 
-  SPI3->CR1 &= ~SPI_CR1_SPE;//disable spi
-  if(PIN(swap) > 0.0){ 
+  SPI3->CR1 &= ~SPI_CR1_BIDIOE;        //disable output, this activates the clock
+  GPIO_ResetBits(GPIOD, GPIO_Pin_15);  //tx disable
+
+  SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
+  if(PIN(swap) > 0.0) {
     SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
-  }
-  else{
+  } else {
     SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
   }
-  SPI3->CR1 |= SPI_CR1_SPE;//enable spi
+  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi
 
   df.data = 0;
-  for(int i = 0; i < MIN(sizeof(df.data), PIN(bytes)); i++){
-    while(!(SPI3->SR & SPI_SR_RXNE));
+  for(int i = 0; i < MIN(sizeof(df.data), PIN(bytes)); i++) {
+    while(!(SPI3->SR & SPI_SR_RXNE))
+      ;
     df.dataa[i] = SPI3->DR;
   }
 
-  df1.data = df.data >> (int)PIN(skip);
+  df1.data   = df.data >> (int)PIN(skip);
   PIN(shift) = PIN(skip);
-  while((df1.data & 1) == 0 && PIN(shift) < 32.0){
+  while((df1.data & 1) == 0 && PIN(shift) < 32.0) {
     df1.data = df1.data >> 1;
-    PIN(shift)++;
+    PIN(shift)
+    ++;
   }
 
   uint32_t ret = endat_rx(df1.dataa, MIN(sizeof(df1.data), PIN(bytes)) * 8, &(ctx->data));
 
-  switch((int) PIN(endat_state)){
+  switch((int)PIN(endat_state)) {
     case 12:
-      if(ctx->data.error_bit){
+      if(ctx->data.error_bit) {
         PIN(endat_state) = 0;
-        PIN(error) = 1;
-        PIN(state) = 0;
-      }
-      else{
+        PIN(error)       = 1;
+        PIN(state)       = 0;
+      } else {
         PIN(state) = 1;
         PIN(error) = 0;
       }
 
-      if(ret == 0){
+      if(ret == 0) {
         PIN(endat_state) = 0;
-        PIN(error) = 1;
-        PIN(state) = 0;
+        PIN(error)       = 1;
+        PIN(state)       = 0;
       }
-    break;
+      break;
 
     default:
       PIN(state) = 0;
-      if(ret == 0){
+      if(ret == 0) {
         PIN(endat_state) = 0;
-      }
-      else{
-        PIN(endat_state)++;
+      } else {
+        PIN(endat_state)
+        ++;
       }
   }
 
-  PIN(mpos) = ctx->data.mpos;
-  PIN(f1) = ctx->data.error_bit;
-  PIN(crc) = ctx->data.crc;
-  PIN(pos_len) = ctx->data.pos_bits;
-  PIN(mpos_len) = ctx->data.mpos_bits;
-  PIN(pos_res) = ctx->data.pos_res;
-  PIN(type) = ctx->data.fb_type;
-  PIN(endat_error) = ctx->data.error.reg;
+  PIN(mpos)          = ctx->data.mpos;
+  PIN(f1)            = ctx->data.error_bit;
+  PIN(crc)           = ctx->data.crc;
+  PIN(pos_len)       = ctx->data.pos_bits;
+  PIN(mpos_len)      = ctx->data.mpos_bits;
+  PIN(pos_res)       = ctx->data.pos_res;
+  PIN(type)          = ctx->data.fb_type;
+  PIN(endat_error)   = ctx->data.error.reg;
   PIN(endat_warning) = ctx->data.warning.reg;
-  PIN(max_vel) = ctx->data.max_vel;
+  PIN(max_vel)       = ctx->data.max_vel;
 
-  if(ctx->data.pos_bits){
+  if(ctx->data.pos_bits) {
     PIN(pos) = mod(ctx->data.pos * 2.0 * M_PI / (1 << ctx->data.pos_bits));
   }
 
   //TODO: wait for busy flag?
-  SPI3->CR1 &= ~SPI_CR1_SPE;//disable spi
+  SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
 
-  if(PIN(print_time) > 0.0){
+  if(PIN(print_time) > 0.0) {
     PIN(timer) += period;
   }
 }
@@ -312,121 +313,116 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(PIN(timer) > PIN(print_time)) {
     PIN(timer) = 0.0;
 
-    uint64_t data = df.data;
+    uint64_t data    = df.data;
     uint64_t reqdata = df2.data;
-    uint64_t pos1 = ctx->data.pos;
-    uint64_t pos2 = ctx->data.mpos;
-    uint64_t crc = ctx->data.crc;
-    uint32_t shift = PIN(shift);
+    uint64_t pos1    = ctx->data.pos;
+    uint64_t pos2    = ctx->data.mpos;
+    uint64_t crc     = ctx->data.crc;
+    uint32_t shift   = PIN(shift);
 
     printf("req: ");
-    switch(req){
+    switch(req) {
       case ENDAT_SELECT_MEM:
         printf("ENDAT_SELECT_MEM\n");
-      break;
+        break;
 
       case ENDAT_READ_ADDR:
         printf("ENDAT_READ_ADDR\n");
-      break;
+        break;
 
       case ENDAT_WRITE_ADDR:
         printf("ENDAT_WRITE_ADDR\n");
-      break;
+        break;
 
       case ENDAT_READ_POS:
         printf("ENDAT_READ_POS\n");
-      break;
+        break;
 
       default:
         printf("unkonwn req\n");
     }
-    
+
     printf("req data: ");
-    for(int i = 0; i < 64; i++){
-      if(reqdata & 1){
+    for(int i = 0; i < 64; i++) {
+      if(reqdata & 1) {
         printf("1");
-      }
-      else{
+      } else {
         printf("0");
       }
       reqdata >>= 1;
-      if(i == 8 - 1){
+      if(i == 8 - 1) {
         printf("-");
       }
-      if(i == 8 + 8 - 1){
+      if(i == 8 + 8 - 1) {
         printf("-");
       }
-      if(i == 8 + 8 + 16 - 1){
+      if(i == 8 + 8 + 16 - 1) {
         printf("-");
       }
-      if(i == 8 + 8 + 16 + 5 - 1){
+      if(i == 8 + 8 + 16 + 5 - 1) {
         printf("-");
       }
     }
     printf("\n");
 
     printf("data: ");
-    for(int i = 0; i < 32; i++){
-      if(data & 1){
+    for(int i = 0; i < 32; i++) {
+      if(data & 1) {
         printf("1");
-      }
-      else{
+      } else {
         printf("0");
       }
       data >>= 1;
-      if(i == shift - 1){
+      if(i == shift - 1) {
         printf("-");
       }
-      if(i == shift + 2 - 1){
+      if(i == shift + 2 - 1) {
         printf("-");
       }
-      if(i == shift + 2 + ctx->data.pos_bits - 1){
+      if(i == shift + 2 + ctx->data.pos_bits - 1) {
         printf("-");
       }
-      if(i == shift + 2 + ctx->data.pos_bits + ctx->data.mpos_bits - 1){
+      if(i == shift + 2 + ctx->data.pos_bits + ctx->data.mpos_bits - 1) {
         printf("-");
       }
     }
     printf("\n");
     printf("pos1: ");
-    for(int i = 0; i < 64; i++){
-      if(pos1 & 1){
+    for(int i = 0; i < 64; i++) {
+      if(pos1 & 1) {
         printf("1");
-      }
-      else{
+      } else {
         printf("0");
       }
       pos1 >>= 1;
-      if(i == ctx->data.pos_bits - 1){
+      if(i == ctx->data.pos_bits - 1) {
         printf("-");
       }
     }
     printf("\n");
     printf("pos2: ");
-    for(int i = 0; i < 64; i++){
-      if(pos2 & 1){
+    for(int i = 0; i < 64; i++) {
+      if(pos2 & 1) {
         printf("1");
-      }
-      else{
+      } else {
         printf("0");
       }
       pos2 >>= 1;
-      if(i == ctx->data.mpos_bits - 1){
+      if(i == ctx->data.mpos_bits - 1) {
         printf("-");
       }
     }
     printf("\n");
 
     printf("crc:  ");
-    for(int i = 0; i < 64; i++){
-      if(crc & 1){
+    for(int i = 0; i < 64; i++) {
+      if(crc & 1) {
         printf("1");
-      }
-      else{
+      } else {
         printf("0");
       }
       crc >>= 1;
-      if(i == 5 - 1){
+      if(i == 5 - 1) {
         printf("-");
       }
     }

@@ -40,7 +40,7 @@ HAL_PIN(psi);
 
 HAL_PIN(ff);  // r feed forward
 HAL_PIN(cur_bw);
-HAL_PIN(ksp); // predictor
+HAL_PIN(ksp);   // predictor
 HAL_PIN(kind);  // bemf feed forward
 HAL_PIN(kci);
 
@@ -61,21 +61,21 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct curpid_ctx_t * ctx = (struct curpid_ctx_t *)ctx_ptr;
   struct curpid_pin_ctx_t *pins = (struct curpid_pin_ctx_t *)pin_ptr;
 
-  PIN(r)  = 0.5;
-  PIN(ld)  = 0.01;
-  PIN(lq)  = 0.01;
-  PIN(psi) = 0.05;
-  PIN(cur_bw)  = 250.0;
-  PIN(kci)  = 500.0;
-  PIN(ksp)  = 1.0;
-  PIN(scale) = 1.0;
+  PIN(r)      = 0.5;
+  PIN(ld)     = 0.01;
+  PIN(lq)     = 0.01;
+  PIN(psi)    = 0.05;
+  PIN(cur_bw) = 250.0;
+  PIN(kci)    = 500.0;
+  PIN(ksp)    = 1.0;
+  PIN(scale)  = 1.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct curpid_ctx_t *ctx      = (struct curpid_ctx_t *)ctx_ptr;
   struct curpid_pin_ctx_t *pins = (struct curpid_pin_ctx_t *)pin_ptr;
 
-  float r = MAX(PIN(r), 0.1);
+  float r  = MAX(PIN(r), 0.1);
   float ld = MAX(PIN(ld), 0.001);
   float lq = MAX(PIN(lq), 0.001);
 
@@ -98,18 +98,17 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float absvolt;
 
   if(PIN(cmd_mode) == VOLT_MODE) {
-    absvolt = idc * idc + iqc * iqc; // clamp cmd
+    absvolt = idc * idc + iqc * iqc;  // clamp cmd
     PIN(scale) *= sqrtf(CLAMP(max_volt * max_volt / MAX(absvolt, max_volt * 0.1), 0.0, 1.0));
 
-    abscur = id * id + iq * iq; // clamp over fb
+    abscur = id * id + iq * iq;  // clamp over fb
     PIN(scale) += (max_cur * max_cur - abscur) * PIN(kci) * period;
-  }
-  else{
-    abscur = idc * idc + iqc * iqc; // clamp cmd
+  } else {
+    abscur     = idc * idc + iqc * iqc;  // clamp cmd
     PIN(scale) = sqrtf(max_cur * max_cur / MAX(abscur, max_cur * 0.1));
   }
   PIN(scale) = CLAMP(PIN(scale), 0.0, 1.0);
-  
+
   idc *= PIN(scale);
   iqc *= PIN(scale);
 

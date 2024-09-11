@@ -13,8 +13,7 @@ HAL_PIN(max_vel);
 HAL_PIN(scale);
 
 
-
-static void rt_func(float  gainriod, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+static void rt_func(float gainriod, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct gain_ctx_t * ctx = (struct gain_ctx_t *)ctx_ptr;
   struct gain_pin_ctx_t *pins = (struct gain_pin_ctx_t *)pin_ptr;
 

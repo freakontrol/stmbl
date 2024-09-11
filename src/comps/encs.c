@@ -132,13 +132,13 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_ENC_TIM->CNT   = 0;
   FB0_ENC_TIM->CCR3  = 0;
 
-  const uint32_t tx_high   = FB0_Z_PIN;
-  const uint32_t tx_low    = FB0_Z_PIN << 16;
-  int pos            = 0;
-  request_buf[pos++] = tx_high;
-  request_buf[pos++] = tx_high;
-  request_buf[pos++] = tx_high;
-  request_buf[pos++] = tx_high;
+  const uint32_t tx_high = FB0_Z_PIN;
+  const uint32_t tx_low  = FB0_Z_PIN << 16;
+  int pos                = 0;
+  request_buf[pos++]     = tx_high;
+  request_buf[pos++]     = tx_high;
+  request_buf[pos++]     = tx_high;
+  request_buf[pos++]     = tx_high;
 
   request_buf[pos++] = tx_low;  //start bit
 
@@ -231,11 +231,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     data.enc_data[j / 8] |= (1 << j % 8);
   }
 
-  if(!data.sanyo.start1 && !data.sanyo.start2 && !data.sanyo.start3 && data.sanyo.stop1 && data.sanyo.stop2 && data.sanyo.stop3){
-    PIN(pos) = ((float)data.sanyo.pos0_15 / 65536.0f + data.sanyo.pos16) * M_PI - M_PI;
+  if(!data.sanyo.start1 && !data.sanyo.start2 && !data.sanyo.start3 && data.sanyo.stop1 && data.sanyo.stop2 && data.sanyo.stop3) {
+    PIN(pos)   = ((float)data.sanyo.pos0_15 / 65536.0f + data.sanyo.pos16) * M_PI - M_PI;
     PIN(error) = 0;
     PIN(state) = 3;
-  }else{
+  } else {
     PIN(error) = 1;
     PIN(state) = 0;
   }
@@ -244,21 +244,22 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_Z_TXEN_PORT->BSRRL = FB0_Z_TXEN_PIN;  //TX enable
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_1;
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_0;  //set tx pin to output
-  TIM8->ARR = 32;  //2.545 Mhz
+  TIM8->ARR = 32;                             //2.545 Mhz
   DMA_Cmd(DMA2_Stream1, DISABLE);
   DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF1);
   DMA_Cmd(DMA2_Stream1, ENABLE);
   //wait for DMA transfer complete
-  while(DMA_GetFlagStatus(DMA2_Stream1, DMA_FLAG_TCIF1) == RESET);
+  while(DMA_GetFlagStatus(DMA2_Stream1, DMA_FLAG_TCIF1) == RESET)
+    ;
   FB0_Z_TXEN_PORT->BSRRH = FB0_Z_TXEN_PIN;     //TX disable
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_0;  //set tx pin to af
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_1;
 
   //reset timer
   FB0_ENC_TIM->CR1 &= ~TIM_CR1_CEN;
-  FB0_ENC_TIM->CNT  = 0;
-  volatile uint32_t foo = FB0_ENC_TIM->CCR3;
-  FB0_ENC_TIM->CCR3 = 0;
+  FB0_ENC_TIM->CNT      = 0;
+  //volatile uint32_t foo = FB0_ENC_TIM->CCR3;
+  FB0_ENC_TIM->CCR3     = 0;
   FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;  // enable tim
 
   //start rx DMA

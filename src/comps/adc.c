@@ -23,13 +23,13 @@ HAL_PIN(cos0);   //cos output
 HAL_PIN(sin0l);  //sin output, last group only
 HAL_PIN(cos0l);  //cos output, last group only
 HAL_PIN(quad);   //quadrant of sin/cos
-HAL_PIN(amp0);   
+HAL_PIN(amp0);
 
 HAL_PIN(sin1);   //sin output
 HAL_PIN(cos1);   //cos output
 HAL_PIN(sin1l);  //sin output, last group only
 HAL_PIN(cos1l);  //cos output, last group only
-HAL_PIN(amp1);   
+HAL_PIN(amp1);
 
 HAL_PIN(res_mode);  //polarity flip mode for resolvers
 
@@ -147,15 +147,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(cos0l) = co0[ADC_GROUPS - 1];
   PIN(sin0)  = sin0all / (float)ADC_GROUPS;
   PIN(cos0)  = cos0all / (float)ADC_GROUPS;
-  PIN(amp0) = PIN(amp0) * 0.9 + sqrtf(s * s + c * c) * 0.1;
+  PIN(amp0)  = PIN(amp0) * 0.9 + sqrtf(s * s + c * c) * 0.1;
 #ifdef FB1
-  s = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] & 0x0000ffff, 1);
-  c = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] >> 16, 1);
+  s          = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] & 0x0000ffff, 1);
+  c          = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] >> 16, 1);
   PIN(sin1l) = si1[ADC_GROUPS - 1];
   PIN(cos1l) = co1[ADC_GROUPS - 1];
   PIN(sin1)  = sin1all / (float)ADC_GROUPS;
   PIN(cos1)  = cos1all / (float)ADC_GROUPS;
-  PIN(amp1) = PIN(amp1) * 0.9 + sqrtf(s * s + c * c) * 0.1;
+  PIN(amp1)  = PIN(amp1) * 0.9 + sqrtf(s * s + c * c) * 0.1;
 #endif
 
   // if(PIN(res_en) > 0.0) {

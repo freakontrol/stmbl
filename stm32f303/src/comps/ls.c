@@ -137,7 +137,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.r       = 0.0;
   config.pins.l       = 0.0;
   config.pins.psi     = 0.0;
-  config.pins.cur_bw   = 0.0;
+  config.pins.cur_bw  = 0.0;
   config.pins.cur_ff  = 0.0;
   config.pins.cur_ind = 0.0;
   config.pins.max_y   = 0.0;
@@ -213,14 +213,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           break;
       }
 
-      PIN(en)         = ctx->packet_to_hv.flags.enable;
-      PIN(phase_mode) = ctx->packet_to_hv.flags.phase_type;
-      PIN(cmd_mode)   = ctx->packet_to_hv.flags.cmd_type;
+      PIN(en)               = ctx->packet_to_hv.flags.enable;
+      PIN(phase_mode)       = ctx->packet_to_hv.flags.phase_type;
+      PIN(cmd_mode)         = ctx->packet_to_hv.flags.cmd_type;
       PIN(ignore_fault_pin) = ctx->packet_to_hv.flags.ignore_fault_pin;
-      PIN(d_cmd)      = ctx->packet_to_hv.d_cmd;
-      PIN(q_cmd)      = ctx->packet_to_hv.q_cmd;
-      PIN(pos)        = ctx->packet_to_hv.pos;
-      PIN(vel)        = ctx->packet_to_hv.vel;
+      PIN(d_cmd)            = ctx->packet_to_hv.d_cmd;
+      PIN(q_cmd)            = ctx->packet_to_hv.q_cmd;
+      PIN(pos)              = ctx->packet_to_hv.pos;
+      PIN(vel)              = ctx->packet_to_hv.vel;
 
       if(ctx->packet_to_hv.flags.buf != 0x0) {
         extern struct ringbuf rx_buf;
@@ -230,7 +230,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(r)       = config.pins.r;
       PIN(l)       = config.pins.l;
       PIN(psi)     = config.pins.psi;
-      PIN(cur_bw)   = config.pins.cur_bw;
+      PIN(cur_bw)  = config.pins.cur_bw;
       PIN(cur_ff)  = config.pins.cur_ff;
       PIN(cur_ind) = config.pins.cur_ind;
       PIN(max_y)   = config.pins.max_y;
@@ -247,7 +247,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ++;
       fault = 3;
     }
-  }else if(ctx->timeout <= 5){// if no packet and no timeout, advance pos by velovity
+  } else if(ctx->timeout <= 5) {  // if no packet and no timeout, advance pos by velovity
     PIN(pos) = PIN(pos) + PIN(vel) * period;
   }
 
@@ -290,10 +290,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     // fill tx struct
     ctx->packet_from_hv.fault             = (uint8_t)PIN(fault_in);
-    ctx->packet_from_hv.id_fb              = PIN(id_fb);
-    ctx->packet_from_hv.iq_fb              = PIN(iq_fb);
-    ctx->packet_from_hv.ud_fb              = PIN(ud_fb);
-    ctx->packet_from_hv.uq_fb              = PIN(uq_fb);
+    ctx->packet_from_hv.id_fb             = PIN(id_fb);
+    ctx->packet_from_hv.iq_fb             = PIN(iq_fb);
+    ctx->packet_from_hv.ud_fb             = PIN(ud_fb);
+    ctx->packet_from_hv.uq_fb             = PIN(uq_fb);
     ctx->packet_from_hv.header.conf_addr  = ctx->tx_addr;
     ctx->packet_from_hv.header.config.f32 = state.data[ctx->tx_addr++];
     ctx->tx_addr %= sizeof(state) / 4;
@@ -315,7 +315,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   if(ctx->timeout > 5) {  //disable driver
-    PIN(en) = 0.0;
+    PIN(en)  = 0.0;
     PIN(vel) = 0.0;
     PIN(timeout)
     ++;

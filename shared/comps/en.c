@@ -15,38 +15,35 @@ HAL_PIN(fault);
 HAL_PIN(time);
 HAL_PIN(timer);
 
-static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr){
+static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct en_pin_ctx_t *pins = (struct en_pin_ctx_t *)pin_ptr;
-  PIN(time) = 5;
+  PIN(time)                 = 5;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct en_ctx_t *ctx      = (struct en_ctx_t *)ctx_ptr;
   struct en_pin_ctx_t *pins = (struct en_pin_ctx_t *)pin_ptr;
 
-  if(PIN(en_in) <= 0.0){
+  if(PIN(en_in) <= 0.0) {
     PIN(timer) = 0.0;
-  }
-  else{
+  } else {
     PIN(timer) += period;
   }
 
-  if(PIN(fault) > 0.0){
+  if(PIN(fault) > 0.0) {
     PIN(timer) = 0.0;
   }
 
-  if(PIN(timer) > PIN(time) / 2.0){
+  if(PIN(timer) > PIN(time) / 2.0) {
     PIN(en_out0) = 1.0;
-  }
-  else{
+  } else {
     PIN(en_out0) = 0.0;
   }
 
-  if(PIN(timer) > PIN(time)){
+  if(PIN(timer) > PIN(time)) {
     PIN(en_out1) = 1.0;
-    PIN(timer) = PIN(time);
-  }
-  else{
+    PIN(timer)   = PIN(time);
+  } else {
     PIN(en_out1) = 0.0;
   }
 }

@@ -31,11 +31,11 @@ int _open(const char *name, int flags, int mode) {
   return -1;
 }
 
-int _kill_r(struct _reent *r, int pid, int sig){
+int _kill_r(struct _reent *r, int pid, int sig) {
   return -1;
 }
 
-int _getpid_r (struct _reent *r){
+int _getpid_r(struct _reent *r) {
   return -1;
 }
 

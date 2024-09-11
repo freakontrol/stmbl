@@ -350,7 +350,7 @@ int main(void) {
   hal_parse("hv0.iu = io0.iu");
   hal_parse("hv0.iv = io0.iv");
   hal_parse("hv0.iw = io0.iw");
-  
+
   hal_parse("debug_level 0");
 
   // hal parse config

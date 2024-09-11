@@ -737,7 +737,7 @@ void hal_init(float rt_period, float frt_period) {
 }
 
 void hal_print_pin(hal_pin_inst_t *p) {
-  pin_t *pin                     = pin_by_pin_inst(p);
+  pin_t *pin            = pin_by_pin_inst(p);
   hal_comp_inst_t *comp = comp_inst_by_pin_inst(p);
 
   pin_t *pin2;
@@ -785,11 +785,11 @@ uint32_t hal_parse(char *cmd) {
 }
 
 uint32_t hal_parse_(char *cmd) {
-  if(cmd == 0){
-    return(2);
+  if(cmd == 0) {
+    return (2);
   }
-  if(cmd[0] == '\n'){
-    return(2);
+  if(cmd[0] == '\n') {
+    return (2);
   }
 
   if(call_cmd(cmd)) {
@@ -814,11 +814,11 @@ uint32_t hal_parse_(char *cmd) {
   uint32_t found = 0;
 
   foo = sscanf(cmd, " %[a-zA-Z_]%li.%[a-zA-Z0-9_] = %f", sinkc, &sinki, sinkp, &value);
-  if(sinki < 0){
+  if(sinki < 0) {
     for(int i = 0; i < hal.comp_inst_count; i++) {
-       if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
-         sinki++;
-       }
+      if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
+        sinki++;
+      }
     }
   }
 
@@ -859,14 +859,14 @@ uint32_t hal_parse_(char *cmd) {
       break;
     case 3:
       foo = sscanf(cmd, " %[a-zA-Z_]%li.%[a-zA-Z0-9_] = %[a-zA-Z_]%li.%[a-zA-Z0-9_]", sinkc, &sinki, sinkp, sourcec, &sourcei, sourcep);
-      if(sinki < 0){
+      if(sinki < 0) {
         for(int i = 0; i < hal.comp_inst_count; i++) {
           if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
             sinki++;
           }
         }
-      } 
-      if(sourcei < 0){
+      }
+      if(sourcei < 0) {
         for(int i = 0; i < hal.comp_inst_count; i++) {
           if(!strcmp(hal.comp_insts[i].comp->name, sourcec)) {
             sourcei++;
@@ -945,7 +945,7 @@ void hal_error(uint32_t error_handler) {
 void fault(char *ptr) {
   printf("trigger fault handler\n");
   uint32_t *p = (uint32_t *)0x08010000;
-  p[0]                 = 1;
+  p[0]        = 1;
 }
 
 COMMAND("fault", fault, "trigger fault");
@@ -965,19 +965,19 @@ void debug_level(char *ptr) {
 
 COMMAND("debug_level", debug_level, "set hal debug level, 0 = print all, 1 = print errors, 2 = no output");
 
-void hal_linked_pins(char *ptr){
+void hal_linked_pins(char *ptr) {
   char sinkc[64];
   uint32_t sinki = 0;
   char sinkp[64];
   int foo;
   foo = sscanf(ptr, " %[a-zA-Z_]%lu.%[a-zA-Z0-9_]", sinkc, &sinki, sinkp);
-  if(foo == 3){
+  if(foo == 3) {
     hal_pin_inst_t *pin = pin_inst_by_name(sinkc, sinki, sinkp);
-    if(pin){
+    if(pin) {
       hal_print_pin(pin);
       for(int i = 0; i < hal.comp_inst_count; i++) {
         for(int j = 0; j < hal.comp_insts[i].comp->pin_count; j++) {
-          if(hal.comp_insts[i].pin_insts[j].source->source == pin && &(hal.comp_insts[i].pin_insts[j]) != pin){
+          if(hal.comp_insts[i].pin_insts[j].source->source == pin && &(hal.comp_insts[i].pin_insts[j]) != pin) {
             hal_print_pin(&(hal.comp_insts[i].pin_insts[j]));
           }
         }
@@ -985,12 +985,12 @@ void hal_linked_pins(char *ptr){
       return;
     }
   }
-  printf("not found: %s\n",ptr);
+  printf("not found: %s\n", ptr);
 }
 
 COMMAND("linked", hal_linked_pins, "show linked pins");
 
-void hal_relink_pins(char *ptr){
+void hal_relink_pins(char *ptr) {
   for(int i = 0; i < hal.comp_inst_count; i++) {
     for(int j = 0; j < hal.comp_insts[i].comp->pin_count; j++) {
       hal.comp_insts[i].pin_insts[j].source = hal.comp_insts[i].pin_insts[j].source->source;

@@ -52,11 +52,11 @@ HAL_PIN(torque);
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct pmsm_ctx_t *ctx      = (struct pmsm_ctx_t *)ctx_ptr;
   struct pmsm_pin_ctx_t *pins = (struct pmsm_pin_ctx_t *)pin_ptr;
-  PIN(psi)       = 0.01;
-  PIN(r)         = 1.0;
-  PIN(ld)        = 0.001;
-  PIN(lq)        = 0.001;
-  PIN(polecount) = 1.0;
+  PIN(psi)                    = 0.01;
+  PIN(r)                      = 1.0;
+  PIN(ld)                     = 0.001;
+  PIN(lq)                     = 0.001;
+  PIN(polecount)              = 1.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {

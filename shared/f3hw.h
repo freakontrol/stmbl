@@ -22,7 +22,7 @@
 #define PWM_W TIM8->CCR1
 
 //#define PWM_DEADTIME 0
-#define PWM_DEADTIME 60 // 1/144e6 * 58 = 402ns
+#define PWM_DEADTIME 60  // 1/144e6 * 58 = 402ns
 #define PWM_RES 4800
 
 #define ABS_MAX_TEMP 110.0

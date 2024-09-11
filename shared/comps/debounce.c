@@ -16,20 +16,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct debounce_ctx_t *ctx      = (struct debounce_ctx_t *)ctx_ptr;
   struct debounce_pin_ctx_t *pins = (struct debounce_pin_ctx_t *)pin_ptr;
 
-  if(PIN(in) > 0.0){
+  if(PIN(in) > 0.0) {
     PIN(timer) += period;
-  }
-  else{
+  } else {
     PIN(timer) -= period;
   }
 
-  if(PIN(timer) > PIN(debounce_time)){
+  if(PIN(timer) > PIN(debounce_time)) {
     PIN(timer) = PIN(debounce_time);
-    PIN(out) = 1.0;
-  }
-  else if(PIN(timer) <= 0.0){
+    PIN(out)   = 1.0;
+  } else if(PIN(timer) <= 0.0) {
     PIN(timer) = 0.0;
-    PIN(out) = 0.0;
+    PIN(out)   = 0.0;
   }
 }
 

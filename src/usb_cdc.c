@@ -149,7 +149,7 @@ uint8_t USB_CDC_is_connected(void) {
 void cdc_init(void) {}
 
 int cdc_tx(void *data, uint32_t len) {
-  if(!cdc_is_connected()){
+  if(!cdc_is_connected()) {
     return 0;
   }
   while(len--) {

@@ -20,7 +20,7 @@ HAL_PIN(lpf)
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct veltime_ctx_t *ctx      = (struct veltime_ctx_t *)ctx_ptr;
   struct veltime_pin_ctx_t *pins = (struct veltime_pin_ctx_t *)pin_ptr;
-  
+
   PIN(max_time) = 0.1;
 
   PIN(lpf) = 100.0;
@@ -33,19 +33,18 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(timer) += period;
 
-  if(PIN(pos) != PIN(old_pos)){
-    PIN(vel) = minus(PIN(pos), PIN(old_pos)) / PIN(timer);
+  if(PIN(pos) != PIN(old_pos)) {
+    PIN(vel)     = minus(PIN(pos), PIN(old_pos)) / PIN(timer);
     PIN(old_pos) = PIN(pos);
-    PIN(timer) = 0.0;
+    PIN(timer)   = 0.0;
   }
 
-  if(PIN(timer) > PIN(max_time)){
+  if(PIN(timer) > PIN(max_time)) {
     PIN(timer) = PIN(max_time);
-    PIN(vel) = 0.0;
+    PIN(vel)   = 0.0;
   }
 
-    PIN(vel_lp) = PIN(vel) * LP_HZ(PIN(lpf)) + PIN(vel_lp) * (1.0 - LP_HZ(PIN(lpf)));
-
+  PIN(vel_lp) = PIN(vel) * LP_HZ(PIN(lpf)) + PIN(vel_lp) * (1.0 - LP_HZ(PIN(lpf)));
 }
 
 hal_comp_t veltime_comp_struct = {

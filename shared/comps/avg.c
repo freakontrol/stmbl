@@ -13,15 +13,15 @@ HAL_PIN(offset);
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct avg_ctx_t * ctx = (struct avg_ctx_t *)ctx_ptr;
   struct avg_pin_ctx_t *pins = (struct avg_pin_ctx_t *)pin_ptr;
-  PIN(lpf) = 100;
-  PIN(out) = 0.0;
-  PIN(offset) = 0.0;
+  PIN(lpf)                   = 100;
+  PIN(out)                   = 0.0;
+  PIN(offset)                = 0.0;
 }
 
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct avg_pin_ctx_t *pins = (struct avg_pin_ctx_t *)pin_ptr;
-  PIN(out) = (PIN(in) * PIN(mult) + PIN(offset)) * LP_HZ(PIN(lpf)) + (1.0 - LP_HZ(PIN(lpf))) * PIN(out);
+  PIN(out)                   = (PIN(in) * PIN(mult) + PIN(offset)) * LP_HZ(PIN(lpf)) + (1.0 - LP_HZ(PIN(lpf))) * PIN(out);
 }
 
 hal_comp_t avg_comp_struct = {

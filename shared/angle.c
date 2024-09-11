@@ -114,8 +114,8 @@ inline float mod(float a) {
   }
 }
 
-inline int modi(int v, int m){
-  return(SIGN(v) * (ABS(v) % m));
+inline int modi(int v, int m) {
+  return ((int)SIGN(v) * (((int)ABS(v)) % m));
 }
 
 int quadrant(float a) {

@@ -41,13 +41,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct mpid_ctx_t *ctx      = (struct mpid_ctx_t *)ctx_ptr;
   struct mpid_pin_ctx_t *pins = (struct mpid_pin_ctx_t *)pin_ptr;
 
-  if(PIN(en) > 0.0){
+  if(PIN(en) > 0.0) {
     PIN(pos_error) += minus(PIN(pos_ext_cmd), PIN(old_pos_ext_cmd)) * PIN(scale);
     PIN(pos_error) -= minus(PIN(pos_fb), PIN(old_pos_fb));
-    
+
     PIN(vel_cmd) = LIMIT(PIN(pos_error) * PIN(pos_p), PIN(max_vel));
 
-    if(ABS(PIN(pos_error)) < PIN(min_pos_error)){
+    if(ABS(PIN(pos_error)) < PIN(min_pos_error)) {
       PIN(vel_cmd) = 0.0;
     }
 
@@ -64,17 +64,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     PIN(torque_cmd) += PIN(torque_ext_cmd);
     PIN(torque_cmd) += PIN(torque_sum);
-  }
-  else{
-    PIN(pos_error) = 0.0;
-    PIN(vel_cmd) = 0.0;
-    PIN(vel_error) = 0.0;
-    PIN(acc_cmd) = 0.0;
+  } else {
+    PIN(pos_error)  = 0.0;
+    PIN(vel_cmd)    = 0.0;
+    PIN(vel_error)  = 0.0;
+    PIN(acc_cmd)    = 0.0;
     PIN(torque_sum) = 0.0;
     PIN(torque_cmd) = 0.0;
   }
 
-  PIN(old_pos_fb) = PIN(pos_fb);
+  PIN(old_pos_fb)      = PIN(pos_fb);
   PIN(old_pos_ext_cmd) = PIN(pos_ext_cmd);
 }
 

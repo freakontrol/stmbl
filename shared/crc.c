@@ -1,14 +1,13 @@
 #include "crc.h"
 
-void calc_crc8_table(uint8_t* crc_table, uint8_t poly){
-  for(int i = 0; i < 256; i++){
+void calc_crc8_table(uint8_t *crc_table, uint8_t poly) {
+  for(int i = 0; i < 256; i++) {
     uint8_t byte = i;
-    for(int bit = 0; bit < 8; bit++){
-      if((byte & 0x80) != 0){
+    for(int bit = 0; bit < 8; bit++) {
+      if((byte & 0x80) != 0) {
         byte <<= 1;
         byte ^= poly;
-      }
-      else{
+      } else {
         byte <<= 1;
       }
     }
@@ -16,9 +15,9 @@ void calc_crc8_table(uint8_t* crc_table, uint8_t poly){
   }
 }
 
-uint8_t calc_crc8(uint8_t* data, uint32_t len, uint8_t* crc_table){
+uint8_t calc_crc8(uint8_t *data, uint32_t len, uint8_t *crc_table) {
   uint8_t crc = 0;
-  for(int i = 0; i < len; i++){
+  for(int i = 0; i < len; i++) {
     crc = crc_table[data[i] ^ crc];
   }
   return crc;

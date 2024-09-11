@@ -203,20 +203,20 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
-  ctx->timeout       = 0;
-  PIN(dac)           = 3000;
-  send_to_bootloader = 0;
-  flash_state        = SLAVE_IN_APP;
-  ctx->send_state = 0;
+  ctx->timeout          = 0;
+  PIN(dac)              = 3000;
+  send_to_bootloader    = 0;
+  flash_state           = SLAVE_IN_APP;
+  ctx->send_state       = 0;
   PIN(ignore_fault_pin) = 1;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct hv_ctx_t *ctx      = (struct hv_ctx_t *)ctx_ptr;
   struct hv_pin_ctx_t *pins = (struct hv_pin_ctx_t *)pin_ptr;
-  float e   = PIN(en);
-  float pos = PIN(pos);
-  float vel = PIN(vel);
+  float e                   = PIN(en);
+  float pos                 = PIN(pos);
+  float vel                 = PIN(vel);
 
   ctx->config.pins.r       = PIN(r);
   ctx->config.pins.l       = PIN(l);
@@ -244,18 +244,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           case SLAVE_IN_APP:
             if(ctx->from_hv.packet_from_hv.header.slave_addr == 0 && ctx->from_hv.packet_from_hv.header.len == (sizeof(packet_from_hv_t) - sizeof(stmbl_talk_header_t)) / 4) {
               // from f3 app
-              PIN(id_fb)    = ctx->from_hv.packet_from_hv.id_fb;
-              PIN(iq_fb)    = ctx->from_hv.packet_from_hv.iq_fb;
-              PIN(ud_fb)    = ctx->from_hv.packet_from_hv.ud_fb;
-              PIN(uq_fb)    = ctx->from_hv.packet_from_hv.uq_fb;
+              PIN(id_fb) = ctx->from_hv.packet_from_hv.id_fb;
+              PIN(iq_fb) = ctx->from_hv.packet_from_hv.iq_fb;
+              PIN(ud_fb) = ctx->from_hv.packet_from_hv.ud_fb;
+              PIN(uq_fb) = ctx->from_hv.packet_from_hv.uq_fb;
               if(PIN(rev) > 0.0) {
                 PIN(uq_fb) *= -1.0;
                 PIN(iq_fb) *= -1.0;
               }
-              PIN(fault)   = ctx->from_hv.packet_from_hv.fault;
-              PIN(abs_cur) = sqrtf(PIN(id_fb) * PIN(id_fb) + PIN(iq_fb) * PIN(iq_fb));
+              PIN(fault)    = ctx->from_hv.packet_from_hv.fault;
+              PIN(abs_cur)  = sqrtf(PIN(id_fb) * PIN(id_fb) + PIN(iq_fb) * PIN(iq_fb));
               PIN(abs_volt) = sqrtf(PIN(ud_fb) * PIN(ud_fb) + PIN(uq_fb) * PIN(uq_fb));
-              if(PIN(pwm_volt) > 0.0){
+              if(PIN(pwm_volt) > 0.0) {
                 PIN(duty) = PIN(abs_volt) / PIN(pwm_volt);
               }
 
@@ -374,10 +374,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         ctx->to_hv.packet_to_hv.flags.enable = 0;
       }
       ctx->to_hv.packet_to_hv.flags.ignore_fault_pin = PIN(ignore_fault_pin) > 0.0;
-      ctx->to_hv.packet_to_hv.flags.cmd_type   = PIN(cmd_mode);
-      ctx->to_hv.packet_to_hv.flags.phase_type = PIN(phase_mode);
-      ctx->to_hv.packet_to_hv.pos              = pos;
-      ctx->to_hv.packet_to_hv.vel              = vel;
+      ctx->to_hv.packet_to_hv.flags.cmd_type         = PIN(cmd_mode);
+      ctx->to_hv.packet_to_hv.flags.phase_type       = PIN(phase_mode);
+      ctx->to_hv.packet_to_hv.pos                    = pos;
+      ctx->to_hv.packet_to_hv.vel                    = vel;
 
       ctx->to_hv.packet_to_hv.header.slave_addr = 0;
       ctx->to_hv.packet_to_hv.header.flags.cmd  = WRITE_CONF;
@@ -492,8 +492,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       break;
   }
 
-  if(ctx->send_state > 1){
-    if(flash_state != SLAVE_IN_APP){
+  if(ctx->send_state > 1) {
+    if(flash_state != SLAVE_IN_APP) {
       tx_size = 0;
     }
     ctx->send_state = 0;

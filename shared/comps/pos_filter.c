@@ -25,14 +25,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   float pos_error = minus(PIN(pos_in), PIN(pos_out));
   float vel_error = PIN(vel_in) - PIN(vel_out);
-  
 
-  if(PIN(en) > 0.0){
+
+  if(PIN(en) > 0.0) {
     PIN(acc_out) = kp * pos_error + ki * vel_error;
     PIN(vel_out) += period * PIN(acc_out);
     PIN(pos_out) = mod(PIN(pos_out) + period * PIN(vel_out));
-  }
-  else{
+  } else {
     PIN(acc_out) = 0;
     PIN(vel_out) = PIN(vel_in);
     PIN(pos_out) = PIN(pos_in);

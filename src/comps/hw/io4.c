@@ -87,8 +87,8 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(fbth0)                = 2.5;
   PIN(fbth1)                = 2.5;
   PIN(out_freq)             = 15000;
-  PIN(master_arr) = TIM3->ARR;
-  PIN(clock_scale) = 1.0;
+  PIN(master_arr)           = TIM3->ARR;
+  PIN(clock_scale)          = 1.0;
 }
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -192,14 +192,14 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   RCC->APB2ENR |= RCC_APB2ENR_TIM9EN;
 
-  TIM9->ARR = 186000000 / 300 / 15000; // 15000Hz 
-  TIM9->PSC = 300 - 1; // 186e6 / 300 = 620000Hz max freq
-  TIM9->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2; // pwm mode 1
-  TIM9->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E; // cc1, cc2 enable
-  TIM9->CCR1 = 0;
-  TIM9->CCR2 = 0;
-  TIM9->CR1 = TIM_CR1_ARPE; // preloade
-  TIM9->CR1 |= TIM_CR1_CEN; // counter enable
+  TIM9->ARR   = 186000000 / 300 / 15000;                                                    // 15000Hz
+  TIM9->PSC   = 300 - 1;                                                                    // 186e6 / 300 = 620000Hz max freq
+  TIM9->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;  // pwm mode 1
+  TIM9->CCER  = TIM_CCER_CC1E | TIM_CCER_CC2E;                                              // cc1, cc2 enable
+  TIM9->CCR1  = 0;
+  TIM9->CCR2  = 0;
+  TIM9->CR1   = TIM_CR1_ARPE;  // preloade
+  TIM9->CR1 |= TIM_CR1_CEN;    // counter enable
 
   //fb0 green
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
@@ -261,13 +261,11 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
 static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
-  if(PIN(clock_scale) > 1.01){
+  if(PIN(clock_scale) > 1.01) {
     TIM3->ARR = PIN(master_arr) + 1;
-  }
-  else if(PIN(clock_scale) < 0.99){
+  } else if(PIN(clock_scale) < 0.99) {
     TIM3->ARR = PIN(master_arr) - 1;
-  }
-  else{
+  } else {
     TIM3->ARR = PIN(master_arr);
   }
 }
@@ -403,12 +401,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // else
   //   GPIO_ResetBits(GPIOE, GPIO_Pin_6);
 
-  TIM9->ARR = 186000000 / 300 / MAX(PIN(out_freq), 10);
+  TIM9->ARR  = 186000000 / 300 / MAX(PIN(out_freq), 10);
   TIM9->CCR1 = CLAMP(PIN(out1), 0, 1) * TIM9->ARR;
   TIM9->CCR2 = CLAMP(PIN(out2), 0, 1) * TIM9->ARR;
 
-  PIN(out_cnt) = TIM9->CNT;
-  PIN(out_arr) = TIM9->ARR;
+  PIN(out_cnt)  = TIM9->CNT;
+  PIN(out_arr)  = TIM9->ARR;
   PIN(out_ccr1) = TIM9->CCR1;
 
   if(PIN(fb0g) > 0)

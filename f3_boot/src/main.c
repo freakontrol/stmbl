@@ -137,10 +137,9 @@ void TIM8_UP_IRQHandler() {
           break;
       }
 
-      if(status != HAL_OK){
+      if(status != HAL_OK) {
         tx_buf.state = BOOTLOADER_STATE_NAK;
-      }
-      else{
+      } else {
         tx_buf.state = BOOTLOADER_STATE_OK;
       }
 

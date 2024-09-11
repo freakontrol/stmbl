@@ -54,12 +54,12 @@ HAL_PIN(timer);
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct ids_ctx_t * ctx = (struct ids_ctx_t *)ctx_ptr;
   struct ids_pin_ctx_t *pins = (struct ids_pin_ctx_t *)pin_ptr;
-  PIN(pos_bw) = 10.0;
-  PIN(vel_bw) = 100.0;
-  PIN(vel_d) = 10.0;
-  PINA(params, 0) = PIN(vel_bw);
-  PINA(params, 1) = 1.0 / PIN(vel_d);
-  PINA(params, 2) = PIN(pos_bw);
+  PIN(pos_bw)                = 10.0;
+  PIN(vel_bw)                = 100.0;
+  PIN(vel_d)                 = 10.0;
+  PINA(params, 0)            = PIN(vel_bw);
+  PINA(params, 1)            = 1.0 / PIN(vel_d);
+  PINA(params, 2)            = PIN(pos_bw);
 
   PIN(kp) = 1.0;
   PIN(ks) = 0.0;
@@ -75,8 +75,8 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(max_pos) = 10.0;
 
   PIN(param) = 0.0;
-  PIN(step) = 0.25;
-  PIN(rep) = 2.0;
+  PIN(step)  = 0.25;
+  PIN(rep)   = 2.0;
 
   PIN(auto_step) = 1.0;
 }
@@ -85,23 +85,22 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct ids_ctx_t * ctx = (struct ids_ctx_t *)ctx_ptr;
   struct ids_pin_ctx_t *pins = (struct ids_pin_ctx_t *)pin_ptr;
 
-  switch((int)(PIN(state) * 10.0 + 0.5)){
+  switch((int)(PIN(state) * 10.0 + 0.5)) {
     case 0:
-    break;
-    
+      break;
+
     case 10:
-      PIN(state) = 1.1;
+      PIN(state)  = 1.1;
       PIN(target) = PIN(max_pos);
 
-      if(PIN(auto_step) >= 1){
+      if(PIN(auto_step) >= 1) {
         PIN(state) = 1.2;
-      }
-      else{
+      } else {
         printf("Tune PPI bandwidth and damping\n");
         printf("the motor will move\n");
         printf("ids0.state = 1.2 <font color='green'>to start</font>\n");
       }
-    break;
+      break;
 
     case 13:
       printf("conf0.pos_bw = %f <font color='green'># append to config</font>\n", PIN(pos_bw));
@@ -109,7 +108,7 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       printf("conf0.vel_d = %f <font color='green'># append to config</font>\n", PIN(vel_d));
       printf("done\n");
       PIN(state) = 1.4;
-    break;
+      break;
   }
 }
 
@@ -117,24 +116,24 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct ids_ctx_t * ctx = (struct ids_ctx_t *)ctx_ptr;
   struct ids_pin_ctx_t *pins = (struct ids_pin_ctx_t *)pin_ptr;
 
-  if(PIN(en) <= 0.0){
+  if(PIN(en) <= 0.0) {
     PIN(state) = 0.0;
   }
 
-  switch((int)(PIN(state) * 10.0 + 0.5)){
+  switch((int)(PIN(state) * 10.0 + 0.5)) {
     case 0:
       PIN(acc_cmd) = 0.0;
       PIN(vel_cmd) = 0.0;
-      PIN(acc) = 0.0;
-      PIN(vel) = 0.0;
+      PIN(acc)     = 0.0;
+      PIN(vel)     = 0.0;
 
       PIN(param) = 0.0;
-      PIN(step) = 0.1;
-      PIN(rep) = 1.0;
+      PIN(step)  = 0.1;
+      PIN(rep)   = 1.0;
 
-      PIN(pos_bw) = 10.0;
-      PIN(vel_bw) = 100.0;
-      PIN(vel_d) = 10.0;
+      PIN(pos_bw)     = 10.0;
+      PIN(vel_bw)     = 100.0;
+      PIN(vel_d)      = 10.0;
       PINA(params, 0) = PIN(vel_bw);
       PINA(params, 1) = 1.0 / PIN(vel_d);
       PINA(params, 2) = PIN(pos_bw);
@@ -143,31 +142,31 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PINA(max_params, 1) = 1.0;
 
       PIN(min_cost) = (PIN(max_pos) - PIN(min_pos)) * (PIN(max_pos) - PIN(min_pos)) / PIN(max_vel) * 100.0;
-      PIN(cost) = PIN(min_cost);
+      PIN(cost)     = PIN(min_cost);
 
-      if(PIN(en) > 0.0){
+      if(PIN(en) > 0.0) {
         PIN(state) = 1.0;
       }
-    break;
+      break;
 
     case 12:
       PIN(pos) += PIN(vel) * period + PIN(acc) * period * period / 2.0;
       PIN(vel) += PIN(acc) * period;
-      float to_go = PIN(target) - PIN(pos);
+      float to_go      = PIN(target) - PIN(pos);
       float time_to_go = sqrtf(2.0 * ABS(to_go) / PIN(max_acc));
-      float acc = PIN(max_acc) * SIGN(to_go);
-      float vel = acc * time_to_go;
-      vel = LIMIT(vel, PIN(max_vel));
-      acc = (vel - PIN(vel)) / period;
+      float acc        = PIN(max_acc) * SIGN(to_go);
+      float vel        = acc * time_to_go;
+      vel              = LIMIT(vel, PIN(max_vel));
+      acc              = (vel - PIN(vel)) / period;
 
-      if(time_to_go < period){
+      if(time_to_go < period) {
         time_to_go = 0.0;
-        to_go = 0.0;
-        vel = 0.0;
-        acc = 0.0;
-        PIN(pos) = PIN(target);
-        PIN(vel) = 0.0;
-        PIN(acc) = 0.0;
+        to_go      = 0.0;
+        vel        = 0.0;
+        acc        = 0.0;
+        PIN(pos)   = PIN(target);
+        PIN(vel)   = 0.0;
+        PIN(acc)   = 0.0;
       }
 
       PIN(acc) = LIMIT(acc, PIN(max_acc));
@@ -175,57 +174,56 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(pos_cmd) = mod(PIN(pos));
       PIN(vel_cmd) = PIN(vel) * PIN(ff);
       PIN(acc_cmd) = PIN(acc) * PIN(ff);
-      
+
       PIN(cost) += ABS(PIN(pos_error)) * PIN(kp) * period;
       PIN(cost) += PIN(pos_error) * PIN(pos_error) * PIN(ks) * period;
       PIN(cost) += PIN(vel_error) * PIN(vel_error) * PIN(kv) * period;
-      
+
 
       PIN(timer) += period;
-      if(PIN(timer) < (ABS(PIN(max_pos) - PIN(min_pos)) / PIN(max_vel) + 2.0 * PIN(max_vel) / PIN(max_acc))){
+      if(PIN(timer) < (ABS(PIN(max_pos) - PIN(min_pos)) / PIN(max_vel) + 2.0 * PIN(max_vel) / PIN(max_acc))) {
         PIN(target) = PIN(max_pos);
-      }
-      else{
+      } else {
         PIN(target) = PIN(min_pos);
       }
-      if(PIN(timer) > 2.0 * (ABS(PIN(max_pos) - PIN(min_pos)) / PIN(max_vel) + 2.0 * PIN(max_vel) / PIN(max_acc))){
+      if(PIN(timer) > 2.0 * (ABS(PIN(max_pos) - PIN(min_pos)) / PIN(max_vel) + 2.0 * PIN(max_vel) / PIN(max_acc))) {
         PIN(timer) = 0.0;
       }
-      
-      if(PIN(timer) == 0.0){
+
+      if(PIN(timer) == 0.0) {
         PIN(min_cost) = MIN(PIN(cost), PIN(min_cost));
 
         PINA(max_params, 2) = PINA(params, 0) * 2.0;
 
-        if(PINA(params, (int)PIN(param)) > PINA(max_params, (int)PIN(param))){
+        if(PINA(params, (int)PIN(param)) > PINA(max_params, (int)PIN(param))) {
           PINA(params, (int)PIN(param)) = PINA(max_params, (int)PIN(param));
-          PIN(min_cost) = PIN(cost) * 10.0;
-          PIN(param)++;
-        }
-        else if(PIN(cost) > PIN(min_cost) * PIN(kt)){
+          PIN(min_cost)                 = PIN(cost) * 10.0;
+          PIN(param)
+          ++;
+        } else if(PIN(cost) > PIN(min_cost) * PIN(kt)) {
           PINA(params, (unsigned int)PIN(param)) *= PIN(kd);
           PIN(min_cost) = PIN(cost) * 10.0;
-          PIN(param)++;
-        }
-        else{
+          PIN(param)
+          ++;
+        } else {
           PINA(params, (unsigned int)PIN(param)) *= 1.0 + PIN(step);
         }
 
         PIN(cost) = 0.0;
       }
-      
+
       PIN(pos_bw) = PINA(params, 2);
       PIN(vel_bw) = PINA(params, 0);
-      PIN(vel_d) = 1.0 / PINA(params, 1);
-      
-      if(PIN(param) > 2.0){
+      PIN(vel_d)  = 1.0 / PINA(params, 1);
+
+      if(PIN(param) > 2.0) {
         PIN(acc_cmd) = 0.0;
         PIN(vel_cmd) = 0.0;
-        PIN(param) = 0.0;
+        PIN(param)   = 0.0;
 
         PIN(state) = 1.3;
       }
-    break;
+      break;
   }
 }
 
@@ -240,6 +238,6 @@ hal_comp_t ids_comp_struct = {
     .frt_start = 0,
     .rt_stop   = 0,
     .frt_stop  = 0,
-    .ctx_size  = 0,//sizeof(struct ids_ctx_t),
+    .ctx_size  = 0,  //sizeof(struct ids_ctx_t),
     .pin_count = sizeof(struct ids_pin_ctx_t) / sizeof(struct hal_pin_inst_t),
 };

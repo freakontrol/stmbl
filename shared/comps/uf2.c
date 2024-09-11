@@ -31,11 +31,11 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct uf_ctx_t *ctx      = (struct uf_ctx_t *)ctx_ptr;
   struct uf_pin_ctx_t *pins = (struct uf_pin_ctx_t *)pin_ptr;
 
-  PIN(u_n) = 220.0 * sqrtf(2.0) / 2.0;
-  PIN(vel_n) = 3000.0 / 60.0 * 2.0 * M_PI;
+  PIN(u_n)     = 220.0 * sqrtf(2.0) / 2.0;
+  PIN(vel_n)   = 3000.0 / 60.0 * 2.0 * M_PI;
   PIN(com_pos) = 0.0;
-  PIN(slip_n) = 0.01;
-  ctx->cur = 0.0;
+  PIN(slip_n)  = 0.01;
+  ctx->cur     = 0.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -44,11 +44,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   ctx->cur = PIN(cur) * 0.01 + ctx->cur * 0.99;
 
-  float vel_cmd = PIN(vel_cmd) + ctx->cur / MAX(PIN(cur_n), 0.1) * PIN(slip_n) * PIN(vel_n);
+  float vel_cmd    = PIN(vel_cmd) + ctx->cur / MAX(PIN(cur_n), 0.1) * PIN(slip_n) * PIN(vel_n);
   PIN(vel_cmd_out) = vel_cmd;
-  PIN(u_cmd) = vel_cmd / MAX(PIN(vel_n), 0.1) * PIN(u_n) * PIN(scale);
-  PIN(com_pos) = mod(PIN(com_pos) + vel_cmd * PIN(polecount) * period);
-  PIN(load) = ctx->cur / MAX(PIN(cur_n), 0.1);
+  PIN(u_cmd)       = vel_cmd / MAX(PIN(vel_n), 0.1) * PIN(u_n) * PIN(scale);
+  PIN(com_pos)     = mod(PIN(com_pos) + vel_cmd * PIN(polecount) * period);
+  PIN(load)        = ctx->cur / MAX(PIN(cur_n), 0.1);
 }
 
 const hal_comp_t uf_comp_struct = {

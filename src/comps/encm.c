@@ -31,8 +31,8 @@ struct encm_ctx_t {
 };
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
-  struct encm_ctx_t *ctx = (struct encm_ctx_t *)ctx_ptr;
-  struct encm_pin_ctx_t * pins = (struct encm_pin_ctx_t *)pin_ptr;
+  struct encm_ctx_t *ctx      = (struct encm_ctx_t *)ctx_ptr;
+  struct encm_pin_ctx_t *pins = (struct encm_pin_ctx_t *)pin_ptr;
   GPIO_InitTypeDef GPIO_InitStruct;
   USART_InitTypeDef USART_InitStruct;
   DMA_InitTypeDef DMA_InitStructure;
@@ -67,7 +67,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   /* Enable the USART */
   USART_Cmd(USART6, ENABLE);
 
-  if(PIN(full_duplex) > 0.0){
+  if(PIN(full_duplex) > 0.0) {
     //USART RX
     GPIO_PinAFConfig(GPIOC, GPIO_PinSource7, GPIO_AF_USART6);
     GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_7;
@@ -76,8 +76,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
     GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
     GPIO_Init(GPIOC, &GPIO_InitStruct);
-  }
-  else{
+  } else {
     USART_HalfDuplexCmd(USART6, ENABLE);
   }
 
@@ -128,7 +127,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //0: request
   //1: unknown
   //2: low 8 bit
-  //3: mid 8 bit 
+  //3: mid 8 bit
   //4: hi 1 + 7 bit mt
   //5: crc
 
@@ -138,88 +137,84 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //2: id
   //3: crc or id ...
 
-  uint8_t cmd = 0;
+  uint8_t cmd            = 0;
   uint8_t expected_bytes = 0;
 
-  if(PIN(cmd) > 0){ // cmd overwrite
+  if(PIN(cmd) > 0) {  // cmd overwrite
     cmd = PIN(cmd);
-  }
-  else{
-    switch((int) PIN(id)){
-      case 0: // no id
-        cmd = 0x92; // request id
+  } else {
+    switch((int)PIN(id)) {
+      case 0:                   // no id
+        cmd            = 0x92;  // request id
         expected_bytes = 0;
-      break;
+        break;
 
       case 32:
-        cmd = 0x2; // request singel turn data
+        cmd            = 0x2;  // request singel turn data
         expected_bytes = 7;
-      break;
+        break;
 
       case 61:
       case 65:
-        cmd = 0x32; // request singel turn data
+        cmd            = 0x32;  // request singel turn data
         expected_bytes = 9;
-      break;
-      
+        break;
+
       default:
-        cmd = 0x32;
+        cmd            = 0x32;
         expected_bytes = 9;
-      break;
+        break;
     }
   }
 
   PIN(req) = cmd;
 
-  PIN(error) = 0;
+  PIN(error)     = 0;
   PIN(crc_error) = 0;
   PIN(dma_error) = 0;
-  PIN(cmd_error) = 0;  
-  PIN(state) = 0;
+  PIN(cmd_error) = 0;
+  PIN(state)     = 0;
 
   // number of received bytes
   uint8_t bytes = sizeof(ctx->rxbuf) - DMA_GetCurrDataCounter(DMA2_Stream1);
-  PIN(bytes) = bytes;
+  PIN(bytes)    = bytes;
 
   // check crc (xor all == 0)
   uint8_t crc = 0;
-  for(int i = 0; i < bytes; i++){
-    crc = crc ^ ctx->rxbuf[i];
+  for(int i = 0; i < bytes; i++) {
+    crc          = crc ^ ctx->rxbuf[i];
     PINA(buf, i) = ctx->rxbuf[i];
   }
-  
-  if(crc){
-    PIN(error) = 1;
+
+  if(crc) {
+    PIN(error)     = 1;
     PIN(crc_error) = 1;
-  }
-  else{
+  } else {
     // check #bytes
-    if(bytes < 3 || ((expected_bytes > 0) & (bytes != expected_bytes))){
-      PIN(error) = 1;
+    if(bytes < 3 || ((expected_bytes > 0) & (bytes != expected_bytes))) {
+      PIN(error)     = 1;
       PIN(dma_error) = 1;
-    }
-    else{
+    } else {
       // check cmd
-      if(ctx->rxbuf[0] != cmd){
-        PIN(error) = 1;
+      if(ctx->rxbuf[0] != cmd) {
+        PIN(error)     = 1;
         PIN(cmd_error) = 1;
-      }
-      else{
+      } else {
         uint32_t ipos = 0;
-        switch(cmd){
-          case 0x2: // single turn data
-            ipos = (ctx->rxbuf[2] << 11) + ((ctx->rxbuf[3] & 0x1f) << 19); // 13 bit
+        switch(cmd) {
+          case 0x2:                                                               // single turn data
+            ipos       = (ctx->rxbuf[2] << 11) + ((ctx->rxbuf[3] & 0x1f) << 19);  // 13 bit
             PIN(state) = 3;
-          break;
+            break;
 
-          case 0x32: // single turn data
-            ipos = (ctx->rxbuf[2] & 0x80) + (ctx->rxbuf[3] << 8) + (ctx->rxbuf[4] << 16); // 17 bit
+          case 0x32:                                                                             // single turn data
+            ipos       = (ctx->rxbuf[2] & 0x80) + (ctx->rxbuf[3] << 8) + (ctx->rxbuf[4] << 16);  // 17 bit
             PIN(state) = 3;
-          break;
+            break;
 
-          case 0x92: // encoder id
+          case 0x92:  // encoder id
             PIN(id) = ctx->rxbuf[2];
-          break;
+            break;
         }
         PIN(pos) = (ipos * M_PI * 2.0 / 16777216.0) - M_PI;
       }

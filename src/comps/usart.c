@@ -26,11 +26,11 @@ struct usart_ctx_t {
 };
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
-  struct usart_pin_ctx_t * pins = (struct usart_pin_ctx_t *)pin_ptr;
-  PIN(freq) = 2500000;
-  PIN(req) = 0x2A; // 0x32
-  PIN(pos_offset) = 2;
-  PIN(pos_len) = 20;
+  struct usart_pin_ctx_t *pins = (struct usart_pin_ctx_t *)pin_ptr;
+  PIN(freq)                    = 2500000;
+  PIN(req)                     = 0x2A;  // 0x32
+  PIN(pos_offset)              = 2;
+  PIN(pos_len)                 = 20;
 }
 
 
@@ -92,16 +92,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(dma) = DMA_GetCurrDataCounter(DMA2_Stream1);
 
-  if(PIN(print) <= 1 && ctx->print == -1){
+  if(PIN(print) <= 1 && ctx->print == -1) {
     ctx->print = 0;
   }
 
-  union{
+  union {
     uint64_t pos;
     uint8_t data[8];
   } foo;
 
-  for(int i = 0; i < PIN(pos_len); i++){
+  for(int i = 0; i < PIN(pos_len); i++) {
     foo.data[i] = ctx->rxbuf[i + (int)PIN(pos_offset)];
   }
 
@@ -109,12 +109,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(pos) = foo.pos * 2.0 * M_PI / pow(2, PIN(pos_len)) - M_PI;
 
-  if(PIN(print) > 0 && ctx->print == 0){
-    for(int i = 0; i < ARRAY_SIZE(ctx->rxbuf); i++){
+  if(PIN(print) > 0 && ctx->print == 0) {
+    for(int i = 0; i < ARRAY_SIZE(ctx->rxbuf); i++) {
       ctx->rxbuf2[i] = ctx->rxbuf[i];
-      ctx->rxbuf[i] = 0;
+      ctx->rxbuf[i]  = 0;
     }
-    ctx->dma = PIN(dma);
+    ctx->dma   = PIN(dma);
     ctx->print = 1;
     PIN(print) = 0;
   }
@@ -137,7 +137,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //TODO: irq here will cause problems
   GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
   USART_SendData(USART6, (uint8_t)PIN(req));
-  while(USART_GetFlagStatus(USART6, USART_FLAG_TC) == RESET);
+  while(USART_GetFlagStatus(USART6, USART_FLAG_TC) == RESET)
+    ;
   GPIO_ResetBits(GPIOD, GPIO_Pin_15);  //tx disable
 
   //start rx dma
@@ -151,11 +152,11 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct usart_ctx_t *ctx      = (struct usart_ctx_t *)ctx_ptr;
   struct usart_pin_ctx_t *pins = (struct usart_pin_ctx_t *)pin_ptr;
 
-  if(ctx->print > 0){
+  if(ctx->print > 0) {
     ctx->print = -1;
-    printf("req: 0x%02X: rx: %u : ", (uint8_t) PIN(req), ctx->dma);
-    for(int i = 0; i < ARRAY_SIZE(ctx->rxbuf); i++){
-      for(int j = 0; j < 8; j++){
+    printf("req: 0x%02X: rx: %u : ", (uint8_t)PIN(req), ctx->dma);
+    for(int i = 0; i < ARRAY_SIZE(ctx->rxbuf); i++) {
+      for(int j = 0; j < 8; j++) {
         if(ctx->rxbuf2[i] & (1 << j % 8)) {
           printf("1");
         } else {

@@ -115,8 +115,8 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct io_ctx_t *ctx      = (struct io_ctx_t *)ctx_ptr;
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
 
-  PIN(brk_present) = 0.0; 
-  PIN(brk) = 0.0;
+  PIN(brk_present) = 0.0;
+  PIN(brk)         = 0.0;
 
   GPIO_InitTypeDef GPIO_InitStruct;
   //LED
@@ -132,9 +132,9 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BRK_PORT, &GPIO_InitStruct);
 
-  if(HAL_GPIO_ReadPin(BRK_PORT, BRK_PIN)){ // BRK circuit detected
-    GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull  = GPIO_NOPULL;
+  if(HAL_GPIO_ReadPin(BRK_PORT, BRK_PIN)) {  // BRK circuit detected
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(BRK_PORT, &GPIO_InitStruct);
     PIN(brk_present) = 1.0;
   }
@@ -290,8 +290,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     if(PIN(brk) > 0.0) {
       HAL_GPIO_WritePin(BRK_PORT, BRK_PIN, GPIO_PIN_RESET);
-    }
-    else{
+    } else {
       HAL_GPIO_WritePin(BRK_PORT, BRK_PIN, GPIO_PIN_SET);
     }
   }

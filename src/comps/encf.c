@@ -179,7 +179,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   pos_offset    = 0;
   PIN(req_len)  = 2046;
   state_counter = 0;
-  PIN(freq) = 1024000;
+  PIN(freq)     = 1024000;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -237,9 +237,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       oldcrc[4]   = crc[4];
     }
     if(crc[0] == 0 && crc[1] == 0 && crc[2] == 0 && crc[3] == 0 && crc[4] == 0) {
-      PIN(crc_ok)++;
+      PIN(crc_ok)
+      ++;
       int32_t pos = data.fanuc.pos_lo + (data.fanuc.pos_hi << 6);
-      PIN(index) = data.fanuc.no_index;
+      PIN(index)  = data.fanuc.no_index;
 
       PIN(abs_pos) = mod((float)pos * 2.0 * M_PI / (1 << 22));
 
@@ -263,7 +264,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(com_pos) = mod(pos * 2.0 * M_PI / 1024);
       PIN(error)   = 0;
     } else {
-      PIN(crc_er)++;
+      PIN(crc_er)
+      ++;
       PIN(state) = 1;
       PIN(error) = 1;
     }

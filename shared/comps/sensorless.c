@@ -65,12 +65,12 @@ HAL_PIN(delta_iq);
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct sensorless_ctx_t *ctx      = (struct sensorless_ctx_t *)ctx_ptr;
   struct sensorless_pin_ctx_t *pins = (struct sensorless_pin_ctx_t *)pin_ptr;
-  PIN(ki) = 1500.0;
-  PIN(kb) = 1;
-  PIN(kl) = 0.75;
-  PIN(min_vel) = 3.0 * 2.0 * M_PI;
-  PIN(vel_boost) = 0.2;
-  PIN(max_vel) = 500.0 * 2.0 * M_PI * 1.1;
+  PIN(ki)                           = 1500.0;
+  PIN(kb)                           = 1;
+  PIN(kl)                           = 0.75;
+  PIN(min_vel)                      = 3.0 * 2.0 * M_PI;
+  PIN(vel_boost)                    = 0.2;
+  PIN(max_vel)                      = 500.0 * 2.0 * M_PI * 1.1;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -86,7 +86,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(uq2) = PIN(uq1);
   PIN(ud1) = PIN(ud);
   PIN(uq1) = PIN(uq);
-  
+
   float id = PIN(id);
   float iq = PIN(iq);
 
@@ -100,7 +100,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // lowpass current change
   PIN(delta_id) = PIN(delta_id) * kl + (id - PIN(old_id)) * (1 - kl);
   PIN(delta_iq) = PIN(delta_iq) * kl + (iq - PIN(old_iq)) * (1 - kl);
-  
+
   PIN(old_id) = id;
   PIN(old_iq) = iq;
 
@@ -112,14 +112,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   vel -= SIGN2(eq, 1.0) * ed * ki * period;
 
   // startup boost
-  if(ABS(vel) < PIN(min_vel)){
+  if(ABS(vel) < PIN(min_vel)) {
     vel += SIGN2(id * iq, 0.1) * PIN(vel_boost);
   }
 
   vel = LIMIT(vel, PIN(max_vel));
 
   pos += vel * period;
-  
+
   PIN(ed) = ed;
   PIN(eq) = eq;
 

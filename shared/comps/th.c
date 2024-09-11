@@ -13,7 +13,7 @@ HAL_PIN(out_not);
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct th_pin_ctx_t *pins = (struct th_pin_ctx_t *)pin_ptr;
-  PIN(in_lpf) = 1.0;
+  PIN(in_lpf)               = 1.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -21,12 +21,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(in_lp) += (PIN(in) - PIN(in_lp)) * PIN(in_lpf);
 
-  if(PIN(in_lp) > PIN(min) && PIN(in_lp) < PIN(max)){
-    PIN(out) = 1;
+  if(PIN(in_lp) > PIN(min) && PIN(in_lp) < PIN(max)) {
+    PIN(out)     = 1;
     PIN(out_not) = 0;
-  }
-  else{
-    PIN(out) = 0;
+  } else {
+    PIN(out)     = 0;
     PIN(out_not) = 1;
   }
 }

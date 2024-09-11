@@ -26,23 +26,21 @@ struct wobl_ctx_t {
 static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct wobl_ctx_t *ctx      = (struct wobl_ctx_t *)ctx_ptr;
   struct wobl_pin_ctx_t *pins = (struct wobl_pin_ctx_t *)pin_ptr;
-    
-  
-  if(PIN(en) <= 0.0){
-    ctx->ang = 0.0;
+
+
+  if(PIN(en) <= 0.0) {
+    ctx->ang  = 0.0;
     ctx->ang2 = 0.0;
-  }
-  else{
-    ctx->ang += period * PIN(freq) * 2.0 * M_PI; 
+  } else {
+    ctx->ang += period * PIN(freq) * 2.0 * M_PI;
     ctx->ang = mod(ctx->ang);
-    ctx->ang2 += period * (PIN(freq) + PIN(freq_diff)) * 2.0 * M_PI; 
+    ctx->ang2 += period * (PIN(freq) + PIN(freq_diff)) * 2.0 * M_PI;
     ctx->ang2 = mod(ctx->ang2);
   }
 
-  PIN(pos) = PIN(home_pos) + sinf(ctx->ang) * PIN(amp);
+  PIN(pos)      = PIN(home_pos) + sinf(ctx->ang) * PIN(amp);
   PIN(out_freq) = PIN(freq) + PIN(freq_diff);
-  PIN(out) = ((sinf(ctx->ang2) / 2 - 0.5 + PIN(duty)) > 0.0) ? 1.0 : 0.0;
-
+  PIN(out)      = ((sinf(ctx->ang2) / 2 - 0.5 + PIN(duty)) > 0.0) ? 1.0 : 0.0;
 }
 
 hal_comp_t wobl_comp_struct = {

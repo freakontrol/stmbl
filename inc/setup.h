@@ -17,5 +17,3 @@
 
 void setup(void);
 void setup_res(void);
-
-
