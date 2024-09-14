@@ -19,9 +19,7 @@ STMBL
 
 This Repository is a fork of the original project [STMBL](https://github.com/rene-dev/stmbl), an open-source servo drive designed for Retrofitting CNC machines and Robots. It supports Industrial AC and DC servos.
 
-Original stmbl documentation: https://github.com/rene-dev/stmbl/blob/master/docs/src/Getting%20Started.adoc
-
-A detailed documentation of this new revision will be available soon! 
+You can read the [documentation](https://freakontrol.github.io/stmbl/) to learn more about this project.
 
 We are proposing a new revision of the project making significant improvements and updates:
 
