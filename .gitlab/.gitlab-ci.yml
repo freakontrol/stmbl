@@ -1,11 +1,9 @@
-image: debian
-
-before_script:
-- apt update
-- apt install -y gcc-arm-none-eabi make python3 git
-
-build:
+firmware:
+  image: debian
   stage: build
+  before_script:
+  - apt update
+  - apt install -y gcc-arm-none-eabi make python3 git
   script:
   - make clean
   - make
@@ -22,3 +20,23 @@ build:
      - f3.dfu
      - f4.bin
      - f4.dfu
+
+pages:
+  image: 
+    name: jakejarvis/hugo-extended:latest
+    entrypoint: [""]
+  stage: deploy
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  # before_script:
+  # - apt update
+  # - apt install -y git
+  # - wget https://github.com/gohugoio/hugo/releases/download/v0.134.2/hugo_extended_0.134.2_linux-amd64.deb
+  # - dpkg -i hugo_extended_0.134.2_linux-amd64.deb
+  script:
+  - cd docs/stmbldoc/
+  - hugo
+  - echo "The site will be deployed to $CI_PAGES_URL"
+  artifacts:
+    paths:
+    - public
