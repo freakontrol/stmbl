@@ -1769,6 +1769,12 @@
 		(uuid "13571da9-b7c5-41b7-83f1-b0a0efc74808")
 	)
 	(junction
+		(at 163.83 120.65)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "141fca67-8570-45ad-afe7-e0a20e62ff99")
+	)
+	(junction
 		(at 104.14 118.11)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -1878,7 +1884,7 @@
 	)
 	(wire
 		(pts
-			(xy 154.94 128.27) (xy 154.94 125.73)
+			(xy 154.94 130.81) (xy 154.94 125.73)
 		)
 		(stroke
 			(width 0)
@@ -1988,7 +1994,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 118.11) (xy 157.48 118.11)
+			(xy 152.4 118.11) (xy 170.18 118.11)
 		)
 		(stroke
 			(width 0)
@@ -2195,6 +2201,16 @@
 			(type default)
 		)
 		(uuid "53b9d364-4bd3-49fe-9052-bb01b8fc58ac")
+	)
+	(wire
+		(pts
+			(xy 163.83 120.65) (xy 170.18 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "55b64a92-5316-4fb2-ad3d-bb9efb484556")
 	)
 	(wire
 		(pts
@@ -2618,13 +2634,23 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 120.65) (xy 157.48 120.65)
+			(xy 152.4 120.65) (xy 163.83 120.65)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
 		(uuid "bfeb87d6-7932-482e-a9fa-d15c7ef1b95a")
+	)
+	(wire
+		(pts
+			(xy 163.83 128.27) (xy 163.83 130.81)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c02342a8-a5d9-445b-923d-aacb8db077de")
 	)
 	(wire
 		(pts
@@ -2866,7 +2892,7 @@
 	)
 	(hierarchical_label "Vth"
 		(shape input)
-		(at 157.48 118.11 0)
+		(at 170.18 118.11 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -2926,7 +2952,7 @@
 	)
 	(hierarchical_label "itrip"
 		(shape input)
-		(at 157.48 120.65 0)
+		(at 170.18 120.65 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5631,7 +5657,7 @@
 	)
 	(symbol
 		(lib_id "stmbl:GNDPWR")
-		(at 154.94 128.27 0)
+		(at 154.94 130.81 0)
 		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
@@ -5640,7 +5666,7 @@
 		(dnp no)
 		(uuid "00000000-0000-0000-0000-0000602e899c")
 		(property "Reference" "#PWR0231"
-			(at 154.94 133.35 0)
+			(at 154.94 135.89 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5649,7 +5675,7 @@
 			)
 		)
 		(property "Value" "GNDPWR"
-			(at 154.94 131.572 0)
+			(at 154.94 134.112 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5657,7 +5683,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 129.54 0)
+			(at 154.94 132.08 0)
 			(effects
 				(font
 					(size 1.524 1.524)
@@ -5665,7 +5691,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 129.54 0)
+			(at 154.94 132.08 0)
 			(effects
 				(font
 					(size 1.524 1.524)
@@ -5673,7 +5699,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 154.94 128.27 0)
+			(at 154.94 130.81 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6912,6 +6938,128 @@
 	)
 	(symbol
 		(lib_id "stmbl:C")
+		(at 163.83 124.46 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d85da976-88fd-44ad-8865-a827249bd54f")
+		(property "Reference" "C500"
+			(at 164.465 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "1n"
+			(at 164.465 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "stmbl:C_0603"
+			(at 164.7952 128.27 0)
+			(effects
+				(font
+					(size 0.762 0.762)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 163.83 124.46 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+			)
+		)
+		(property "Description" ""
+			(at -59.69 248.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "InternalName" ""
+			(at 163.83 124.46 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer No" ""
+			(at 163.83 124.46 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(hide yes)
+			)
+		)
+		(property "Voltage" "50V"
+			(at 163.83 124.46 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(hide yes)
+			)
+		)
+		(property "Source" ""
+			(at 163.83 124.46 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(hide yes)
+			)
+		)
+		(property "Tolerance" "X5R"
+			(at 163.83 124.46 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" ""
+			(at -59.69 248.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "33946643-8318-4f9b-a2b5-30534fe749be")
+		)
+		(pin "2"
+			(uuid "8c40d8f9-72be-4b53-86c2-ec572e8b25e6")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000056590a75"
+					(reference "C500")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:C")
 		(at 88.9 133.35 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -7147,6 +7295,70 @@
 			(project "stmbl_4.0"
 				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000056590a75"
 					(reference "R170")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "stmbl:GNDPWR")
+		(at 163.83 130.81 0)
+		(mirror y)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "f08d21e6-2519-41f1-b1de-c896dc1054a9")
+		(property "Reference" "#PWR070"
+			(at 163.83 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 163.83 134.112 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 163.83 132.08 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 163.83 132.08 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 163.83 130.81 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "d008aa0f-ce0a-4e7d-8271-7de34e4fd3bf")
+		)
+		(instances
+			(project "stmbl_4.0"
+				(path "/5befea65-3ab0-4243-80dd-808f406930a5/00000000-0000-0000-0000-00005659094d/00000000-0000-0000-0000-000056590a75"
+					(reference "#PWR070")
 					(unit 1)
 				)
 			)
