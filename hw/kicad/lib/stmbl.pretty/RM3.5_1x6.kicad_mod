@@ -1,3 +1,206 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:ed5ce709a0e4ed4ec19f4c3599c6ea5c892561357d2f2b7a8971f390a22c3e69
-size 3872
+(footprint "RM3.5_1x6"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(property "Reference" "P5"
+		(at 5.572 -6.608 0)
+		(layer "F.SilkS")
+		(uuid "b9a623d9-36d3-4254-8442-9a83777ea5d3")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.3)
+			)
+		)
+	)
+	(property "Value" "CONN_01X06"
+		(at 6 9.8 0)
+		(layer "F.Fab")
+		(uuid "6de30fbc-6da4-4bb1-b6f5-c11d297c259c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "749e5459-e437-49fd-8562-63f70b22d614")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "bc7615d0-46c0-4244-b0fe-0bbca0aeb88a")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "1fef1aec-1d81-4875-b028-208236018dfe")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_line
+		(start -2.55 -1.2)
+		(end 20.05 -1.2)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "72e181ec-ccb6-439e-9d8f-f999f867b79f")
+	)
+	(fp_line
+		(start -2.55 8)
+		(end -2.55 -1.2)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "a280ddd0-f464-4ec4-b125-e1693f6cef61")
+	)
+	(fp_line
+		(start -2.55 8)
+		(end 20.05 8)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "d03abb31-5142-4e34-b698-66fea837b37e")
+	)
+	(fp_line
+		(start 20.05 -1.2)
+		(end 20.05 8)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "ce934443-7c13-4419-8b5f-0b4c51257548")
+	)
+	(pad "1" thru_hole circle
+		(at 0 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "f313f5ab-01b7-4e96-b3d2-668fe62912f0")
+	)
+	(pad "1" smd roundrect
+		(at 0 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "608fc99f-62fa-4364-a65f-a5bb0dbf2823")
+	)
+	(pad "2" thru_hole circle
+		(at 3.5 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "4e257e61-8e31-4d17-a677-14d03e4a2632")
+	)
+	(pad "2" smd roundrect
+		(at 3.5 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "c3c2c217-3a26-451e-a1e4-5f6e09ac7aaa")
+	)
+	(pad "3" thru_hole circle
+		(at 7 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "f9b41f88-ee39-4413-88b9-d03c68e0f212")
+	)
+	(pad "3" smd roundrect
+		(at 7 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "28ed97d3-915f-4f2c-8d5d-628c75837e94")
+	)
+	(pad "4" thru_hole circle
+		(at 10.5 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "44b21c8c-5d7a-4bbf-aec8-ae843de58353")
+	)
+	(pad "4" smd roundrect
+		(at 10.5 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "21292250-4e7d-49b5-8e0e-3c24a599c776")
+	)
+	(pad "5" thru_hole circle
+		(at 14 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "36c76e09-6985-458c-b373-20f7e7058790")
+	)
+	(pad "5" smd roundrect
+		(at 14 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "470dba8e-2cdd-4fa1-b60d-7edf9850e454")
+	)
+	(pad "6" thru_hole circle
+		(at 17.5 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "95ee6fee-1504-429e-9627-626e9db60627")
+	)
+	(pad "6" smd roundrect
+		(at 17.5 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "615a4ac1-b7bd-4f71-a30f-3ed071723113")
+	)
+	(model "${STMBL}/stmbl.pretty/phoenix 3_5x6.stp"
+		(offset
+			(xyz 0 1.2 0.5)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz -90 0 90)
+		)
+	)
+)

@@ -1,3 +1,30 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:ac0884106117cf02a9a0431a4380869a4323397524e14c3c87adebbaf682f1f4
-size 1729
+(footprint "AMASS Connector MT60_1" (version 20221018) (generator pcbnew)
+  (layer "F.Cu")
+  (attr smd)
+  (fp_text reference "P*" (at 7.72 -4.11 unlocked) (layer "F.SilkS") hide
+      (effects (font (size 1 1) (thickness 0.1)))
+    (tstamp 696a9a59-21db-47a4-8da4-4b23f0e073b1)
+  )
+  (fp_text value "AMASS Connector MT60_1" (at 0 1 unlocked) (layer "F.Fab") hide
+      (effects (font (size 1 1) (thickness 0.15)))
+    (tstamp b6f1fa19-76a8-4e10-b6cb-5c175f78ff20)
+  )
+  (fp_text user "${REFERENCE}" (at 0 2.5 unlocked) (layer "F.Fab") hide
+      (effects (font (size 1 1) (thickness 0.15)))
+    (tstamp 29e04eb3-9694-4c49-8e06-6ca2e3cd21f1)
+  )
+  (fp_rect (start -2.57 -4.12) (end 16.93 15.08)
+    (stroke (width 0.1) (type default)) (fill none) (layer "F.SilkS") (tstamp f9d3e343-cb60-419a-9bc8-8c05b5c3a28d))
+  (pad "1" thru_hole circle (at 0 0 180) (size 4.1 4.1) (drill 3) (layers "*.Cu" "*.Mask") (tstamp 8a3479a4-fad2-4d29-b6f6-d14e649a663f))
+  (pad "2" thru_hole circle (at 0 5.5 180) (size 4.1 4.1) (drill 3) (layers "*.Cu" "*.Mask") (tstamp 417f5f28-c9d8-465f-9705-e9fbdca54e0d))
+  (pad "3" thru_hole circle (at 0 11 180) (size 4.1 4.1) (drill 3) (layers "*.Cu" "*.Mask") (tstamp 04308ad2-719b-4d4f-a5d7-c8099a75eb72))
+  (pad "4" thru_hole rect (at 6 -3.05 270) (size 1.1 2.2) (drill oval 0.8 1.9) (layers "*.Cu" "*.Mask")
+    (thermal_bridge_angle 45) (tstamp 7cb18e17-2d6e-48b9-a1d3-036667461e2b))
+  (pad "4" thru_hole rect (at 6 14.05 270) (size 1.1 2.2) (drill oval 0.8 1.9) (layers "*.Cu" "*.Mask")
+    (thermal_bridge_angle 45) (tstamp ff421de1-f3cb-400e-8591-3f7bc8f13308))
+  (model "${STMBL}/stmbl.pretty/MR60PW-M.STEP"
+    (offset (xyz 8.15 -5.5 4.2))
+    (scale (xyz 1 1 1))
+    (rotate (xyz 0 180 -90))
+  )
+)

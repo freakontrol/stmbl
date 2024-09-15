@@ -1,3 +1,11 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:b41b9319bd55b4c54c0799a4c22eef9b73bb10ce5dd230c87e8e5e2add33611f
-size 486
+(module SOLDER_JUMPER_3 (layer F.Cu) (tedit 5816B87C)
+  (fp_text reference REF** (at 0 2) (layer F.SilkS)
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (fp_text value SOLDER_JUMPER_3 (at 0 -2) (layer F.Fab)
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (pad 1 smd rect (at -1.5 0) (size 1 1.5) (layers F.Cu F.Paste F.Mask))
+  (pad 2 smd rect (at 0 0) (size 1 1.5) (layers F.Cu F.Paste F.Mask))
+  (pad 3 smd rect (at 1.5 0) (size 1 1.5) (layers F.Cu F.Paste F.Mask))
+)

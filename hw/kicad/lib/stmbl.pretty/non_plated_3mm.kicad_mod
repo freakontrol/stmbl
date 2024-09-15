@@ -1,3 +1,15 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:a9c0940462d61a4036e94f5928a2c401a7b6a48b7b2ef49eeaa9b79073b40a18
-size 638
+(footprint "non_plated_3mm" (version 20211014) (generator pcbnew)
+  (layer "F.Cu")
+  (tedit 5908EF5A)
+  (attr through_hole)
+  (fp_text reference "U30" (at 0 4.75) (layer "F.SilkS") hide
+    (effects (font (size 1 1) (thickness 0.15)))
+    (tstamp b79c5ce1-2df6-40c9-a65d-f6edb60584de)
+  )
+  (fp_text value "non_plated" (at 0 -3.75) (layer "F.Fab")
+    (effects (font (size 1 1) (thickness 0.15)))
+    (tstamp ee2fb1f3-7f6c-4196-b54c-72a722f68c4b)
+  )
+  (pad "" np_thru_hole oval (at 0 0) (size 2 4.5) (drill oval 2 4.5) (layers F&B.Cu *.Mask)
+    (solder_mask_margin 0.5) (clearance 1.25) (tstamp 1f58c74e-9236-4439-a460-e495b275f189))
+)

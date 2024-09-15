@@ -1,3 +1,206 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:233e1147756ce51eebf83f903feac3054eb6b3824572db9deae7eab9d17727c1
-size 3909
+(footprint "akl182-6"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(property "Reference" "P5"
+		(at 5.572 -6.608 0)
+		(layer "F.SilkS")
+		(uuid "21fb9d4f-d4ed-4353-93f3-cb67ae892bd2")
+		(effects
+			(font
+				(size 1.5 1.5)
+				(thickness 0.3)
+			)
+		)
+	)
+	(property "Value" "CONN_01X06"
+		(at 6 9.8 0)
+		(layer "F.Fab")
+		(uuid "a42b7f6f-0e99-46f2-9e33-060c2dfe1c6f")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "fa45aa4c-cd31-4ec5-84f0-d49175277d50")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "01bf985d-b439-4e0e-b7cf-88617de3f989")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "f890a8e8-f760-49b8-a6c3-4433cee90d88")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_line
+		(start -2.55 -1.2)
+		(end 20.05 -1.2)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "4b3b1f99-e15e-451a-ab94-03e2ea671ee4")
+	)
+	(fp_line
+		(start -2.55 8)
+		(end -2.55 -1.2)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "0129f1e0-ae63-4277-87dd-1f1a02ef02b3")
+	)
+	(fp_line
+		(start -2.55 8)
+		(end 20.05 8)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "4cf8b152-a706-47cf-ac19-489227efe29a")
+	)
+	(fp_line
+		(start 20.05 -1.2)
+		(end 20.05 8)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "0eaa5bd8-932a-46ca-930c-547d8e4def7e")
+	)
+	(pad "1" thru_hole circle
+		(at 0 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "3a818eae-779e-4ed0-8caa-2e4e63c77e14")
+	)
+	(pad "1" smd roundrect
+		(at 0 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "78883f91-8245-4414-84e9-a81fd49bcbf8")
+	)
+	(pad "2" thru_hole circle
+		(at 3.5 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "b8b95050-8191-4bf2-90a9-5b1ce69cc98e")
+	)
+	(pad "2" smd roundrect
+		(at 3.5 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "b9b21fc3-68bb-4299-8ad2-372ad06d8eca")
+	)
+	(pad "3" thru_hole circle
+		(at 7 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "7aa66090-0655-471e-9456-66e46561c717")
+	)
+	(pad "3" smd roundrect
+		(at 7 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "9d297b39-55d8-4699-8460-679dd36de77a")
+	)
+	(pad "4" thru_hole circle
+		(at 10.5 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "d859fd04-5053-432e-bcdd-f93b2425070d")
+	)
+	(pad "4" smd roundrect
+		(at 10.5 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "b32cb5ff-162c-439c-805f-630642d60c78")
+	)
+	(pad "5" thru_hole circle
+		(at 14 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "4203033f-093b-4fa3-a8e7-c36eca9810c3")
+	)
+	(pad "5" smd roundrect
+		(at 14 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "74d21125-9538-4ab1-ab7f-222b72450a19")
+	)
+	(pad "6" thru_hole circle
+		(at 17.5 0)
+		(size 1.5 1.5)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "b843db10-4831-4a9c-94ba-72160e62e740")
+	)
+	(pad "6" smd roundrect
+		(at 17.5 0)
+		(size 2.5 2.5)
+		(layers "B.Cu" "B.Mask")
+		(roundrect_rratio 0.25)
+		(uuid "eef0a803-b3aa-4fe4-81f6-f72977502511")
+	)
+	(model "${KIPRJMOD}/../lib/../lib/stmbl.pretty/akl182_6.wrl"
+		(offset
+			(xyz 20.0499997 3.199999952 0)
+		)
+		(scale
+			(xyz 0.394 0.394 0.394)
+		)
+		(rotate
+			(xyz 0 0 180)
+		)
+	)
+)
