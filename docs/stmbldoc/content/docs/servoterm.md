@@ -15,15 +15,15 @@ Servoterm (servo terminal) provides an interface which allows editing of the dri
 
 Servoterm is supplied as a Google Chrome extension. This might seem somewhat odd, but does provide for good cross-platform availability. Servoterm can be downloaded from [this link](https://github.com/STMBL/Servoterm-app). Use the green button to download as a ZIP file and then extract on your PC (Linux / Mac / PC). Open Google Chrome and click the three-dots icon -> more-tools -> extensions.
 
-![Google Chrome Extensions](/images/Extensions.png)
+![Google Chrome Extensions](../../images/Extensions.png)
 
 Click "developer mode" and then "Load Unpacked Extension". Then navigate to the downloaded files and select the "Servoterm" folder. You should then be presented with the following, including an option to launch the application.
 
-![Servoterm Extension](/images/Extensions2.png)
+![Servoterm Extension](../../images/Extensions2.png)
 
 If you do not get the option to launch Servoterm, you can visit [chrome://apps](chrome://apps) and click on the Servoterm logo. To connect to the STMBL, you will need a mini-USB B cable. WARNING: Be sure that the 24V PSU is floating or shares a ground reference with the PC.(Maybe even check the voltage between the connector and socket before inserting the plug) You can then click the "connect" button and you should get something like the image below. [What if I can not connect](#servoterm-connection-problems)
 
-![Servoterm Interface](/images/servoterm1.png)
+![Servoterm Interface](../../images/servoterm1.png)
 
 Taking the buttons from left to right:
 
@@ -38,7 +38,7 @@ Taking the buttons from left to right:
 
 Other than the buttons described above, the remainder of Servoterm (and the STMBL HAL) is controlled by a command-line interface at the bottom. Servoterm uses the up and down arrow keys to scroll through previous commands, but there is no tab-completion. This is mainly described in the [HAL](#hal-hardware-abstraction-layer) section of this document. The graphing display is controlled by the "term0" interface. Typing `term0` at the prompt will show output similar to:
 
-![Servoterm Terminal Interface](/images/servoterm2.png)
+![Servoterm Terminal Interface](../../images/servoterm2.png)
 
 The first two entries are internal information about the HAL component and can be ignored for now. The next 8 lines say what internal signal each of the wave plots is connected to. In this case, wave0 (the black one) is connected to a sim signal, in this case, the sine wave. (as you might have guessed, typing "sim0" will show you the parameters of the simulated signals.) To connect wave1 (red) to the sawtooth output (which simulates both encoder feedback and a position command for steady rotation), then simply type `term0.wave1 = sim0.vel`. Each wave has an associated offset and gain parameter that can be used to adjust vertical scale and position. The `term0.send_step` parameter functions like the time-base of an oscilloscope.
 
