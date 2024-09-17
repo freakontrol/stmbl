@@ -34,7 +34,7 @@ D17,LED-0805-SIDE,1,LTST-S220KSKT yellow,https://www.mouser.it/ProductDetail/859
 "R146,R177,R173,R172,R144,R152",R_0603,6,5.1kΩ,https://www.mouser.it/ProductDetail/71-CRCW06035K10FKEBC 
 D22,SMA_Standard,1,SMAJ24A TVS 24V,https://www.mouser.it/ProductDetail/511-SMAJ24A-TR 
 "C4,C35,C51,C68,C69,C110,C131,C132,C14,C97,C70,C145,C111,C123,C124,C109",C_0805,16,10µF,https://www.mouser.it/ProductDetail/810-C2012X5R1V106K0C 
-"R80,R81,R82",R_2512,3,0.003Ω,https://www.mouser.it/ProductDetail/652-CSS2H2512K3L00F 
+"R80,R81,R82",R_2512,3,0.002Ω,https://www.mouser.it/ProductDetail/652-CSI2H-2512K2L00G
 "U1,U20,U21,U22,U23,U29",SOT-23-6,6,USBLC6-4SC6,https://www.mouser.it/ProductDetail/511-USBLC6-2SC6 
 "P1,P11",USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,2,USB_C_Receptacle_USB2.0,https://www.mouser.it/ProductDetail/640-USB4105-GF-A 
 C3,C_1808,1,150nF,https://www.mouser.it/ProductDetail/80-C1808W154KCR 
