@@ -2888,17 +2888,6 @@
 		)
 		(uuid "f88cb38c-6ec6-429e-ad9b-3bb93bdce564")
 	)
-	(text "Negare itirp via software!!!"
-		(exclude_from_sim no)
-		(at 172.72 85.09 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "ce85caf9-1e4b-4009-8dbf-93cccd4ca78b")
-	)
 	(hierarchical_label "TX"
 		(shape input)
 		(at 39.37 68.58 180)

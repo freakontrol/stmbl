@@ -2842,18 +2842,6 @@
 		)
 		(uuid "fd1a5c1c-f7ab-438b-89ee-86352cd7916d")
 	)
-	(text "da controllare"
-		(exclude_from_sim no)
-		(at 173.99 133.35 0)
-		(effects
-			(font
-				(size 1.524 1.524)
-				(italic yes)
-			)
-			(justify left bottom)
-		)
-		(uuid "23d87245-2555-4e12-93cb-807eb95d3735")
-	)
 	(text "inserire filtro rc"
 		(exclude_from_sim no)
 		(at 59.69 123.19 90)

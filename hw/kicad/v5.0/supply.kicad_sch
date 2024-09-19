@@ -12971,6 +12971,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Datasheet" ""
@@ -13064,9 +13065,9 @@
 		(at 133.35 46.99 0)
 		(unit 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "00000000-0000-0000-0000-00005884d28e")
 		(property "Reference" "R158"
 			(at 135.89 49.53 90)
@@ -13186,9 +13187,9 @@
 		(at 118.11 46.99 0)
 		(unit 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "00000000-0000-0000-0000-00005884fb7d")
 		(property "Reference" "R155"
 			(at 120.65 49.53 90)
@@ -13225,7 +13226,7 @@
 				)
 			)
 		)
-		(property "Description" ""
+		(property "Description" "NM"
 			(at 16.51 127 0)
 			(effects
 				(font
@@ -13308,9 +13309,9 @@
 		(at 123.19 46.99 0)
 		(unit 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "00000000-0000-0000-0000-00005884fc85")
 		(property "Reference" "R156"
 			(at 125.73 49.53 90)
@@ -13430,9 +13431,9 @@
 		(at 128.27 46.99 0)
 		(unit 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(uuid "00000000-0000-0000-0000-00005884fd91")
 		(property "Reference" "R157"
 			(at 130.81 49.53 90)

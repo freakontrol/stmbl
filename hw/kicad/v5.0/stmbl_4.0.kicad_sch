@@ -320,7 +320,7 @@
 			)
 		)
 		(property "Footprint" "stmbl:radial fan"
-			(at 142.24 99.06 0)
+			(at 143.764 106.426 0)
 			(effects
 				(font
 					(size 1.524 1.524)
@@ -354,7 +354,7 @@
 				(hide yes)
 			)
 		)
-		(property "Voltage" "12V"
+		(property "Voltage" "124V"
 			(at 142.24 99.06 0)
 			(effects
 				(font
