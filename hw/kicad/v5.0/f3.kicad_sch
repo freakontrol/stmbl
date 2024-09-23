@@ -6889,7 +6889,7 @@
 				)
 			)
 		)
-		(property "Footprint" "stmbl:Pin_Header_Straight_1x04"
+		(property "Footprint" "stmbl:Pin_Header_Straight_1x04_smd"
 			(at 137.16 134.62 0)
 			(effects
 				(font
@@ -9973,7 +9973,7 @@
 				)
 			)
 		)
-		(property "Footprint" "stmbl:Pin_Header_Straight_1x04"
+		(property "Footprint" "stmbl:Pin_Header_Straight_1x04_smd"
 			(at 270.51 105.41 0)
 			(effects
 				(font
