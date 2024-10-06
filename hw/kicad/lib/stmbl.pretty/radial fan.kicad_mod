@@ -1,27 +1,117 @@
-(footprint "radial fan" (version 20221018) (generator pcbnew)
-  (layer "F.Cu")
-  (attr through_hole)
-  (fp_text reference "REF**" (at 9.77 20.38 unlocked) (layer "F.SilkS")
-      (effects (font (size 1 1) (thickness 0.1)))
-    (tstamp 4fdc4b3f-b7b7-43fe-a76f-8a92be7e7a89)
-  )
-  (fp_text value "radial fan" (at 11.23 18.54 unlocked) (layer "F.Fab")
-      (effects (font (size 1 1) (thickness 0.15)))
-    (tstamp be451e7f-ee85-4a4b-9119-ba29148620e0)
-  )
-  (fp_text user "${REFERENCE}" (at 12.68 16.77 unlocked) (layer "F.Fab")
-      (effects (font (size 1 1) (thickness 0.15)))
-    (tstamp f246c134-be14-416d-bd97-e4f6a362c44c)
-  )
-  (pad "" np_thru_hole circle (at 0 0) (size 2.8 2.8) (drill 2.8) (layers "F&B.Cu" "*.Mask")
-    (solder_mask_margin 0.2) (clearance 0.2) (tstamp c9a712e0-bd6c-4b18-be60-9bdb09a7e488))
-  (pad "" np_thru_hole circle (at 0 35) (size 2.8 2.8) (drill 2.8) (layers "F&B.Cu" "*.Mask")
-    (solder_mask_margin 0.2) (clearance 0.2) (tstamp d29f7801-079a-4fd7-aedd-acbb0ca9c85d))
-  (pad "" np_thru_hole circle (at 35 35) (size 2.8 2.8) (drill 2.8) (layers "F&B.Cu" "*.Mask")
-    (solder_mask_margin 0.2) (clearance 0.2) (tstamp d0e90854-e522-4342-a986-78f6e0c193bc))
-  (model "${STMBL}/stmbl.pretty/fan3-blower_fan_3.step"
-    (offset (xyz 17.5 -17.5 18.5))
-    (scale (xyz 1 1 1))
-    (rotate (xyz 180 0 90))
-  )
+(footprint "radial fan"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 9.77 20.38 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "4fdc4b3f-b7b7-43fe-a76f-8a92be7e7a89")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+		)
+	)
+	(property "Value" "radial fan"
+		(at 11.23 18.54 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "be451e7f-ee85-4a4b-9119-ba29148620e0")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "745c14ae-50ba-4f72-84cd-5a8891014986")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c7db29b8-0855-429b-8577-0f94f984469d")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "e72d8d37-07c6-4b90-9e8c-632e792f991a")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_text user "${REFERENCE}"
+		(at 12.68 16.77 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "f246c134-be14-416d-bd97-e4f6a362c44c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "" np_thru_hole circle
+		(at 0 0)
+		(size 2.8 2.8)
+		(drill 2.8)
+		(layers "F&B.Cu" "*.Mask")
+		(solder_mask_margin 0.2)
+		(clearance 0.2)
+		(uuid "c9a712e0-bd6c-4b18-be60-9bdb09a7e488")
+	)
+	(pad "" np_thru_hole circle
+		(at 0 35)
+		(size 2.8 2.8)
+		(drill 2.8)
+		(layers "F&B.Cu" "*.Mask")
+		(solder_mask_margin 0.2)
+		(clearance 0.2)
+		(uuid "d29f7801-079a-4fd7-aedd-acbb0ca9c85d")
+	)
+	(pad "" np_thru_hole circle
+		(at 35 35)
+		(size 2.8 2.8)
+		(drill 2.8)
+		(layers "F&B.Cu" "*.Mask")
+		(solder_mask_margin 0.2)
+		(clearance 0.2)
+		(uuid "d0e90854-e522-4342-a986-78f6e0c193bc")
+	)
+	(model "${STMBL}/stmbl.pretty/blowerfan_plasticstandoff.step"
+		(offset
+			(xyz 17.5 -17.5 15.5)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 -180 -90)
+		)
+	)
 )
