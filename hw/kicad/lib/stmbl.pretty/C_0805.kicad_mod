@@ -180,15 +180,15 @@
 		(solder_mask_margin 0.1)
 		(uuid "9f8db262-393d-48e3-b2bf-91a6c1209558")
 	)
-	(model "/home/mauri/Repositories/stmbl.dis/hw/kicad/lib/stmbl.pretty/Cap_0805.stp"
+	(model "${STMBL}/stmbl.pretty/CAP0805.stp"
 		(offset
-			(xyz 1.1 0.7 0)
+			(xyz -1 0 0.625)
 		)
 		(scale
 			(xyz 1 1 1)
 		)
 		(rotate
-			(xyz 90 180 0)
+			(xyz 0 0 0)
 		)
 	)
 )
