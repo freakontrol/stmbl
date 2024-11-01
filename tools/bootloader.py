@@ -15,7 +15,7 @@ for i in range(0, 20):
         print ("Reseting stmbl at " + port[2])
         try:
           stmbl = serial.Serial(port[0])
-          stmbl.write('bootloader\n'.encode())
+          stmbl.write(b'bootloader\n')
           stmbl.close()
           done = True
         except OSError:
