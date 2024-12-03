@@ -11,7 +11,9 @@ weight: 2
 
 # Feedback
 
-## Incremental Encoder
+## Incremental Encoder  
+
+ An [incremental encoder](https://en.wikipedia.org/wiki/Incremental_encoder) operates on the principle of quadrature encoding, meaning it uses two channels of data to provide accurate measurement information. When the encoder is rotated or displaced, both output signals A and B change in a specific sequence that indicates direction and magnitude of movement. However, since it doesn't maintain an absolute position reference, it only provides relative changes from its initial state.  
 
 ### STMBL FBx Pinout
 
@@ -33,7 +35,9 @@ link enc_fb0
 conf0.mot_fb_res = 4096
 ```
 
-## Sin/Cos Encoder
+## Sin/Cos Encoder  
+
+ A [sin-cos encoder](https://electronics.stackexchange.com/a/187115) is a type of rotary encoder that outputs two signals, sine and cosine waves, which are phase-shifted by 90 degrees. These signals can be used to determine the position and direction of rotation with high precision. The encoder generates these signals based on the angular position of its shaft relative to a datum point. By comparing the values of the sine and cosine outputs at any given time, it's possible to calculate the exact angle or position of the shaft.  
 
 ### STMBL FBx Pinout
 
@@ -56,7 +60,9 @@ conf0.mot_fb_res = 4096
 fb_switch0.mot_pos = enc_fb0.ipos
 ```
 
-## Resolver
+## Resolver  
+
+ A [resolver](https://en.wikipedia.org/wiki/Resolver_(electrical)) is an electrical device that converts the angular position of a rotating shaft into an output signal by using magnetic fields and coils. It generates two phase-shifted sine signals that can be used to determine the position and direction of rotation with high precision.  
 
 ### STMBL FBx Pinout
 
