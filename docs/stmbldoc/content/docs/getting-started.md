@@ -66,7 +66,7 @@ The STMBL consists of two separate PCBs that are made as one then assembled and 
 
 The lower board is the high-voltage (HV) board, and this is where the power driver is situated. The only connection between the two boards is a serial connection through a 2.5kV isolation IC. To make this possible, there is a second STM32 chip on the lower board. This is an STM32F303 and is referred to as "F3" in the remainder of this document. The processor on the upper board is referred to as "F4".
 
-![STMBL Anatomy](../../images/ISO1.svg)
+![STMBL Anatomy](../../images/iso1-dark.png)
 
 The connectors on the HV board are 5.08mm and 3.5mm pitch. Those on the LV board are 3.5mm pitch. Mating part numbers are:
 
@@ -77,7 +77,7 @@ The connectors on the HV board are 5.08mm and 3.5mm pitch. Those on the LV board
 
 If preferred, 2 x 3 position or 3 x 2 position plugs can be inserted in the 6-position sockets. Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied. WARNING: The LV board is safe up to about 26V but take care that 0V is common with the PC GND before connecting a USB cable. Motor power should be 30 to 350V, though the logic parts of the HV board may work at 24V for firmware flashing etc. Again, a green LED adjacent to the connector confirms that the board is powered-up. WARNING: The HV and LV boards are isolated in normal use but it is easy to accidentally connect them. One way to do this is via USB cables which can easily tie GND lines together through the setup PC. It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
 
-![STMBL Connectors](../../images/ISO2.svg)
+![STMBL Connectors](../../images/iso2-dark.png)
 
 The command and feedback connectors use standard 8P8C (RJ45) connectors and standard CAT5 or CAT6 cables can be conveniently used. To connect to cables with larger conductors than supported by CAT5, it is possible to use, for example, [Industrial CAT6a](https://octopart.com/j00026a2001-telegärtner-24873031) connectors which can accept core wires up to 1.6mm and overall cable diameters up to 9.0mm.
 
@@ -99,7 +99,7 @@ STMBL HAL configuration does not use any commands other than the = sign and the 
 
 Assuming that there is already a motor connected to the drive and that the drive is powered up, the Servoterm display should already be indicating the motor position feedback. Rotating the motor shaft by hand might produce something like:
 
-![Servoterm Display](../../images/servoterm3.png)
+![Servoterm Display](../../images/servoterm.png)
 
 Though it equally well might not if the configuration is set up for a resolver and the motor has an encoder. It should be possible to make the motor turn at this point without any further configuration. The commands that follow will set the hv0 module up to simply rotate the motor open-loop in direct-mode (like a stepper motor) with an excitation current of 0.5A. This should be safe for most motors that the STMBL is a good match for, but you should choose your own value. For an explanation of direct and quadrature current, see the section on [Motor Basics](#motor-basics).
 
@@ -115,7 +115,7 @@ The rotation speed can be altered by changing the sim0 frequency:
 sim0.freq = 5
 ```
 
-STMBL v4 HAL contains a number of components that have built-in linking behavior.
+STMBL HAL contains a number of components that have built-in linking behavior.
 
 ### Resolvers
 
@@ -212,21 +212,6 @@ Connect the USB cable to the HV board and short the boot pads on the HV board wh
 STMBL supports Mesa Smartserial to communicate with LinuxCNC. [http://linuxcnc.org/docs/html/man/man9/sserial.9.html](http://linuxcnc.org/docs/html/man/man9/sserial.9.html)
 
 [https://www.youtube.com/watch?v=5CKMrOy0ZXk](https://www.youtube.com/watch?v=5CKMrOy0ZXk)
-
-### Version 3
-
-Version 3 can connect via rj45 to our db25 bob: [https://github.com/rene-dev/stmbl/tree/master/hw/kicad/bob/db25_bob](https://github.com/rene-dev/stmbl/tree/master/hw/kicad/bob/db25_bob) It plugs into any DB25 mesa card, and provides full isolation. Supported are 5i25, 6i25, 7i92, 7i80DB, 7i76E. To use stmbl with 7I74 or 7I44 you need to make a custom cable.
-
-| Mesa | STMBL |
-|------|-------|
-| 1 Orange stripe | 2 Orange |
-| 2 Orange | 1 Orange stripe |
-| 3 Green stripe | 5 Blue stripe |
-| 6 Green | 4 Blue |
-
-### Version 4
-
-Version 4 can plug directly into a 7I74 or 7I44.
 
 ### STMBL config
 
