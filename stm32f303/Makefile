@@ -189,8 +189,7 @@ all: gccversion build showsize
 hv_firmware.o: obj_hvf3/hvf3.bin
 	$(OBJCOPY) --rename-section .data=.hv_firmware -I binary obj_hvf3/hvf3.bin -B arm -O elf32-littlearm hv_firmware.o
 
-build: tbl elf hex bin lss sym hv_firmware.o
-
+build: tbl elf hex bin lss sym hv_firmware.o graph
 
 elf: $(TARGET).elf
 hex: $(TARGET).hex
@@ -199,8 +198,6 @@ lss: $(TARGET).lss
 sym: $(TARGET).sym
 
 # Display compiler version information
-#
-
 $(OBJDIR)/shared/commands.o: stm32f303/inc/commandslist.h
 
 stm32f303/inc/commandslist.h: tools/create_cmd.py $(SOURCES)
@@ -212,6 +209,14 @@ stm32f303/src/hal_tbl.c: tools/create_hal_tbl.py $(COMPS)
 	@echo Generating HAL table
 	@$(MKDIR) -p $(dir $@)
 	@$(PYTHON) tools/create_hal_tbl.py $@ $(COMPS)
+
+# New target to generate HAL table graph
+graph.dot: tools/create_hal_graph.py $(COMPS) graph
+	@echo Generating HAL table graph
+	@$(MKDIR) -p graph
+	@$(PYTHON) tools/create_hal_graph.py graph/hvf3_graph stm32f303/src/main.c $(COMPS)
+
+graph: graph.dot
 
 $(SRC_COMP_OBJECTS): $(OBJDIR)/stm32f303/src/comps/%.o: stm32f303/inc/comps/%_comp.h
 
@@ -239,6 +244,7 @@ clean:
 	rm -rf stm32f303/inc/shared_comps/*
 	rm -rf stm32f303/src/hal_tbl.c
 	rm -rf hv_firmware.o
+	rm -rf graph
 
 # Include the base rules
 #
@@ -251,4 +257,4 @@ include base.mak
 # Listing of phony targets
 #
 .PHONY: all build clean \
-        elf hex bin lss sym tbl
+        elf hex bin lss sym tbl graph
