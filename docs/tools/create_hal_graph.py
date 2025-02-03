@@ -181,7 +181,7 @@ def generate_dot_file_from_commands_and_pins(main_content, pins_dict):
 
 def main(output_file, main_file, *input_files):
     comps = {}
-
+    
     for infile in input_files:
         with open(infile) as f:
             pins = []
