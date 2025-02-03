@@ -18,11 +18,6 @@ def parse_commands(content):
     commands = command_pattern.findall(cleaned_content)
     return commands
 
-def load_pins_from_pickle(pickle_file_path):
-    with open(pickle_file_path, 'rb') as file:
-        pins_dict = pickle.load(file)
-    return pins_dict
-
 def build_graph_from_commands_and_pins(commands, pins_dict):
     graph = Graph()
     component_counter = {}
