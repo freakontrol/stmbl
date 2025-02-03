@@ -11,9 +11,14 @@ weight: 3
 
 # Motor
 
+{{% hint info %}}
+Is possible to use the [Autotuning](../tuning.md) to estimate the motor parameters.  
+You can still use this guide if the autotuning fail.  
+{{% /hint %}} 
+
 ## Motor parameters
 
-Unfortunately, servo motor datasheets often lack a good description of the parameters. There is a difference between line-to-line and phase values. Here are listed the most important motor parameters and how to determine them.
+Unfortunately, servo motor datasheets often lack a good description of the parameters. There is a difference between line-to-line and phase values. Here are listed the most important motor parameters and how to determine them.  
 
 ### Resistance (conf0.r)
 

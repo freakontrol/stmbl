@@ -54,11 +54,11 @@ In addition to motor control and dual feedback, each STMBL drive has two +/-30V 
 To use the STMBL, you will need to:
 
 * connect your command, feedback, and motor to STMBL using **suitable cables**.
-* [Flash the firmware](#flashing-firmware)
-* configure the drive for your motor using [Servoterm](#servoterm)
-  * configure your feedback interface
-  * find the correct [Motor parameters](#motor-parameters) for your motor
-  * configure your command interface
+* [Flash the firmware](getting-started.md/#flashing-firmware)
+* configure the drive for your motor using [Servoterm](servoterm.md)
+  * configure your [Feedback interface](configuration/feedback.md)
+  * find the correct [Motor parameters](configuration/motor.md) for your motor
+  * configure your [Command interface](configuration/cmd.md)
 
 ## Anatomy of the STMBL
 
@@ -68,14 +68,21 @@ The lower board is the high-voltage (HV) board, and this is where the power driv
 
 ![STMBL Anatomy](../../images/iso1-dark.png)
 
-The connectors on the HV board are 5.08mm and 3.5mm pitch. Those on the LV board are 3.5mm pitch. Mating part numbers are:
+Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied.
 
-* HV Power: [1757019](https://octopart.com/1757019-phoenix+contact-789)
-* HV Motor: [1757022](https://octopart.com/1757022-phoenix+contact-902) or [1792760](https://octopart.com/1792760-phoenix+contact-29279)
-* LV Power and HV Temperature: [1840366](https://octopart.com/1840366-phoenix+contact-6675) or [1862852](https://octopart.com/1862852-phoenix+contact-118535)
-* IO: [1840405](https://octopart.com/1840405-phoenix+contact-14126) or [1862894](https://octopart.com/1862894-phoenix+contact-79205)
+{{% hint warning %}}
+The LV board is safe up to about 26V but take care that 0V is common with the PC GND before connecting a USB cable.  
+{{% /hint %}}
 
-If preferred, 2 x 3 position or 3 x 2 position plugs can be inserted in the 6-position sockets. Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied. WARNING: The LV board is safe up to about 26V but take care that 0V is common with the PC GND before connecting a USB cable. Motor power should be 30 to 350V, though the logic parts of the HV board may work at 24V for firmware flashing etc. Again, a green LED adjacent to the connector confirms that the board is powered-up. WARNING: The HV and LV boards are isolated in normal use but it is easy to accidentally connect them. One way to do this is via USB cables which can easily tie GND lines together through the setup PC. It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
+Motor power should be 30 to 350V, though the logic parts of the HV board may work at 24V for firmware flashing etc. Again, a green LED adjacent to the connector confirms that the board is powered-up.  
+
+{{% hint warning %}}
+The HV and LV boards are isolated in normal use but it is easy to accidentally connect them. One way to do this is via USB cables which can easily tie GND lines together through the setup PC.  
+{{% /hint %}}  
+
+{{% hint danger %}}
+ It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
+{{% /hint %}}  
 
 ![STMBL Connectors](../../images/iso2-dark.png)
 
@@ -174,7 +181,11 @@ With 24V to the F3 board and with the F4 board _unpowered_, look at the red LED 
 
 ### Updating Firmware
 
-The firmware on both the F3 and F4 board can be updated through the F4 USB port and without access to the boot pads. Connect 24V to both the F3 and F4 boards. In the source software folder, type `git pull` to get the latest software version. Type `make clean` to ensure that all files are freshened. Type `make` followed by `make binall` to create the binary files to be flashed. Type `make btburn` to program the F4 firmware and transfer a copy of the F3 software or type `make all_btburn` to program the F4 firmware + bootloader and transfer a copy of the F3 software (Warning: this will overwrite your config). There should then be a quantity of text output culminating with a progress bar like:
+The firmware on both the F3 and F4 board can be updated through the F4 USB port and without access to the boot pads. Connect 24V to both the F3 and F4 boards. In the source software folder, type `git pull` to get the latest software version. Type `make clean` to ensure that all files are freshened. Type `make` followed by `make binall` to create the binary files to be flashed. Type `make btburn` to program the F4 firmware and transfer a copy of the F3 software or type `make all_btburn` to program the F4 firmware + bootloader and transfer a copy of the F3 software 
+{{% hint warning %}}
+this will overwrite your config 
+{{% /hint %}}  
+There should then be a quantity of text output culminating with a progress bar like:
 
 ```
 Downloading to address = 0x08000000, size = 2756

@@ -42,7 +42,12 @@ To install Servoterm, follow these steps:
 
 ## Connecting to STMBL
 
-To connect to the STMBL, you will need a mini-USB B cable. **WARNING:** Be sure that the 24V PSU is floating or shares a ground reference with the PC. (Maybe even check the voltage between the connector and socket before inserting the plug.) You can then click the "connect" button and you should get something like the image below. [What if I can not connect](#servoterm-connection-problems)
+To connect to the STMBL, you will need a mini-USB B cable. 
+{{% hint danger %}}
+Be sure that the 24V PSU is floating or shares a ground reference with the PC.  
+(Maybe even check the voltage between the connector and socket before inserting the plug.)
+{{% /hint %}}  
+You can then click the "connect" button and you should get something like the image below.  
 
 ## Servoterm Interface
 
