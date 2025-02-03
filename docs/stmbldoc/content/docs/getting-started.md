@@ -54,11 +54,11 @@ In addition to motor control and dual feedback, each STMBL drive has two +/-30V 
 To use the STMBL, you will need to:
 
 * connect your command, feedback, and motor to STMBL using **suitable cables**.
-* [Flash the firmware](#flashing-firmware)
-* configure the drive for your motor using [Servoterm](#servoterm)
-  * configure your feedback interface
-  * find the correct [Motor parameters](#motor-parameters) for your motor
-  * configure your command interface
+* [Flash the firmware](getting-started.md/#flashing-firmware)
+* configure the drive for your motor using [Servoterm](servoterm.md)
+  * configure your [Feedback interface](configuration/feedback.md)
+  * find the correct [Motor parameters](configuration/motor.md) for your motor
+  * configure your [Command interface](configuration/cmd.md)
 
 ## Anatomy of the STMBL
 
@@ -66,18 +66,25 @@ The STMBL consists of two separate PCBs that are made as one then assembled and 
 
 The lower board is the high-voltage (HV) board, and this is where the power driver is situated. The only connection between the two boards is a serial connection through a 2.5kV isolation IC. To make this possible, there is a second STM32 chip on the lower board. This is an STM32F303 and is referred to as "F3" in the remainder of this document. The processor on the upper board is referred to as "F4".
 
-![STMBL Anatomy](../../images/ISO1.svg)
+![STMBL Anatomy](../../images/iso1-dark.png)
 
-The connectors on the HV board are 5.08mm and 3.5mm pitch. Those on the LV board are 3.5mm pitch. Mating part numbers are:
+Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied.
 
-* HV Power: [1757019](https://octopart.com/1757019-phoenix+contact-789)
-* HV Motor: [1757022](https://octopart.com/1757022-phoenix+contact-902) or [1792760](https://octopart.com/1792760-phoenix+contact-29279)
-* LV Power and HV Temperature: [1840366](https://octopart.com/1840366-phoenix+contact-6675) or [1862852](https://octopart.com/1862852-phoenix+contact-118535)
-* IO: [1840405](https://octopart.com/1840405-phoenix+contact-14126) or [1862894](https://octopart.com/1862894-phoenix+contact-79205)
+{{% hint warning %}}
+The LV board is safe up to about 26V but take care that 0V is common with the PC GND before connecting a USB cable.  
+{{% /hint %}}
 
-If preferred, 2 x 3 position or 3 x 2 position plugs can be inserted in the 6-position sockets. Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied. WARNING: The LV board is safe up to about 26V but take care that 0V is common with the PC GND before connecting a USB cable. Motor power should be 30 to 350V, though the logic parts of the HV board may work at 24V for firmware flashing etc. Again, a green LED adjacent to the connector confirms that the board is powered-up. WARNING: The HV and LV boards are isolated in normal use but it is easy to accidentally connect them. One way to do this is via USB cables which can easily tie GND lines together through the setup PC. It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
+Motor power should be 30 to 350V, though the logic parts of the HV board may work at 24V for firmware flashing etc. Again, a green LED adjacent to the connector confirms that the board is powered-up.  
 
-![STMBL Connectors](../../images/ISO2.svg)
+{{% hint warning %}}
+The HV and LV boards are isolated in normal use but it is easy to accidentally connect them. One way to do this is via USB cables which can easily tie GND lines together through the setup PC.  
+{{% /hint %}}  
+
+{{% hint danger %}}
+ It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
+{{% /hint %}}  
+
+![STMBL Connectors](../../images/iso2-dark.png)
 
 The command and feedback connectors use standard 8P8C (RJ45) connectors and standard CAT5 or CAT6 cables can be conveniently used. To connect to cables with larger conductors than supported by CAT5, it is possible to use, for example, [Industrial CAT6a](https://octopart.com/j00026a2001-telegärtner-24873031) connectors which can accept core wires up to 1.6mm and overall cable diameters up to 9.0mm.
 
@@ -99,7 +106,7 @@ STMBL HAL configuration does not use any commands other than the = sign and the 
 
 Assuming that there is already a motor connected to the drive and that the drive is powered up, the Servoterm display should already be indicating the motor position feedback. Rotating the motor shaft by hand might produce something like:
 
-![Servoterm Display](../../images/servoterm3.png)
+![Servoterm Display](../../images/servoterm.png)
 
 Though it equally well might not if the configuration is set up for a resolver and the motor has an encoder. It should be possible to make the motor turn at this point without any further configuration. The commands that follow will set the hv0 module up to simply rotate the motor open-loop in direct-mode (like a stepper motor) with an excitation current of 0.5A. This should be safe for most motors that the STMBL is a good match for, but you should choose your own value. For an explanation of direct and quadrature current, see the section on [Motor Basics](#motor-basics).
 
@@ -115,7 +122,7 @@ The rotation speed can be altered by changing the sim0 frequency:
 sim0.freq = 5
 ```
 
-STMBL v4 HAL contains a number of components that have built-in linking behavior.
+STMBL HAL contains a number of components that have built-in linking behavior.
 
 ### Resolvers
 
@@ -150,7 +157,7 @@ Pressing Esc at any time will disable the drive. To reenable, press reset or typ
 
 ### Requirements to build firmware
 
-The GCC cross-compiler for Arm: gcc-arm-none-eabi-gcc [https://launchpad.net/gcc-arm-embedded/+download](https://launchpad.net/gcc-arm-embedded/+download) You will also need the STMBL source code, available from [https://github.com/rene-dev/stmbl](https://github.com/rene-dev/stmbl). You can either clone this as a [git](https://git-scm.com/) archive or just download a current snapshot as a zip file. In order for the STMBL Makefiles to be able to find the gcc binaries, you may need to create the file toolchain-user.mak to point to the correct folder and version number.
+The GCC cross-compiler for Arm: gcc-arm-none-eabi-gcc [https://launchpad.net/gcc-arm-embedded/+download](https://launchpad.net/gcc-arm-embedded/+download) You will also need the STMBL source code, available from [https://github.com/freakontrol/stmbl](https://github.com/freakontrol/stmbl). You can either clone this as a [git](https://git-scm.com/) archive or just download a current snapshot as a zip file. In order for the STMBL Makefiles to be able to find the gcc binaries, you may need to create the file toolchain-user.mak to point to the correct folder and version number.
 
 ### Requirements to flash firmware
 
@@ -170,11 +177,15 @@ Before flashing firmware, it is worth trying to figure out if your board is comp
 
 ### Checking for existing firmware - F3 board
 
-With 24V to the F3 board and with the F4 board _unpowered_, look at the red LED under the fan, near the USB connector. If the HV board has both an STMBL bootloader and an STMBL Firmware installed, then it will illuminate only the green power LED and will flash the red LED slowly to indicate no comms with the F4 board (which is why this check should be done with the F4 board unpowered). Go to the [Updating Firmware](#updating-firmware) section in this scenario. If the F3 board does not flash the red LED when the F4 is unpowered, then there is no bootloader and no firmware flashed. Go to the [Flashing the HV board with no bootloader](#flashing-the-hv-board-with-no-bootloader) section. If the F3 board has only a bootloader flashed and no or broken firmware, then the red LED will flash rapidly. Use the instructions in [Updating Firmware](#updating-firmware) in this case. The boards can also be flashed with a SWD programmer, but that process is not documented here. It can be convenient to flash the boards to test them before separating the halves and before installing the IRAM module and bus capacitors if you have a self-built or part-assembled board. Precompiled Binary versions of the firmware can be downloaded from [https://github.com/rene-dev/stmbl/releases](https://github.com/rene-dev/stmbl/releases) When compiling from the source code, firmware flashing is handled by specifying a makefile target for each of the firmware sections.
+With 24V to the F3 board and with the F4 board _unpowered_, look at the red LED under the fan, near the USB connector. If the HV board has both an STMBL bootloader and an STMBL Firmware installed, then it will illuminate only the green power LED and will flash the red LED slowly to indicate no comms with the F4 board (which is why this check should be done with the F4 board unpowered). Go to the [Updating Firmware](#updating-firmware) section in this scenario. If the F3 board does not flash the red LED when the F4 is unpowered, then there is no bootloader and no firmware flashed. Go to the [Flashing the HV board with no bootloader](#flashing-the-hv-board-with-no-bootloader) section. If the F3 board has only a bootloader flashed and no or broken firmware, then the red LED will flash rapidly. Use the instructions in [Updating Firmware](#updating-firmware) in this case. The boards can also be flashed with a SWD programmer, but that process is not documented here. It can be convenient to flash the boards to test them before separating the halves and before installing the IRAM module and bus capacitors if you have a self-built or part-assembled board. Precompiled Binary versions of the firmware can be downloaded from [https://github.com/freakontrol/stmbl/releases](https://github.com/freakontrol/stmbl/releases) When compiling from the source code, firmware flashing is handled by specifying a makefile target for each of the firmware sections.
 
 ### Updating Firmware
 
-The firmware on both the F3 and F4 board can be updated through the F4 USB port and without access to the boot pads. Connect 24V to both the F3 and F4 boards. In the source software folder, type `git pull` to get the latest software version. Type `make clean` to ensure that all files are freshened. Type `make` followed by `make binall` to create the binary files to be flashed. Type `make btburn` to program the F4 firmware and transfer a copy of the F3 software or type `make all_btburn` to program the F4 firmware + bootloader and transfer a copy of the F3 software (Warning: this will overwrite your config). There should then be a quantity of text output culminating with a progress bar like:
+The firmware on both the F3 and F4 board can be updated through the F4 USB port and without access to the boot pads. Connect 24V to both the F3 and F4 boards. In the source software folder, type `git pull` to get the latest software version. Type `make clean` to ensure that all files are freshened. Type `make` followed by `make binall` to create the binary files to be flashed. Type `make btburn` to program the F4 firmware and transfer a copy of the F3 software or type `make all_btburn` to program the F4 firmware + bootloader and transfer a copy of the F3 software 
+{{% hint warning %}}
+this will overwrite your config 
+{{% /hint %}}  
+There should then be a quantity of text output culminating with a progress bar like:
 
 ```
 Downloading to address = 0x08000000, size = 2756
@@ -212,21 +223,6 @@ Connect the USB cable to the HV board and short the boot pads on the HV board wh
 STMBL supports Mesa Smartserial to communicate with LinuxCNC. [http://linuxcnc.org/docs/html/man/man9/sserial.9.html](http://linuxcnc.org/docs/html/man/man9/sserial.9.html)
 
 [https://www.youtube.com/watch?v=5CKMrOy0ZXk](https://www.youtube.com/watch?v=5CKMrOy0ZXk)
-
-### Version 3
-
-Version 3 can connect via rj45 to our db25 bob: [https://github.com/rene-dev/stmbl/tree/master/hw/kicad/bob/db25_bob](https://github.com/rene-dev/stmbl/tree/master/hw/kicad/bob/db25_bob) It plugs into any DB25 mesa card, and provides full isolation. Supported are 5i25, 6i25, 7i92, 7i80DB, 7i76E. To use stmbl with 7I74 or 7I44 you need to make a custom cable.
-
-| Mesa | STMBL |
-|------|-------|
-| 1 Orange stripe | 2 Orange |
-| 2 Orange | 1 Orange stripe |
-| 3 Green stripe | 5 Blue stripe |
-| 6 Green | 4 Blue |
-
-### Version 4
-
-Version 4 can plug directly into a 7I74 or 7I44.
 
 ### STMBL config
 

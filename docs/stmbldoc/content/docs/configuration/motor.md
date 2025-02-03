@@ -11,9 +11,14 @@ weight: 3
 
 # Motor
 
+{{% hint info %}}
+Is possible to use the [Autotuning](../tuning.md) to estimate the motor parameters.  
+You can still use this guide if the autotuning fail.  
+{{% /hint %}} 
+
 ## Motor parameters
 
-Unfortunately, servo motor datasheets often lack a good description of the parameters. There is a difference between line-to-line and phase values. Here are listed the most important motor parameters and how to determine them.
+Unfortunately, servo motor datasheets often lack a good description of the parameters. There is a difference between line-to-line and phase values. Here are listed the most important motor parameters and how to determine them.  
 
 ### Resistance (conf0.r)
 
@@ -53,7 +58,7 @@ The default value works for most motors. Normally, you don't have to measure thi
 It's also possible to measure psi directly with STMBL. Maybe even automatically in a future version.
 
 1. Disconnect the HV power, leave the servo connected.
-2. Connect with Servoterm, drag&drop this file into Servoterm: [https://github.com/rene-dev/stmbl/blob/master/conf/template/psi.txt](https://github.com/rene-dev/stmbl/blob/master/conf/template/psi.txt)
+2. Connect with Servoterm, drag&drop this file into Servoterm: [https://github.com/freakontrol/stmbl/blob/master/conf/template/psi.txt](https://github.com/freakontrol/stmbl/blob/master/conf/template/psi.txt)
 3. Type `stop` and `start`
 4. Turn the shaft of the motor. You can use your hand for a rough estimation, but it's probably better to drive with a cordless drill. The closer to the nominal RPM rating, the more accurate the result will be. There is no need to turn the shaft continuously, a quick short turn of one revolution is sufficient.
 5. Type `psi0.max_psi` and you will get the peak psi value that was measured. You can set `conf0.psi` to the measured peak psi value now. If you did not drive the motor reasonably fast, the proper psi value is probably a couple percent higher.
@@ -68,7 +73,7 @@ psi = (Nm/A) / 3.0 \* 2.0 / #POLE_PAIRS
 
 #### PID
 
-The default values work for most motors. Normally, you don't have to tune this. The STMBL PID works differently than common PID loops. Understand the [code](https://github.com/rene-dev/stmbl/blob/master/shared/comps/pid.c) and its interaction with the [motor model](https://github.com/rene-dev/stmbl/blob/master/shared/comps/pmsm_limits.c) first!
+The default values work for most motors. Normally, you don't have to tune this. The STMBL PID works differently than common PID loops. Understand the [code](https://github.com/freakontrol/stmbl/blob/master/shared/comps/pid.c) and its interaction with the [motor model](https://github.com/freakontrol/stmbl/blob/master/shared/comps/pmsm_limits.c) first!
 
 * conf0.pos_p position pid proportional gain (1/s)
 * conf0.vel_p velocity pid proportional gain (1/s)

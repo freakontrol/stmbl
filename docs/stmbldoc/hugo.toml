@@ -8,6 +8,9 @@ enableGitInfo = true
 [markup.tableOfContents]
  startLevel = 1
 
+[markup.goldmark.renderer]
+  unsafe = true
+
 [menu]
 # [[menu.before]]
 [[menu.after]]
@@ -18,7 +21,7 @@ enableGitInfo = true
 [params]
   # (Optional, default light) Sets color theme: light, dark or auto.
   # Theme 'auto' switches between dark and light modes based on browser/os preferences
-  BookTheme = 'auto'
+  BookTheme = 'dark'
 
   # (Optional, default true) Controls table of contents visibility on right side of pages.
   # Start and end levels can be controlled with markup.tableOfContents setting.
@@ -56,7 +59,7 @@ enableGitInfo = true
   # Enable "Edit this page" links for 'doc' page type.
   # Disabled by default. Uncomment to enable. Requires 'BookRepo' param.
   # Edit path must point to root directory of repo.
-  BookEditPath = 'docs/stmbldoc/content/docs'
+  # BookEditPath = 'docs/stmbldoc/content/docs'
 
   # Configure the date format used on the pages
   # - In git information

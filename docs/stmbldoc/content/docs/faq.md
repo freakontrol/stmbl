@@ -10,6 +10,7 @@ weight: 7
 ---
 
 ### How to contact the devs?
+- https://matrix.to/#/@stmbl:freakontrol.com
 - https://gitter.im/rene-dev/stmbl
 - https://webirc.hackint.org/#stmbl or #stmbl on irc.hackint.eu
 ### Does it work with DC Servos?
