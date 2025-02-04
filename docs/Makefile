@@ -1,19 +1,23 @@
-# Include the firmware Makefile to access the COMPS variable
-include comps.mak
-include stm32f303/comps.mak
-
 # Default target
 all: build graph
 
 build: graph
 
-# New target to generate HAL table graph
-docs/graph/hvf3_graph.dot: docs/tools/create_hal_graph.py $(F3COMPS)
+include stm32f303/comps.mak
+
+docs/graph/hvf3_graph.dot: docs/tools/create_hal_graph.py $(F3COMPS) $(CONFIG_TEMPLATES)
 	@echo Generating HAL table graph
 	@$(MKDIR) -p docs/graph
-	@$(PYTHON) docs/tools/create_hal_graph.py $@ stm32f303/src/main.c $(F3COMPS)
+	@$(PYTHON) docs/tools/create_hal_graph.py $@ stm32f303/src/main.c $(F3COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
 
-graph: docs/graph/hvf3_graph.dot
+include comps.mak
+
+docs/graph/f4_festo_graph.dot: docs/tools/create_hal_graph.py $(F4COMPS) $(CONFIG_TEMPLATES)
+	@echo Generating HAL table graph
+	@$(MKDIR) -p docs/graph
+	@$(PYTHON) docs/tools/create_hal_graph.py $@ conf/festo.txt $(F4COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
+
+graph:  docs/graph/hvf3_graph.dot docs/graph/f4_festo_graph.dot
 
 # Target: clean project
 clean:

@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 import re
 import sys
+import os
 
 from hal_graph import Graph, generate_dot_file
+
+graph = Graph()
+component_counter = {}
 
 def remove_commented_lines(content):
     # Remove lines that are comments or contain comments
     lines = content.split('\n')
-    non_comment_lines = [line for line in lines if not line.strip().startswith('//')]
+    non_comment_lines = [line for line in lines if not line.strip().startswith('//') or not line.strip().startswith('#')]
     return '\n'.join(non_comment_lines)
 
 def parse_commands(content):
@@ -18,16 +22,19 @@ def parse_commands(content):
     commands = command_pattern.findall(cleaned_content)
     return commands
 
-def build_graph_from_commands_and_pins(commands, pins_dict):
-    graph = Graph()
-    component_counter = {}
+def parse_config_commands(content):
+    # Remove commented lines
+    cleaned_content = remove_commented_lines(content)
+    commands = cleaned_content.split('\n')
+    return commands
 
+def build_graph_from_commands_and_pins(commands, pins_dict, config_commands):
     def get_next_component_name(base_name):
         if base_name not in component_counter:
             component_counter[base_name] = -1  # Start from 0
         component_counter[base_name] += 1
         return f"{base_name}{component_counter[base_name]}"
-
+    
     for command in commands:
         parts = re.split(r'(\s+|=)', command)
         parts = [part for part in parts if part.strip()]
@@ -38,15 +45,14 @@ def build_graph_from_commands_and_pins(commands, pins_dict):
             base_name = parts[1]
             component_name = get_next_component_name(base_name)
             graph.add_component(component_name)
-            
+
             if base_name in pins_dict:
                 for pin in pins_dict[base_name]:
                     graph.get_component(component_name).add_pin(pin)
-                    
-            graph.get_component(component_name).add_pin('rt_prio')
 
         elif parts[0] == "link":
-            pass
+            template = parts[1]
+            build_graph_from_commands_and_pins(config_commands[template], pins_dict, config_commands)
 
         else:
             # Handle pin assignments and connections
@@ -70,16 +76,10 @@ def build_graph_from_commands_and_pins(commands, pins_dict):
 
     return graph
 
-def generate_dot_file_from_commands_and_pins(main_content, pins_dict):
-    commands = parse_commands(main_content)
-    graph = build_graph_from_commands_and_pins(commands, pins_dict)
-    dot = generate_dot_file(graph)
-    return dot
-
-def main(output_file, main_file, *input_files):
+def main(output_file, main_file, comp_files, config_templates):
     comps = {}
-    
-    for infile in input_files:
+
+    for infile in comp_files:
         with open(infile) as f:
             pins = []
             compname = ''
@@ -95,16 +95,44 @@ def main(output_file, main_file, *input_files):
                 if pin:
                     for i in range(int(pin.groups()[1])):
                         pins.append(f"{pin.groups()[0]}{i}")
+            pins.append("rt_prio")
+            pins.append("frt_prio")
             comps[compname].extend(pins)
-            
-    with open(main_file, 'r') as main_file:
-        main_content = main_file.read()
 
-    dot = generate_dot_file_from_commands_and_pins(main_content, comps)
+    # Parse config templates
+    config_commands = {}
+    for template_file in config_templates:
+        with open(template_file, 'r') as f:
+            content = f.read()
+            commands = parse_config_commands(content)
+            config_name = os.path.basename(template_file).split('.')[0]
+            config_commands[config_name] = commands
+
+    with open(main_file, 'r') as m_file:
+        main_content = m_file.read()
+        
+    if main_file.endswith('.c'):
+        main_commands = parse_commands(main_content)
+    elif main_file.endswith('.txt'):
+        main_commands = parse_config_commands(main_content)
+        main_commands = ["load term"] + main_commands
+
+    graph = build_graph_from_commands_and_pins(main_commands, comps, config_commands)
+    dot = generate_dot_file(graph)
     dot.render(output_file, format='svg')
+    dot.render(output_file, format='png')
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: create_hal_tbl_graph.py <main_file> <input_files...>")
+    if len(sys.argv) < 5 or '__TEMPLATE_MARKER__' not in sys.argv:
+        print("Usage: create_hal_graph.py <output_file> <main_file> <comp_files...> __TEMPLATE_MARKER__ <config_templates...>")
         sys.exit(1)
-    main(sys.argv[1], *sys.argv[2:])
+
+    output_file = sys.argv[1]
+    main_file = sys.argv[2]
+
+    # Find the index of the marker
+    marker_index = sys.argv.index('__TEMPLATE_MARKER__')
+    comp_files = sys.argv[3:marker_index]  # Extract components
+    config_templates = sys.argv[marker_index + 1:]  # Extract configuration templates
+
+    main(output_file, main_file, comp_files, config_templates)

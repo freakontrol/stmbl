@@ -175,7 +175,7 @@ all: gccversion build showsize
 hv_firmware.o: obj_hvf3/hvf3.bin
 	$(OBJCOPY) --rename-section .data=.hv_firmware -I binary obj_hvf3/hvf3.bin -B arm -O elf32-littlearm hv_firmware.o
 
-build: tbl elf hex bin lss sym hv_firmware.o graph
+build: tbl elf hex bin lss sym hv_firmware.o
 
 elf: $(TARGET).elf
 hex: $(TARGET).hex

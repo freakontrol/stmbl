@@ -32,7 +32,7 @@ HWVERSION = v5
 
 CFLAGS += -DV4
 
-include comps.mak
+include comps.mak # Templates and Components
 
 COMPS = $(F4COMPS)
 
@@ -54,8 +54,6 @@ SOURCES += shared/config.c
 SOURCES += src/conf_templates.c
 
 SOURCES += shared/ringbuf.c
-
-CONFIG_TEMPLATES = $(wildcard conf/template/*.txt)
 
 USB_VCP_DIR = lib/STM32_USB_Device_VCP-1.2.0
 

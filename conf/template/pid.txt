@@ -11,6 +11,7 @@ load hv
 load sim
 load io
 load iit
+load pe
 link conf
 hv0.rt_prio = 0.9
 adc0.rt_prio = 1

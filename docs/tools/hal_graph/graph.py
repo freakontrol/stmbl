@@ -33,6 +33,10 @@ def get_color_for_component(component_name):
     r = (hash_int >> 16) & 0xFF
     g = (hash_int >> 8) & 0xFF
     b = hash_int & 0xFF
+    # Ensure the color is not brighter than RGB (150, 150, 150)
+    r = min(r, 100)
+    g = min(g, 100)
+    b = min(b, 100)
     # Return the color as a hex string
     return f'#{r:02X}{g:02X}{b:02X}'
 
@@ -40,10 +44,10 @@ def get_color_for_component(component_name):
 
 def generate_dot_file(graph):
     dot = Digraph()
-    dot.attr(fontname="Arial")
-    dot.node_attr.update(fontname="Arial", fontsize="16", shape="ellipse")
-    dot.edge_attr.update(fontname="Arial", len="1.0")
-    dot.graph_attr.update(rankdir="LR", overlap="false", nodesep="0.3", ranksep="7.0")
+    dot.attr(fontname="Roboto", color="white", fontcolor="white")
+    dot.node_attr.update(fontsize="16", shape="ellipse", fontname="Roboto", color="white", fontcolor="white")
+    dot.edge_attr.update(len="1.0", fontname="Roboto", color="white", fontcolor="white")
+    dot.graph_attr.update(rankdir="LR", overlap="false", nodesep="0.3", ranksep="7.0",bgcolor="transparent")
 
     for comp in graph.components.values():
         color = get_color_for_component(comp.name)
