@@ -2,6 +2,7 @@ from .component import Component
 
 from graphviz import Digraph
 import hashlib
+
 class Graph:
     def __init__(self):
         self.components = {}
@@ -21,7 +22,7 @@ class Graph:
 
     def __repr__(self):
         return f"Graph({list(self.components.keys())})"
-    
+
 def get_color_for_component(component_name):
     # Create a hash object
     hash_object = hashlib.md5(component_name.encode())
@@ -40,19 +41,39 @@ def get_color_for_component(component_name):
     # Return the color as a hex string
     return f'#{r:02X}{g:02X}{b:02X}'
 
-
+def get_color_for_edge(src_comp_name, src_pin_name, dst_comp_name, dst_pin_name):
+    edge_key = f"{src_comp_name}_{src_pin_name}_{dst_comp_name}_{dst_pin_name}"
+    # Create a hash object
+    hash_object = hashlib.md5(edge_key.encode())
+    # Get the hex digest of the hash
+    hash_hex = hash_object.hexdigest()
+    # Convert the hex digest to an integer
+    hash_int = int(hash_hex, 16)
+    # Generate RGB values from the hash integer
+    r = (hash_int >> 16) & 0xFF
+    g = (hash_int >> 8) & 0xFF
+    b = hash_int & 0xFF
+    # Ensure the color is not brighter than RGB (255, 255, 255)
+    r = min(r, 255)
+    g = min(g, 255)
+    b = min(b, 255)
+    r = max(r, 150)
+    g = max(g, 150)
+    b = max(b, 150)
+    # Return the color as a hex string
+    return f'#{r:02X}{g:02X}{b:02X}'
 
 def generate_dot_file(graph):
     dot = Digraph()
-    dot.attr(fontname="Roboto", color="white", fontcolor="white")
+    dot.attr(fontname="Roboto")
     dot.node_attr.update(fontsize="16", shape="ellipse", fontname="Roboto", color="white", fontcolor="white")
-    dot.edge_attr.update(len="1.0", fontname="Roboto", color="white", fontcolor="white")
-    dot.graph_attr.update(rankdir="LR", overlap="false", nodesep="0.3", ranksep="7.0",bgcolor="transparent")
+    dot.edge_attr.update(len="0.3", fontname="Roboto", color="white", fontcolor="white")
+    dot.graph_attr.update(rankdir="LR", overlap="false", splines="true", nodesep="0.15", ranksep="5.0",bgcolor="transparent")
 
     for comp in graph.components.values():
         color = get_color_for_component(comp.name)
         label = f'<<table border="0" cellborder="1" cellspacing="0">\n\t\t\t<tr><td colspan="1" bgcolor="{color}"><b>{comp.name}</b></td></tr>\n'
-        
+
         for pin in comp.pins.values():
             label += f'\t\t\t<tr><td port="{pin.name}">{pin.name}{" = " + str(pin.value) if pin.value is not None else ""}</td></tr>' + '\n'
         label += "\t\t\t</table>>"
@@ -63,6 +84,7 @@ def generate_dot_file(graph):
             for connected_pin in pin.connections:
                 dst_pin_ref = f'{comp_name}:{pin_name}'
                 src_pin_ref = f'{connected_pin.component.name}:{connected_pin.name}'
-                dot.edge(src_pin_ref, dst_pin_ref)
-                
+                edge_color = get_color_for_edge(comp_name, pin_name, connected_pin.component.name, connected_pin.name)
+                dot.edge(src_pin_ref, dst_pin_ref, color=edge_color)
+
     return dot
