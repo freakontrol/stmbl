@@ -13,6 +13,7 @@ enableGitInfo = true
 
 [menu]
 # [[menu.before]]
+
 [[menu.after]]
   name = "Github"
   url = "https://github.com/freakontrol/stmbl"

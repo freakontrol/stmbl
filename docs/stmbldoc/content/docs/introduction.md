@@ -1,5 +1,5 @@
 ---
-title: "Getting Started"
+title: "Introduction"
 weight: -1
 # bookFlatSection: true
 bookToc: true
@@ -255,3 +255,8 @@ net xindex joint.0.index-enable <=> hm2_5i25.0.stbl.0.0.index_enable
 #### Example: Full Machine Config with STMBL boards, Mesa 7i80, Mesa 7i77, Analog Outputs, Encoder Inputs
 
 See [https://github.com/aShure/cnc-configs/tree/master/justinbieber](https://github.com/aShure/cnc-configs/tree/master/justinbieber)
+
+
+{{< zoomable-image src="../../graph/hvf3_graph.dot.svg" alt="Description of image" >}}  
+
+{{< zoomable-image src="../../graph/f4_festo_graph.dot.svg" alt="Description of image" >}}
