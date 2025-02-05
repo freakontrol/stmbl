@@ -1,0 +1,9 @@
+{{ if .Params.redirect_to }}
+    <script type="text/javascript">
+        window.location.href = "{{ .Params.redirect_to }}";
+    </script>
+{{ end }}
+
+{{/* Fallback content in case JavaScript is disabled */}}
+<h1>{{ .Title }}</h1>
+{{ .Content }}
