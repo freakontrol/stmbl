@@ -1,11 +1,12 @@
 from .component import Component
-
+import re
 from graphviz import Digraph
 import hashlib
 
 class Graph:
     def __init__(self):
         self.components = {}
+        self.component_counter = {}
 
     def add_component(self, component_name):
         if component_name not in self.components:
@@ -15,10 +16,86 @@ class Graph:
         return self.components.get(component_name)
 
     def connect_pins(self, src_comp_name, src_pin_name, dst_comp_name, dst_pin_name):
-        src_pin = self.get_component(src_comp_name).get_pin(src_pin_name)
-        dst_pin = self.get_component(dst_comp_name).get_pin(dst_pin_name)
+        try:
+            src_component = self.get_component(src_comp_name)
+            src_pin = src_component.get_pin(src_pin_name)
+        except AttributeError as e:
+            # Handle the case where the component or pin does not exist
+            print(f"Warning: {src_comp_name}.{src_pin_name} does not exist.")
+            return
+        except Exception as e:
+            # Handle any other exceptions that might occur
+            print(f"An error occurred while retrieving src_pin: {e}")
+            return
+
+        try:
+            dst_component = self.get_component(dst_comp_name)
+            dst_pin = dst_component.get_pin(dst_pin_name)
+        except AttributeError as e:
+            # Handle the case where the component or pin does not exist
+            print(f"Warning: {dst_comp_name}.{dst_pin_name} does not exist.")
+            return
+        except Exception as e:
+            # Handle any other exceptions that might occur
+            print(f"An error occurred while retrieving dst_pin: {e}")
+            return
         if src_pin and dst_pin:
             src_pin.connect(dst_pin)
+            
+    def get_next_component_name(self, base_name):
+        if base_name not in self.component_counter:
+            self.component_counter[base_name] = -1  # Start from 0
+        self.component_counter[base_name] += 1
+        return f"{base_name}{self.component_counter[base_name]}"
+
+    def build_graph_from_commands_and_pins(self, commands, pins_dict, config_commands):
+
+        for command in commands:
+            parts = re.split(r'(\s+|=)', command)
+            parts = [part for part in parts if part.strip()]
+            if len(parts) < 2:
+                continue
+            if parts[0] == "load":
+                # Create a new component
+                base_name = parts[1]
+                component_name = self.get_next_component_name(base_name)
+                self.add_component(component_name)
+
+                if base_name in pins_dict:
+                    for pin in pins_dict[base_name]:
+                        self.get_component(component_name).add_pin(pin)
+
+            elif parts[0] == "link":
+                template = parts[1]
+                self.build_graph_from_commands_and_pins(config_commands[template], pins_dict, config_commands)
+
+            else:
+                # Handle pin assignments and connections
+                if '=' in parts[1]:
+                    src_comp_name = parts[0].split('.')[0]
+                    src_pin_name = parts[0].split('.')[1]
+                    dst_pin_info = parts[2]
+
+                    if re.match(r'^-?\d+(\.\d+)?$', dst_pin_info):
+                        # Pin value assignment (integer or float)
+                        pin_value = float(dst_pin_info) if '.' in dst_pin_info else int(dst_pin_info)
+                        try:
+                            self.get_component(src_comp_name).get_pin(src_pin_name).value = pin_value
+                        except AttributeError as e:
+                            # Handle the case where the component or pin does not exist
+                            print(f"Warning: {src_comp_name}.{src_pin_name} does not exist.")
+                        except Exception as e:
+                            # Handle any other exceptions that might occur
+                            print(f"An error occurred: {e}")
+
+                    elif '.' in dst_pin_info:
+                        # Pin connection
+                        try:
+                            dst_comp_name, dst_pin_name = dst_pin_info.split('.', 1)  # Split only at the first '.'
+                            self.connect_pins(src_comp_name, src_pin_name, dst_comp_name, dst_pin_name)
+                        except ValueError as e:
+                            print(f"Error parsing pin connection: {e}")
+        return self
 
     def __repr__(self):
         return f"Graph({list(self.components.keys())})"
@@ -88,3 +165,4 @@ def generate_dot_file(graph):
                 dot.edge(src_pin_ref, dst_pin_ref, color=edge_color)
 
     return dot
+
