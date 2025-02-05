@@ -21,7 +21,7 @@ def main(output_file, main_file, comp_files, config_templates):
 
     graph = Graph()
     graph.build_graph_from_commands_and_pins(main_commands, comps, config_commands)
-    dot = generate_dot_file(graph)
+    dot = graph.generate_dot_file()
     dot.render(output_file, format='svg')
 
 if __name__ == "__main__":

@@ -59,11 +59,13 @@ class Graph:
                 # Create a new component
                 base_name = parts[1]
                 component_name = self.get_next_component_name(base_name)
-                self.add_component(component_name)
 
                 if base_name in pins_dict:
+                    self.add_component(component_name)
                     for pin in pins_dict[base_name]:
                         self.get_component(component_name).add_pin(pin)
+                else:
+                     print(f"Warning: {component_name} does not exist.")
 
             elif parts[0] == "link":
                 template = parts[1]
@@ -97,6 +99,32 @@ class Graph:
                             print(f"Error parsing pin connection: {e}")
         return self
 
+    def generate_dot_file(self):
+        dot = Digraph()
+        dot.attr(fontname="Roboto")
+        dot.node_attr.update(fontsize="16", shape="ellipse", fontname="Roboto", color="white", fontcolor="white")
+        dot.edge_attr.update(len="0.3", fontname="Roboto", color="white", fontcolor="white")
+        dot.graph_attr.update(rankdir="LR", overlap="false", splines="true", nodesep="0.15", ranksep="5.0",bgcolor="transparent")
+
+        for comp in self.components.values():
+            color = get_color_for_component(comp.name)
+            label = f'<<table border="0" cellborder="1" cellspacing="0">\n\t\t\t<tr><td colspan="1" bgcolor="{color}"><b>{comp.name}</b></td></tr>\n'
+
+            for pin in comp.pins.values():
+                label += f'\t\t\t<tr><td port="{pin.name}">{pin.name}{" = " + str(pin.value) if pin.value is not None else ""}</td></tr>' + '\n'
+            label += "\t\t\t</table>>"
+            dot.node(str(comp.name), label=label, shape="none")
+
+        for comp_name, comp in self.components.items():
+            for pin_name, pin in comp.pins.items():
+                for connected_pin in pin.connections:
+                    dst_pin_ref = f'{comp_name}:{pin_name}'
+                    src_pin_ref = f'{connected_pin.component.name}:{connected_pin.name}'
+                    edge_color = get_color_for_edge(comp_name, pin_name, connected_pin.component.name, connected_pin.name)
+                    dot.edge(src_pin_ref, dst_pin_ref, color=edge_color)
+
+        return dot
+    
     def __repr__(self):
         return f"Graph({list(self.components.keys())})"
 
@@ -139,30 +167,3 @@ def get_color_for_edge(src_comp_name, src_pin_name, dst_comp_name, dst_pin_name)
     b = max(b, 150)
     # Return the color as a hex string
     return f'#{r:02X}{g:02X}{b:02X}'
-
-def generate_dot_file(graph):
-    dot = Digraph()
-    dot.attr(fontname="Roboto")
-    dot.node_attr.update(fontsize="16", shape="ellipse", fontname="Roboto", color="white", fontcolor="white")
-    dot.edge_attr.update(len="0.3", fontname="Roboto", color="white", fontcolor="white")
-    dot.graph_attr.update(rankdir="LR", overlap="false", splines="true", nodesep="0.15", ranksep="5.0",bgcolor="transparent")
-
-    for comp in graph.components.values():
-        color = get_color_for_component(comp.name)
-        label = f'<<table border="0" cellborder="1" cellspacing="0">\n\t\t\t<tr><td colspan="1" bgcolor="{color}"><b>{comp.name}</b></td></tr>\n'
-
-        for pin in comp.pins.values():
-            label += f'\t\t\t<tr><td port="{pin.name}">{pin.name}{" = " + str(pin.value) if pin.value is not None else ""}</td></tr>' + '\n'
-        label += "\t\t\t</table>>"
-        dot.node(str(comp.name), label=label, shape="none")
-
-    for comp_name, comp in graph.components.items():
-        for pin_name, pin in comp.pins.items():
-            for connected_pin in pin.connections:
-                dst_pin_ref = f'{comp_name}:{pin_name}'
-                src_pin_ref = f'{connected_pin.component.name}:{connected_pin.name}'
-                edge_color = get_color_for_edge(comp_name, pin_name, connected_pin.component.name, connected_pin.name)
-                dot.edge(src_pin_ref, dst_pin_ref, color=edge_color)
-
-    return dot
-
