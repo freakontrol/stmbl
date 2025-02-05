@@ -3,11 +3,19 @@ import re
 import sys
 import os
 
+def remove_commented_lines(content):
+    # Remove lines that are comments or contain comments
+    lines = content.split('\n')
+    non_comment_lines = [line for line in lines if not line.strip().startswith('#')]
+    return '\n'.join(non_comment_lines)
+
 config = []
 
 for infile in sys.argv[2:]:
     with open(infile) as f:
-        config.append((os.path.splitext(os.path.basename(infile))[0], f.read()))
+        content = f.read()
+        cleaned_content = remove_commented_lines(content)
+        config.append((os.path.splitext(os.path.basename(infile))[0], cleaned_content))
 
 code = open(sys.argv[1], 'w')
 
