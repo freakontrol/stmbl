@@ -110,8 +110,8 @@ CPPFLAGS += -DHSE_VALUE=8000000
 LDSCRIPT = stm32_flash.ld
 
 #============================================================================
-SRC_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(SRC_COMPS))))
-SHARED_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(SHARED_COMPS))))
+SRC_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(LV_SRC_COMPS))))
+SHARED_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(LV_SHARED_COMPS))))
 OBJECTS += $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(SOURCES))))
 OBJECTS += hv_firmware.o
 CPPFLAGS += $(addprefix -I,$(INCDIRS))

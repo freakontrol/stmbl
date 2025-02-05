@@ -74,8 +74,8 @@ SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart_ex.c
 LDSCRIPT = stm32f303/STM32F303CBTx_FLASH.ld
 
 #============================================================================
-SRC_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(SRC_COMPS))))
-SHARED_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(SHARED_COMPS))))
+SRC_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(HV_SRC_COMPS))))
+SHARED_COMP_OBJECTS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(HV_SHARED_COMPS))))
 OBJECTS += $(addprefix $(OBJDIR)/,$(addsuffix .o,$(basename $(SOURCES))))
 CPPFLAGS += $(addprefix -I,$(INCDIRS))
 
