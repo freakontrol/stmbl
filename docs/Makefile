@@ -1,7 +1,7 @@
 # Default target
 all: build graph
 
-build: graph
+build: graph docs
 
 include stm32f303/comps.mak
 
@@ -44,3 +44,11 @@ docs/stmbldoc/static/graph/f4_%.dot: conf/%.txt $(F4COMPS) $(CONFIG_TEMPLATES)
 
 # Add the dynamic targets to the graph target
 graph: $(GRAPH_FILES)
+
+DOC_FILES := $(foreach conf, $(F4COMPS), docs/stmbldoc/content/docs/hal_components/$(notdir $(conf:.c=.md)))
+
+docs/stmbldoc/content/docs/hal_components/%.md: $(F4COMPS) $(CONFIG_TEMPLATES)
+	@echo Generating docs for component $<
+	@$(PYTHON) docs/tools/create_hal_doc.py $@ conf/festo.txt $(F4COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
+
+docs: $(F4COMPS)
