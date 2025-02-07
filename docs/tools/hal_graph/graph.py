@@ -47,6 +47,15 @@ class Graph:
             self.component_counter[base_name] = -1  # Start from 0
         self.component_counter[base_name] += 1
         return f"{base_name}{self.component_counter[base_name]}"
+    
+    def extract_component_name(self, name):
+        # Find all digits at the end of the string
+        match = re.search(r'(\D*)(\d+)$', name)
+        if match:
+            return match.group(1)  # Return the part before the last integer
+        else:
+            return name  # If no digits are found, return the original string
+
 
     def build_graph_from_commands_and_pins(self, commands, pins_dict, config_commands):
 
@@ -94,6 +103,9 @@ class Graph:
                         # Pin connection
                         try:
                             dst_comp_name, dst_pin_name = dst_pin_info.split('.', 1)  # Split only at the first '.'
+                            if self.get_component(dst_comp_name) is None:
+                                add_comp_cmd = "load " + self.extract_component_name(dst_comp_name)
+                                self.build_graph_from_commands_and_pins([add_comp_cmd], pins_dict, config_commands)
                             self.connect_pins(src_comp_name, src_pin_name, dst_comp_name, dst_pin_name)
                         except ValueError as e:
                             print(f"Error parsing pin connection: {e}")
