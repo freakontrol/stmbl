@@ -17,7 +17,7 @@ def main(output_file, main_file, comp_files, config_templates):
         main_commands = parse_commands(main_content)
     elif main_file.endswith('.txt'):
         main_commands = parse_config_commands(main_content)
-        main_commands = ["load term"] + main_commands
+        #main_commands = ["load term"] + main_commands
 
     graph = Graph()
     graph.build_graph_from_commands_and_pins(main_commands, comps, config_commands)

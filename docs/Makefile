@@ -57,11 +57,11 @@ docs/stmbldoc/static/graph/f4_template_%.dot: conf/template/%.txt $(F4COMPS) $(C
 # Add the dynamic targets to the graph target for conf/template/*
 graph: $(GRAPH_FILES_TEMPLATE)
 
-# DOC_FILES := $(foreach conf, $(F4COMPS), docs/stmbldoc/content/docs/hal_components/$(notdir $(conf:.c=.md)))
+DOC_FILES := $(foreach conf, $(F4COMPS), docs/stmbldoc/content/docs/hal_components/$(notdir $(conf:.c=.md)))
 
-# docs/stmbldoc/content/docs/hal_components/%.md: $(F4COMPS) $(CONFIG_TEMPLATES)
-# 	@echo Generating docs for component $<
-# 	@$(PYTHON) docs/tools/create_hal_doc.py $@ conf/festo.txt $(F4COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
+docs/stmbldoc/content/docs/hal_components/%.md: $(F4COMPS) $(CONFIG_TEMPLATES)
+	@echo Generating docs for component $<
+	@$(PYTHON) docs/tools/create_hal_doc.py $@ conf/festo.txt $(F4COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
 
-# docs: $(F4COMPS)
+docs: $(F4COMPS)
 

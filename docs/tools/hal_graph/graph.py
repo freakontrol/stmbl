@@ -86,6 +86,12 @@ class Graph:
                     src_comp_name = parts[0].split('.')[0]
                     src_pin_name = parts[0].split('.')[1]
                     dst_pin_info = parts[2]
+            
+                    if self.get_component(src_comp_name) is None:
+                        add_comp_cmd = "load " + self.extract_component_name(src_comp_name)
+                        print(add_comp_cmd)
+                        self.build_graph_from_commands_and_pins([add_comp_cmd], pins_dict, config_commands)
+                        print(src_comp_name)
 
                     if re.match(r'^-?\d+(\.\d+)?$', dst_pin_info):
                         # Pin value assignment (integer or float)
@@ -105,7 +111,10 @@ class Graph:
                             dst_comp_name, dst_pin_name = dst_pin_info.split('.', 1)  # Split only at the first '.'
                             if self.get_component(dst_comp_name) is None:
                                 add_comp_cmd = "load " + self.extract_component_name(dst_comp_name)
+                                print(add_comp_cmd)
                                 self.build_graph_from_commands_and_pins([add_comp_cmd], pins_dict, config_commands)
+                                print(dst_pin_info)
+                            
                             self.connect_pins(src_comp_name, src_pin_name, dst_comp_name, dst_pin_name)
                         except ValueError as e:
                             print(f"Error parsing pin connection: {e}")
