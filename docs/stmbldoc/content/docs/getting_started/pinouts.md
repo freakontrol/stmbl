@@ -1,6 +1,6 @@
 ---
 title: "Pinouts"
-weight: 5
+weight: 6
 # bookFlatSection: false
 # bookToc: true
 # bookHidden: false
