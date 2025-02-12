@@ -10,14 +10,21 @@ def extract_pins(infile):
     with open(infile, 'r') as f:
         content = f.readlines()
 
-        # Regular expression to match HAL_PIN definitions
-        pin_pattern = re.compile(r'^\s*HAL_PIN\((\w+)\)\s*;\s*//\s*(.*)$')
+        # Regular expression to match HAL_PIN and HAL_PINA definitions with optional comments
+        pin_pattern = re.compile(r'^\s*HAL_PIN\((\w+)\)\s*;?\s*(//\s*(.*)|)$')
+        pin_a_pattern = re.compile(r'^\s*HAL_PINA\((\w+),\s*(\d+)\)\s*;?\s*(//\s*(.*)|)$')
 
         for line in content:
             match = pin_pattern.match(line)
             if match:
-                pin_name, pin_description = match.groups()
-                pins.append((pin_name, pin_description.strip()))
+                pin_name, _, description = match.groups()
+                pins.append((pin_name, description.strip() if description else ""))
+            else:
+                match_a = pin_a_pattern.match(line)
+                if match_a:
+                    base_pin_name, count, _, description = match_a.groups()
+                    for i in range(int(count)):
+                        pins.append((f"{base_pin_name}{i}", description.strip() if description else ""))
 
     return pins
 

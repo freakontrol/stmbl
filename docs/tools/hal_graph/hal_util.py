@@ -61,22 +61,6 @@ def collect_template_conf(config_templates):
             
     return config_commands
 
-# def collect_comp_docs(infile):
-#     description = None
-#     with open(infile, 'r') as f:
-#         content = f.read()
-#         # Extract Doxygen-style comments
-#         comment_pattern = re.compile(r'/\*\*(.*?)\*/', re.DOTALL)
-#         comments = comment_pattern.findall(content)
-
-#         if comments:
-#             # Join consecutive comments to form the description
-#             description = '\n'.join(comments).strip()
-
-#     compname = os.path.basename(infile).split('.')[0]
-#     formatted_description = f"## {compname}\n{description}"
-#     return formatted_description
-
 def collect_template_docs(config_templates):
     template_docs = {}
 
