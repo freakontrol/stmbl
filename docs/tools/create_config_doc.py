@@ -38,9 +38,6 @@ def main(output_file, config_templates):
         if os.path.splitext(os.path.basename(template_file))[0] == os.path.splitext(os.path.basename(output_file))[0]:
             matching_template_file = template_file
             break
-        
-    print(output_file)
-
     # Collect component documentation and write to Markdown file
     description = collect_comp_docs(matching_template_file)
 

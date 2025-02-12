@@ -1,5 +1,5 @@
 # Default target
-all: build graph
+all: build
 
 build: graph docs
 
@@ -19,13 +19,8 @@ docs/stmbldoc/static/graph/f4_festo_graph.dot: docs/tools/create_hal_graph.py $(
 
 graph:  docs/stmbldoc/static/graph/hvf3_graph.dot docs/stmbldoc/static/graph/f4_festo_graph.dot
 
-# Target: clean project
-clean:
-	@echo Cleaning project:
-	rm -rf docs/stmbldoc/static/graph
 
-# Additional target to clean all .md files except index.md
-clean_docs:
+clean:
 	@echo Cleaning documentation files:
 	find docs/stmbldoc/content/docs/hal_components/ -type f -name '*.md' ! -name '_index.md' -exec rm {} \;
 	find docs/stmbldoc/content/docs/hal_templates/ -type f -name '*.md' ! -name '_index.md' -exec rm {} \;

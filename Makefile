@@ -197,7 +197,7 @@ ADDRESS = 0x08010000
 
 # Default target
 #
-all:  gccversion tbl boot build showsize
+all:  gccversion tbl boot build showsize docs
 
 build: tbl elf hex bin lss sym f3_boot
 
@@ -330,6 +330,9 @@ binall: f4.dfu f3.dfu stmbl.dfu
 format:
 	find src/ f3_boot/ bootloader/ stm32f103/ stm32f303/ shared/ inc/ tools/ -iname '*.h' -o -iname '*.c' | xargs clang-format -i
 
+docs:
+	$(MAKE) -f docs/Makefile
+
 # Target: clean project
 #
 clean:
@@ -346,6 +349,7 @@ clean:
 	@$(MAKE) -f f3_boot/Makefile clean
 	@$(MAKE) -f stm32f103/Makefile clean
 	@$(MAKE) -f stm32f303/Makefile clean
+	@$(MAKE) -f docs/Makefile clean
 
 # Include the base rules
 #
@@ -369,4 +373,5 @@ force_look:
         f3_all_btburn all_btburn all_flash f3_all_flash \
         deploy \
         format \
-        force_look
+        force_look \
+		docs

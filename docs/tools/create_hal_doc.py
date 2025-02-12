@@ -34,8 +34,6 @@ if __name__ == "__main__":
     output_file = sys.argv[1]
     main_file = sys.argv[2]
     
-    print("doc " + output_file + " source " + main_file)
-
     # Find the index of the marker
     marker_index = sys.argv.index('__TEMPLATE_MARKER__')
     comp_files = sys.argv[3:marker_index]  # Extract components

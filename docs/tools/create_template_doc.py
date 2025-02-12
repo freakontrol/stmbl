@@ -39,8 +39,6 @@ def main(output_file, config_templates):
             matching_template_file = template_file
             break
         
-    print(output_file)
-
     # Collect component documentation and write to Markdown file
     description = collect_comp_docs(matching_template_file)
 
