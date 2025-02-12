@@ -19,32 +19,7 @@ The drive is configurable for a wide range of command and feedback types through
 
 Currently supported command interfaces are:
 
-* Mesa Smart-Serial
-* Step-Dir
-* Quadrature
-* Serial
-
-+/-10V control is not supported, though the hardware capability exists.
-
-Currently supported feedback interfaces are:
-
-* Encoder
-* Resolver
-* sin/cos 1vpp
-* Hall sensors
-* Mitsubishi absolute encoder
-* Yaskawa absolute encoder
-* Sanyo Denki absolute encoder
-* Fanuc serial encoder
-
-The hardware has the capability to support other protocols like:
-
-* EnDat
-* BiSS
-* SSI
-* Modbus
-* Profibus
-* Hiperface
+* Mesa Smart-Serialgraph/f4
 * CANopen
 
 Encoder power is 5V by default but 12V can be selected by jumper pads on the PCB.
@@ -54,11 +29,11 @@ In addition to motor control and dual feedback, each STMBL drive has two +/-30V 
 To use the STMBL, you will need to:
 
 * connect your command, feedback, and motor to STMBL using **suitable cables**.
-* [Flash the firmware](getting-started.md/#flashing-firmware)
-* configure the drive for your motor using [Servoterm](servoterm.md)
-  * configure your [Feedback interface](configuration/feedback.md)
-  * find the correct [Motor parameters](configuration/motor.md) for your motor
-  * configure your [Command interface](configuration/cmd.md)
+* [Flash the firmware](/docs/introduction/#flashing-firmware)
+* configure the drive for your motor using [Servoterm](/docs/getting_started/servoterm.md)
+  * configure your [Feedback interface](/docs/getting_started/feedback.md)
+  * find the correct [Motor parameters](/docs/getting_started/motor.md) for your motor
+  * configure your [Command interface](/docs/getting_started/cmd.md)
 
 ## Anatomy of the STMBL
 
@@ -66,7 +41,7 @@ The STMBL consists of two separate PCBs that are made as one then assembled and 
 
 The lower board is the high-voltage (HV) board, and this is where the power driver is situated. The only connection between the two boards is a serial connection through a 2.5kV isolation IC. To make this possible, there is a second STM32 chip on the lower board. This is an STM32F303 and is referred to as "F3" in the remainder of this document. The processor on the upper board is referred to as "F4".
 
-![STMBL Anatomy](../../images/iso1-dark.png)
+![STMBL Anatomy](/images/iso1-dark.png)
 
 Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied.
 
@@ -84,31 +59,37 @@ The HV and LV boards are isolated in normal use but it is easy to accidentally c
  It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
 {{% /hint %}}  
 
-![STMBL Connectors](../../images/iso2-dark.png)
+![STMBL Connectors](/images/iso2-dark.png)
 
 The command and feedback connectors use standard 8P8C (RJ45) connectors and standard CAT5 or CAT6 cables can be conveniently used. To connect to cables with larger conductors than supported by CAT5, it is possible to use, for example, [Industrial CAT6a](https://octopart.com/j00026a2001-telegärtner-24873031) connectors which can accept core wires up to 1.6mm and overall cable diameters up to 9.0mm.
 
-Feedback 0 will typically be the encoder or resolver mounted on the motor, and feedback 1 can be used to connect either Hall sensors for initial commutation or (potentially) scales mounted directly to the axes. See the [Pinouts](#pinouts) section of this document for pin assignments and typical wiring color codes.
+Feedback 0 will typically be the encoder or resolver mounted on the motor, and feedback 1 can be used to connect either Hall sensors for initial commutation or (potentially) scales mounted directly to the axes. See the [Pinouts](/docs/getting_started/pinouts) section of this document for pin assignments and typical wiring color codes.
 
 The 6-way socket below the 24V logic power connector contains the three digital outputs. These are current-sinking (switch-to-GND) and each is adjacent to a 24V supply pin. DIO0 (nearest the top) is the one that is typically used to operate the holding brake on motors so-equipped.
 
 On the top of the drive are two analog inputs, with 0V and 24V on either side to that an active sensors can be connected. These are typically used as variable-threshold digital inputs and are used, for example, for axis limit switches. However, it is relatively simple to configure them for other uses in the HAL.
 
-Three LEDs on top of the unit indicate drive status. Red displays error codes (using [Blink Codes](#blink-codes)). Amber indicates that all is well but the drive is not enabled, and green shows that the drive is active and operating normally. If no LEDs on the top of the board are illuminated, and the green power LEDs near the power connectors _are_ illuminated, then it is probably necessary to [flash the firmware](#flashing-firmware). If there are LEDs lit on top of the drive, then it is probably safe to assume that firmware is loaded.
+Three LEDs on top of the unit indicate drive status. Red displays error codes (using [Blink Codes](/docs/errors/)). Amber indicates that all is well but the drive is not enabled, and green shows that the drive is active and operating normally. If no LEDs on the top of the board are illuminated, and the green power LEDs near the power connectors _are_ illuminated, then it is probably necessary to [flash the firmware](/docs/introduction/#flashing-firmware). If there are LEDs lit on top of the drive, then it is probably safe to assume that firmware is loaded.
 
 ## HAL (Hardware Abstraction Layer)
 
-STMBL uses a data flow graph to configure the drive for different types of motor, feedback, and operation mode. This is conceptually similar to the HAL in [LinuxCNC](http://linuxcnc.org/docs/2.7/html/hal/intro.html), but the format and commands are different. Also, all pins are floating point so no data conversion is needed.
+STMBL uses a data flow graph to configure the drive for different types of motor, feedback, and operation mode. This is conceptually similar to the HAL in [LinuxCNC](http://linuxcnc.org/docs/2.7/html/hal/intro.html), but the format and commands are different. Also, all pins are floating point so no data conversion is needed.  
 
-An Application called [Servoterm](#servoterm) is used to interact with the HAL interface and configure the drive. You will need to install and launch this before it is possible to configure the STMBL.
+Here is the graphical representation of the default configuration for the LV board and for the HV board
 
-STMBL HAL configuration does not use any commands other than the = sign and the [Servoterm Commands](#servoterm-commands).
+{{< zoomable-image src="../../graph/f4_festo_graph.dot.svg" alt="Low Voltage default hal config" >}}
+
+{{< zoomable-image src="../../graph/hvf3_graph.dot.svg" alt="High Voltage default hal config" >}}  
+
+An Application called [Servoterm](/docs/getting_started/servoterm/) is used to interact with the HAL interface and configure the drive. You will need to install and launch this before it is possible to configure the STMBL.
+
+STMBL HAL configuration does not use any commands other than the = sign and the [Servoterm Commands](/docs/getting_started/servoterm/#servoterm-commands).
 
 Assuming that there is already a motor connected to the drive and that the drive is powered up, the Servoterm display should already be indicating the motor position feedback. Rotating the motor shaft by hand might produce something like:
 
-![Servoterm Display](../../images/servoterm.png)
+![Servoterm Display](/images/servoterm.png)
 
-Though it equally well might not if the configuration is set up for a resolver and the motor has an encoder. It should be possible to make the motor turn at this point without any further configuration. The commands that follow will set the hv0 module up to simply rotate the motor open-loop in direct-mode (like a stepper motor) with an excitation current of 0.5A. This should be safe for most motors that the STMBL is a good match for, but you should choose your own value. For an explanation of direct and quadrature current, see the section on [Motor Basics](#motor-basics).
+Though it equally well might not if the configuration is set up for a resolver and the motor has an encoder. It should be possible to make the motor turn at this point without any further configuration. The commands that follow will set the hv0 module up to simply rotate the motor open-loop in direct-mode (like a stepper motor) with an excitation current of 0.5A. This should be safe for most motors that the STMBL is a good match for, but you should choose your own value. For an explanation of direct and quadrature current, see the section on [Motor Basics](/docs/getting_started/motor/#motor-basics).
 
 ```
 hv0.pos = sim0.vel
@@ -153,6 +134,10 @@ If you set the jogging checkbox at the top of ServoTerm and then enable the driv
 
 Pressing Esc at any time will disable the drive. To reenable, press reset or type `fault0.en = 0` followed by `fault0.en = 1`.
 
+### Components/templates/config list and examples  
+
+You can find the list of components, template and configs in the Hal components, templates and configs section.  
+
 ## Flashing Firmware
 
 ### Requirements to build firmware
@@ -173,11 +158,11 @@ You will need the STM Virtual Comport driver to connect with Servoterm [http://w
 
 ### Checking for Existing Firmware - F4 board
 
-Before flashing firmware, it is worth trying to figure out if your board is completely blank or has been pre-flashed with a bootloader or firmware. If the board will connect with Servoterm, then it already has a firmware and STMBL bootloader. "about" will show the firmware information of the F4 board. "hv about" will give the same information about the F3 board. Go to the [Updating Firmware](#updating-firmware) section to flash new firmware. If the board lights any LEDs other than the green power-good ones near to the power input connectors, then there is likely to already be a firmware installed. Go to the [Updating Firmware](#updating-firmware) section if you need to update the firmware. If the board is powered with 24V to the LV board and connected with USB to a PC, then it will report as "STMBL Virtual ComPort:" in the Apple System Profiler, "ID 0483:5740 STMicroelectronics STM32F407" in lsusb in Linux, and "STMBL Virtual COM Port" in the Windows device manager if there is a full firmware + STM32 bootloader installed. If the board shows "STM32 BOOTLOADER" (Mac), "0483:df11 STMicroelectronics STM Device in DFU Mode" (Linus lsusb), or "STM32 BOOTLOADER" (Windows Device Manager) when powered up (without using the boot pads), then this indicates that it already has an STMBL bootloader. (though no harm is done by re-flashing this) If the LV board does not show up at all on the USB bus, then attempt to put it in ROM boot mode by shorting the boot pads together while connecting the 24V. You should see "STM32 Bootlader" (Mac), "STMicroelectronics STM Device in DFU Mode" (Linux lsusb), or "STM32 BOOTLOADER" (Windows Device Manager) In this case, you will need to flash both the STMBL bootloader and the STMBL firmware. Go to the [Flashing the LV board with no bootloader](#flashing-the-lv-board-with-no-bootloader) section.
+Before flashing firmware, it is worth trying to figure out if your board is completely blank or has been pre-flashed with a bootloader or firmware. If the board will connect with Servoterm, then it already has a firmware and STMBL bootloader. "about" will show the firmware information of the F4 board. "hv about" will give the same information about the F3 board. Go to the [Updating Firmware](/docs/introduction/#updating-firmware) section to flash new firmware. If the board lights any LEDs other than the green power-good ones near to the power input connectors, then there is likely to already be a firmware installed. Go to the [Updating Firmware](/docs/introduction/#updating-firmware) section if you need to update the firmware. If the board is powered with 24V to the LV board and connected with USB to a PC, then it will report as "STMBL Virtual ComPort:" in the Apple System Profiler, "ID 0483:5740 STMicroelectronics STM32F407" in lsusb in Linux, and "STMBL Virtual COM Port" in the Windows device manager if there is a full firmware + STM32 bootloader installed. If the board shows "STM32 BOOTLOADER" (Mac), "0483:df11 STMicroelectronics STM Device in DFU Mode" (Linus lsusb), or "STM32 BOOTLOADER" (Windows Device Manager) when powered up (without using the boot pads), then this indicates that it already has an STMBL bootloader. (though no harm is done by re-flashing this) If the LV board does not show up at all on the USB bus, then attempt to put it in ROM boot mode by shorting the boot pads together while connecting the 24V. You should see "STM32 Bootlader" (Mac), "STMicroelectronics STM Device in DFU Mode" (Linux lsusb), or "STM32 BOOTLOADER" (Windows Device Manager) In this case, you will need to flash both the STMBL bootloader and the STMBL firmware. Go to the [Flashing the LV board with no bootloader](/docs/introduction/#flashing-the-lv-board-with-no-bootloader) section.
 
 ### Checking for existing firmware - F3 board
 
-With 24V to the F3 board and with the F4 board _unpowered_, look at the red LED under the fan, near the USB connector. If the HV board has both an STMBL bootloader and an STMBL Firmware installed, then it will illuminate only the green power LED and will flash the red LED slowly to indicate no comms with the F4 board (which is why this check should be done with the F4 board unpowered). Go to the [Updating Firmware](#updating-firmware) section in this scenario. If the F3 board does not flash the red LED when the F4 is unpowered, then there is no bootloader and no firmware flashed. Go to the [Flashing the HV board with no bootloader](#flashing-the-hv-board-with-no-bootloader) section. If the F3 board has only a bootloader flashed and no or broken firmware, then the red LED will flash rapidly. Use the instructions in [Updating Firmware](#updating-firmware) in this case. The boards can also be flashed with a SWD programmer, but that process is not documented here. It can be convenient to flash the boards to test them before separating the halves and before installing the IRAM module and bus capacitors if you have a self-built or part-assembled board. Precompiled Binary versions of the firmware can be downloaded from [https://github.com/freakontrol/stmbl/releases](https://github.com/freakontrol/stmbl/releases) When compiling from the source code, firmware flashing is handled by specifying a makefile target for each of the firmware sections.
+With 24V to the F3 board and with the F4 board _unpowered_, look at the red LED under the fan, near the USB connector. If the HV board has both an STMBL bootloader and an STMBL Firmware installed, then it will illuminate only the green power LED and will flash the red LED slowly to indicate no comms with the F4 board (which is why this check should be done with the F4 board unpowered). Go to the [Updating Firmware](/docs/introduction/#updating-firmware) section in this scenario. If the F3 board does not flash the red LED when the F4 is unpowered, then there is no bootloader and no firmware flashed. Go to the [Flashing the HV board with no bootloader](/docs/introduction/#flashing-the-hv-board-with-no-bootloader) section. If the F3 board has only a bootloader flashed and no or broken firmware, then the red LED will flash rapidly. Use the instructions in [Updating Firmware](/docs/introduction/#updating-firmware) in this case. The boards can also be flashed with a SWD programmer, but that process is not documented here. It can be convenient to flash the boards to test them before separating the halves and before installing the IRAM module and bus capacitors if you have a self-built or part-assembled board. Precompiled Binary versions of the firmware can be downloaded from [https://github.com/freakontrol/stmbl/releases](https://github.com/freakontrol/stmbl/releases) When compiling from the source code, firmware flashing is handled by specifying a makefile target for each of the firmware sections.
 
 ### Updating Firmware
 
@@ -208,15 +193,15 @@ hv_update: status: 100%
 hv_update: SLAVE_IN_APP
 ```
 
-If this fails multiple times, go to the [Flashing the HV board with no bootloader](#flashing-the-hv-board-with-no-bootloader) section.
+If this fails multiple times, go to the [Flashing the HV board with no bootloader](/docs/introduction/#flashing-the-hv-board-with-no-bootloader) section.
 
 ### Flashing the LV board with no bootloader
 
-To flash the initial bootloader and firmware, it is necessary to put the STM32 CPU into ROM bootloader mode. You do this by shorting together the two pads marked "boot" on the LV board while connecting the 24V supply. This is a bit of a fiddle but should only need to be done once when the board is first built. For the exact location of these pads, see the illustration in the [Anatomy of the STMBL](#anatomy-of-the-stmbl) section. Typically, a small screwdriver can be used for this purpose. At this point, the board should appear as an "STM32 Bootloader" in the USB tree of the attached PC. Follow the [Updating Firmware](#updating-firmware) instructions and use the `make all_btburn` command.
+To flash the initial bootloader and firmware, it is necessary to put the STM32 CPU into ROM bootloader mode. You do this by shorting together the two pads marked "boot" on the LV board while connecting the 24V supply. This is a bit of a fiddle but should only need to be done once when the board is first built. For the exact location of these pads, see the illustration in the [Anatomy of the STMBL](/docs/introduction/#anatomy-of-the-stmbl) section. Typically, a small screwdriver can be used for this purpose. At this point, the board should appear as an "STM32 Bootloader" in the USB tree of the attached PC. Follow the [Updating Firmware](/docs/introduction/#updating-firmware) instructions and use the `make all_btburn` command.
 
 ### Flashing the HV board with no bootloader
 
-Connect the USB cable to the HV board and short the boot pads on the HV board while connecting 24V to the HV input. To put it into bootloader mode. Again, it should appear in the USB device tree. Follow the [Updating Firmware](#updating-firmware) instructions but use the `make f3_all_btburn` command.
+Connect the USB cable to the HV board and short the boot pads on the HV board while connecting 24V to the HV input. To put it into bootloader mode. Again, it should appear in the USB device tree. Follow the [Updating Firmware](/docs/introduction/#updating-firmware) instructions but use the `make f3_all_btburn` command.
 
 ## linuxcnc
 
@@ -255,8 +240,3 @@ net xindex joint.0.index-enable <=> hm2_5i25.0.stbl.0.0.index_enable
 #### Example: Full Machine Config with STMBL boards, Mesa 7i80, Mesa 7i77, Analog Outputs, Encoder Inputs
 
 See [https://github.com/aShure/cnc-configs/tree/master/justinbieber](https://github.com/aShure/cnc-configs/tree/master/justinbieber)
-
-
-{{< zoomable-image src="../../graph/hvf3_graph.dot.svg" alt="Description of image" >}}  
-
-{{< zoomable-image src="../../graph/f4_festo_graph.dot.svg" alt="Description of image" >}}

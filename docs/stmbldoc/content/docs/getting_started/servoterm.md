@@ -42,7 +42,7 @@ To install Servoterm, follow these steps:
 
 ## Connecting to STMBL
 
-To connect to the STMBL, you will need a mini-USB B cable. 
+To connect to the STMBL, you will need a USB C cable. 
 {{% hint danger %}}
 Be sure that the 24V PSU is floating or shares a ground reference with the PC.  
 (Maybe even check the voltage between the connector and socket before inserting the plug.)
@@ -104,7 +104,7 @@ If you encounter connection issues, ensure that your serial setup is correct. He
 
 1. **Check Serial Port**: Ensure that the correct serial port is selected in Servoterm.
 2. **Ground Reference**: Make sure that the 24V PSU is floating or shares a ground reference with the PC.
-3. **USB Cable**: Use a good quality mini-USB B cable to connect the STMBL to your computer.
+3. **USB Cable**: Use a good quality USB C cable to connect the STMBL to your computer.
 
 
 Linux/Mac? Add your username to the dialout group to be able to access the com ports. If you have used the Arduino IDE before, this is probably already set:
