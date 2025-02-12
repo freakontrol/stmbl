@@ -80,7 +80,7 @@ docs: $(COMP_DOCS)
 TEMPLATE_DOCS := $(foreach comp,$(CONFIG_TEMPLATES),docs/stmbldoc/content/docs/hal_templates/$(notdir $(comp:.txt=.md)))
 
 # Explicitly define targets for each template file
-docs/stmbldoc/content/docs/hal_templates/%.md: $(CONFIG_TEMPLATES)
+docs/stmbldoc/content/docs/hal_templates/%.md: $(CONFIG_TEMPLATES) docs/stmbldoc/static/graph/f4_template_%.dot
 	@echo Generating docs for component $@
 	@$(PYTHON) docs/tools/create_template_doc.py $@ $(CONFIG_TEMPLATES)
 
@@ -88,4 +88,15 @@ docs/stmbldoc/content/docs/hal_templates/%.md: $(CONFIG_TEMPLATES)
 .PHONY: docs
 
 docs: $(TEMPLATE_DOCS)
+
+CONF_DOCS := $(foreach conf, $(CONF_FILES), docs/stmbldoc/content/docs/hal_configs/$(notdir $(conf:.txt=.md)))
+
+# Explicitly define targets for each template file
+docs/stmbldoc/content/docs/hal_configs/%.md: conf/%.txt docs/stmbldoc/static/graph/f4_%.dot
+	@echo Generating docs for component $@
+	@$(PYTHON) docs/tools/create_config_doc.py $@ $(CONF_FILES)
+# Phony target to generate all documentation files
+.PHONY: docs
+
+docs: $(CONF_DOCS)
 
