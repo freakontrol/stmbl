@@ -60,3 +60,36 @@ def collect_template_conf(config_templates):
             config_commands[config_name] = commands
             
     return config_commands
+
+# def collect_comp_docs(infile):
+#     description = None
+#     with open(infile, 'r') as f:
+#         content = f.read()
+#         # Extract Doxygen-style comments
+#         comment_pattern = re.compile(r'/\*\*(.*?)\*/', re.DOTALL)
+#         comments = comment_pattern.findall(content)
+
+#         if comments:
+#             # Join consecutive comments to form the description
+#             description = '\n'.join(comments).strip()
+
+#     compname = os.path.basename(infile).split('.')[0]
+#     formatted_description = f"## {compname}\n{description}"
+#     return formatted_description
+
+def collect_template_docs(config_templates):
+    template_docs = {}
+
+    for template_file in config_templates:
+        with open(template_file, 'r') as f:
+            content = f.read()
+            # Extract Doxygen-style comments
+            comment_pattern = re.compile(r'#(.*)')
+            comments = comment_pattern.findall(content)
+            # Join consecutive comments to form the description
+            description = '\n'.join(comments).strip()
+            config_name = os.path.basename(template_file).split('.')[0]
+            formatted_description = f"## {config_name}\n{description}"
+            template_docs[config_name] = formatted_description
+
+    return template_docs

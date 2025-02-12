@@ -24,11 +24,16 @@ clean:
 	@echo Cleaning project:
 	rm -rf docs/stmbldoc/static/graph
 
+# Additional target to clean all .md files except index.md
+clean_docs:
+	@echo Cleaning documentation files:
+	find docs/stmbldoc/content/docs/hal_components/ -type f -name '*.md' ! -name '_index.md' -exec rm {} \;
+
 # Include the base rules
 include base.mak
 
 # Listing of phony targets
-.PHONY: all build clean graph
+.PHONY: all build clean graph docs clean_docs
 
 # Define a variable to hold the list of configuration files in conf/
 CONF_FILES := $(wildcard conf/*.txt)
@@ -57,11 +62,15 @@ docs/stmbldoc/static/graph/f4_template_%.dot: conf/template/%.txt $(F4COMPS) $(C
 # Add the dynamic targets to the graph target for conf/template/*
 graph: $(GRAPH_FILES_TEMPLATE)
 
-DOC_FILES := $(foreach conf, $(F4COMPS), docs/stmbldoc/content/docs/hal_components/$(notdir $(conf:.c=.md)))
+# Define the list of component files (example)
+COMP_DOCS := $(foreach comp,$(F4COMPS),docs/stmbldoc/content/docs/hal_components/$(notdir $(comp:.c=.md)))
 
+# Explicitly define targets for each component file
 docs/stmbldoc/content/docs/hal_components/%.md: $(F4COMPS) $(CONFIG_TEMPLATES)
-	@echo Generating docs for component $<
-	@$(PYTHON) docs/tools/create_hal_doc.py $@ conf/festo.txt $(F4COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
+	@echo Generating docs for component $@
+	@$(PYTHON) docs/tools/create_comp_doc.py $@ $(F4COMPS) __TEMPLATE_MARKER__ $(CONFIG_TEMPLATES)
 
-docs: $(F4COMPS)
+# Phony target to generate all documentation files
+.PHONY: docs
 
+docs: $(COMP_DOCS)

@@ -1,3 +1,11 @@
+/**
+ * PID (Proportional-Integral-Derivative) Controller Component
+ *
+ * This component implements a PID controller, which is used to minimize the error between a desired setpoint and the actual process variable.
+ * The PID algorithm calculates an output value based on the proportional, integral, and derivative terms of the error.
+ * It is widely used in control systems for applications such as motor speed control, temperature regulation, and more.
+ */
+
 #include "pid_comp.h"
 /*
 * This file is part of the stmbl project.
