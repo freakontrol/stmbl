@@ -90,4 +90,6 @@ stm32f303/inc/shared_comps/*
 stm32f303/src/hal_tbl.c
 toolchain-user.mak
 
+docs/stmbldoc/static/graph
+
 public
