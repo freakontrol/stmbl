@@ -29,6 +29,7 @@ clean_docs:
 	@echo Cleaning documentation files:
 	find docs/stmbldoc/content/docs/hal_components/ -type f -name '*.md' ! -name '_index.md' -exec rm {} \;
 	find docs/stmbldoc/content/docs/hal_templates/ -type f -name '*.md' ! -name '_index.md' -exec rm {} \;
+	find docs/stmbldoc/content/docs/hal_configs/ -type f -name '*.md' ! -name '_index.md' -exec rm {} \;
 
 # Include the base rules
 include base.mak
