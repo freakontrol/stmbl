@@ -1,6 +1,6 @@
 ---
 title: "Linuxcnc"
-weight: 4
+weight: 6
 # bookFlatSection: false
 # bookToc: true
 # bookHidden: false

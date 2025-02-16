@@ -1,5 +1,5 @@
 ---
 bookCollapseSection: true
-weight: 4
+weight: 5
 redirect_to: "/docs/hal_configs/"
 ---

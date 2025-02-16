@@ -1,6 +1,6 @@
 ---
 title: "FAQ"
-weight: 7
+weight: 8
 # bookFlatSection: false
 # bookToc: true
 # bookHidden: false

@@ -1,6 +1,6 @@
 ---
 title: "Tuning"
-weight: 7
+weight: 5
 # bookFlatSection: false
 # bookToc: true
 # bookHidden: false
@@ -13,10 +13,10 @@ weight: 7
 
 ## Requirements
 
-* [Supply](configuration/supply.md)
-* [Servoterm](servoterm.md)
-* [Feedback](configuration/feedback.md)
-* [Motor](configuration/motor.md)
+* [Supply](/docs/supply.md)
+* [Servoterm](/docs/getting_started/servoterm.md)
+* [Feedback](/docs/getting_started/feedback.md)
+* [Motor](/docs/getting_started/motor.md)
 
 ## Electrical Parameters
 
@@ -233,4 +233,4 @@ fault0.en = 1
 ```
 
 - Append the result (`conf0.pos_bw`, `conf0.vel_bw`, `conf0.vel_d`) to your config.
-- Go to [Cmd](configuration/cmd.md).
+- Go to [Cmd](/docs/getting_started/cmd.md).

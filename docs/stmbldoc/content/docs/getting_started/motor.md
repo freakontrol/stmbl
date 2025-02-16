@@ -1,6 +1,6 @@
 ---
 title: "Motor"
-weight: 3
+weight: 4
 # bookFlatSection: false
 # bookToc: true
 # bookHidden: false
@@ -12,7 +12,7 @@ weight: 3
 # Motor
 
 {{% hint info %}}
-Is possible to use the [Autotuning](../tuning.md) to estimate the motor parameters.  
+Is possible to use the [Autotuning](/docs/getting_started/tuning.md) to estimate the motor parameters.  
 You can still use this guide if the autotuning fail.  
 {{% /hint %}} 
 
