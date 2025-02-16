@@ -1,0 +1,13 @@
+  <!-- Include medium-zoom.js -->
+  <script src="{{ "/js/medium-zoom.min.js" | relURL }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      mediumZoom('[data-zoomable]', {
+        margin: 0, /* The space outside the zoomed image */
+        scrollOffset: 40, /* The number of pixels to scroll to close the zoom */
+        background: "rgba(0,0,0,0.9)",
+        container: null, /* The viewport to render the zoom in */
+        template: null /* The template element to display on zoom */
+      });
+    });
+  </script>
