@@ -41,7 +41,7 @@ The STMBL consists of two separate PCBs that are made as one then assembled and 
 
 The lower board is the high-voltage (HV) board, and this is where the power driver is situated. The only connection between the two boards is a serial connection through a 2.5kV isolation IC. To make this possible, there is a second STM32 chip on the lower board. This is an STM32F303 and is referred to as "F3" in the remainder of this document. The processor on the upper board is referred to as "F4".
 
-![STMBL Anatomy](/images/iso1-dark.png)
+![STMBL Anatomy](/stmbl/images/iso1-dark.png)
 
 Logic power to the LV board should be 24V. A green LED will light adjacent to the socket when power is supplied.
 
@@ -59,7 +59,7 @@ The HV and LV boards are isolated in normal use but it is easy to accidentally c
  It is imperative that the HV board should be powered from an isolated, low voltage supply when flashing firmware.
 {{% /hint %}}  
 
-![STMBL Connectors](/images/iso2-dark.png)
+![STMBL Connectors](/stmbl/images/iso2-dark.png)
 
 The command and feedback connectors use standard 8P8C (RJ45) connectors and standard CAT5 or CAT6 cables can be conveniently used. To connect to cables with larger conductors than supported by CAT5, it is possible to use, for example, [Industrial CAT6a](https://octopart.com/j00026a2001-telegärtner-24873031) connectors which can accept core wires up to 1.6mm and overall cable diameters up to 9.0mm.
 
@@ -77,9 +77,9 @@ STMBL uses a data flow graph to configure the drive for different types of motor
 
 Here is the graphical representation of the default configuration for the LV board and for the HV board
 
-{{< zoomable-image src="../../graph/f4_festo_graph.dot.svg" alt="Low Voltage default hal config" >}}
+{{< zoomable-image src="/stmbl/graph/f4_festo_graph.dot.svg" alt="Low Voltage default hal config" >}}
 
-{{< zoomable-image src="../../graph/hvf3_graph.dot.svg" alt="High Voltage default hal config" >}}  
+{{< zoomable-image src="/stmbl/graph/hvf3_graph.dot.svg" alt="High Voltage default hal config" >}}  
 
 An Application called [Servoterm](/docs/getting_started/servoterm/) is used to interact with the HAL interface and configure the drive. You will need to install and launch this before it is possible to configure the STMBL.
 
@@ -87,7 +87,7 @@ STMBL HAL configuration does not use any commands other than the = sign and the 
 
 Assuming that there is already a motor connected to the drive and that the drive is powered up, the Servoterm display should already be indicating the motor position feedback. Rotating the motor shaft by hand might produce something like:
 
-![Servoterm Display](/images/servoterm.png)
+![Servoterm Display](/stmbl/images/servoterm.png)
 
 Though it equally well might not if the configuration is set up for a resolver and the motor has an encoder. It should be possible to make the motor turn at this point without any further configuration. The commands that follow will set the hv0 module up to simply rotate the motor open-loop in direct-mode (like a stepper motor) with an excitation current of 0.5A. This should be safe for most motors that the STMBL is a good match for, but you should choose your own value. For an explanation of direct and quadrature current, see the section on [Motor Basics](/docs/getting_started/motor/#motor-basics).
 

@@ -64,7 +64,7 @@ Taking the buttons from left to right:
 
 Other than the buttons described above, the remainder of Servoterm (and the STMBL HAL) is controlled by a command-line interface at the bottom. Servoterm uses the up and down arrow keys to scroll through previous commands, but there is no tab-completion. This is mainly described in the [HAL](#hal-hardware-abstraction-layer) section of this document. The graphing display is controlled by the "term0" interface. Typing `term0` at the prompt will show output similar to:
 
-![Servoterm Terminal Interface](/images/servoterm.png)
+![Servoterm Terminal Interface](/stmbl/images/servoterm.png)
 
 The first two entries are internal information about the HAL component and can be ignored for now. The next 8 lines say what internal signal each of the wave plots is connected to. In this case, wave0 (the black one) is connected to a sim signal, in this case, the sine wave. (as you might have guessed, typing "sim0" will show you the parameters of the simulated signals.) To connect wave1 (red) to the sawtooth output (which simulates both encoder feedback and a position command for steady rotation), then simply type `term0.wave1 = sim0.vel`. Each wave has an associated offset and gain parameter that can be used to adjust vertical scale and position. The `term0.send_step` parameter functions like the time-base of an oscilloscope.
 

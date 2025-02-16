@@ -58,7 +58,7 @@ def main(output_file, config_templates):
 
         # Add the graph image
         output_base_name = os.path.splitext(os.path.basename(output_file))[0]
-        graph_image_path = f"/graph/f4_{output_base_name}.dot.svg"
+        graph_image_path = f"/stmbl/graph/f4_{output_base_name}.dot.svg"
         graph_image_markdown = f'\n\n{{{{< zoomable-image src="{graph_image_path}" alt="Description of image" >}}}}\n'
         md_file.write(graph_image_markdown)
         md_file.write(f"\n\n{conf_link}\n")
