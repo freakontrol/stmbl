@@ -50,10 +50,10 @@ jobs:
         uses: actions/configure-pages@v5
       - name: Install Node.js dependencies
         run: "[[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true"
-      - name: Install Graphviz
-        run: sudo apt-get install -y graphviz
       - name: Install Python 3
         run: sudo apt-get install -y python3
+      - name: Install Graphviz
+        run: sudo apt-get install -y python3-graphviz
       - name: Install make
         run: sudo apt-get install -y build-essential
       - name: Build Documentation
