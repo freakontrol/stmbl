@@ -9,7 +9,7 @@ bookToc: true
 # bookSearchExclude: false
 ---
 
-# STMBL Getting Started Guide
+# STMBL Introduction Guide
 
 ## Description
 

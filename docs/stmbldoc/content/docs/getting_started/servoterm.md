@@ -55,14 +55,14 @@ Taking the buttons from left to right:
 
 * Connect / Disconnect - Should be fairly self-evident
 * Clear - simply clears the screen
-* Reset - Reenables the drive and clears faults. Does not reset the STMBL. To do that type the [Servoterm Commands](#servoterm-commands), `reset`
+* Reset - Reenables the drive and clears faults. Does not reset the STMBL. To do that type the [Servoterm Commands](/docs/getting_started/servoterm/#servoterm-commands), `reset`
 * Capture - Allows the output of the graphs to be saved and exported as CSV. First click starts the recording, second click stops and saves the file.
 * Jog - when ticked the left-right arrow keys on the keyboard can be used to jog the motor.
 * Trigger - stops the graph plot until the trigger condition is met.
 * Trigger Status Indicator - not a button
 * Edit Config - Brings up a sub-window in which the basic system config can be edited.
 
-Other than the buttons described above, the remainder of Servoterm (and the STMBL HAL) is controlled by a command-line interface at the bottom. Servoterm uses the up and down arrow keys to scroll through previous commands, but there is no tab-completion. This is mainly described in the [HAL](#hal-hardware-abstraction-layer) section of this document. The graphing display is controlled by the "term0" interface. Typing `term0` at the prompt will show output similar to:
+Other than the buttons described above, the remainder of Servoterm (and the STMBL HAL) is controlled by a command-line interface at the bottom. Servoterm uses the up and down arrow keys to scroll through previous commands, but there is no tab-completion. This is mainly described in the [HAL](/docs/getting_started/servoterm/#hal-hardware-abstraction-layer) section of this document. The graphing display is controlled by the "term0" interface. Typing `term0` at the prompt will show output similar to:
 
 ![Servoterm Terminal Interface](/stmbl/images/servoterm.png)
 
