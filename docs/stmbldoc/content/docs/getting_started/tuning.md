@@ -70,7 +70,7 @@ iddc0.state = 2.2
 ```
 
 - Append the result (`conf0.r`, `conf0.l`, `conf0.psi`, opt. `conf0.out_rev`) to your config.
-- Go to [Motor Mechanical Parameters](#motor-mechanical-parameters).
+- Go to [Motor Mechanical Parameters](/docs/getting_started/tuning#motor-mechanical-parameters).
 
 ### PMSM Motor
 
@@ -112,7 +112,7 @@ fault0.en = 1
 ```
 
 - Append the result (`conf0.r`, `conf0.l`, `conf0.psi`, `conf0.polecount`, `conf0.mot_fb_offset`, opt. `conf0.out_rev`) to your config.
-- Go to [Motor Mechanical Parameters](#motor-mechanical-parameters).
+- Go to [Motor Mechanical Parameters](/docs/getting_started/tuning#motor-mechanical-parameters).
 
 ## Motor Mechanical Parameters
 
@@ -150,7 +150,7 @@ fault0.en = 1
 ```
 
 - Append the result (`conf0.j`, `conf0.d`, `conf0.f`, `conf0.o`) to your config.
-- Go to [System Mechanical Parameters](#system-mechanical-parameters).
+- Go to [System Mechanical Parameters](/docs/getting_started/tuning#system-mechanical-parameters).
 
 ## System Mechanical Parameters
 
@@ -192,7 +192,7 @@ fault0.en = 1
 ```
 
 - Append the result (`conf0.j_sys`, `conf0.d`, `conf0.f`, `conf0.o`) to your config.
-- Go to [Control Loop Tuning](#control-loop-tuning).
+- Go to [Control Loop Tuning](/docs/getting_started/tuning#control-loop-tuning).
 
 ## Control Loop Tuning
 
