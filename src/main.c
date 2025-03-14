@@ -130,7 +130,7 @@ void about(char *ptr) {
 #ifdef __STM32F3xx_HAL_VERSION
   printf("HAL lib... TODO: print version\n");
 #endif
-  // printf("CPU ID     %lx %lx %lx\n",U_ID[0], U_ID[1], U_ID[2]);
+  printf("CPU ID     %lx %lx %lx\n",U_ID[0], U_ID[1], U_ID[2]);
   printf("size: %lu crc:%lx\n", version_info.image_size, version_info.image_crc);
   volatile const version_info_t *bt_version_info = (void *)0x08000188;
   printf("######## Bootloader info ########\n");
