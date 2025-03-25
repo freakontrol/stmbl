@@ -19,8 +19,9 @@ The drive is configurable for a wide range of command and feedback types through
 
 Currently supported command interfaces are:
 
-* Mesa Smart-Serialgraph/f4
-* CANopen
+* Mesa Smart-Serial  
+* Quadrature, Step-Dir, Dir-Step, Up-Down ([enc cmd](/docs/hal_components/enc_cmd.md))  
+* Usb Python interface  
 
 Encoder power is 5V by default but 12V can be selected by jumper pads on the PCB.
 
