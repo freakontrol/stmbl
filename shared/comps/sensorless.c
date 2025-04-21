@@ -16,13 +16,16 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 *
-* You shou l have received a copy of the GNU General Public License
+* You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
 /**
-* ## Component Explanation
+* ## Brief
+* The `sensorless` component is responsible for estimating the motor's velocity and position in real-time using electrical measurements. It applies low-pass filtering, back EMF calculation, velocity compensation, and position integration to achieve this.  
+*
+* ## Description  
 * 
 * 1. **Input Reading and Initialization**:
 *    - `l` and `r` are the inductance and resistance of the motor, respectively. They are ensured to be positive.
@@ -66,11 +69,7 @@
 *    - The position is wrapped using the `mod` function to ensure it stays within a valid range (e.g., 0 to 2π for angular position).
 *  
 * 9. **Output Updates**:
-*    - The estimated back EMF (`ed` and `eq`), velocity (`vel`), and position (`pos`) are updated on the output pins.
-*  
-* ### Summary
-* The `sensorless` component is responsible for estimating the motor's velocity and position in real-time using electrical measurements. It applies low-pass filtering, back EMF calculation, velocity compensation, and position integration to achieve this.  
-*
+*    - The estimated back EMF (`ed` and `eq`), velocity (`vel`), and position (`pos`) are updated on the output pins.  
 */
 
 #include "commands.h"
@@ -83,44 +82,44 @@
 HAL_COMP(sensorless);
 
 // Input pins
-HAL_PIN(r);          // Resistance of the motor (R)
-HAL_PIN(l);          // Inductance of the motor (L)
+HAL_PIN(r);          // *parameter*, Resistance of the motor (R)
+HAL_PIN(l);          // *parameter*, Inductance of the motor (L)
 
 // Gain parameters for the control algorithm
-HAL_PIN(ki);         // Integral gain for velocity compensation
-HAL_PIN(kb);         // Back EMF gain
-HAL_PIN(kl);         // Low-pass filter gain for current changes
+HAL_PIN(ki);         // *parameter*, Integral gain for velocity compensation
+HAL_PIN(kb);         // *parameter*, Back EMF gain
+HAL_PIN(kl);         // *parameter*, Low-pass filter gain for current changes
 
 // Velocity control parameters
-HAL_PIN(min_vel);    // Minimum velocity threshold for startup boost
-HAL_PIN(vel_boost);  // Velocity boost factor for startup
-HAL_PIN(max_vel);    // Maximum allowed velocity
+HAL_PIN(min_vel);    // *parameter*, Minimum velocity threshold for startup boost
+HAL_PIN(vel_boost);  // *parameter*, Velocity boost factor for startup
+HAL_PIN(max_vel);    // *parameter*, Maximum allowed velocity
 
 // Current and voltage measurements in the d-q reference frame
-HAL_PIN(id);         // D-axis current
-HAL_PIN(iq);         // Q-axis current
-HAL_PIN(ud);         // D-axis voltage (current measurement)
-HAL_PIN(uq);         // Q-axis voltage (current measurement)
-HAL_PIN(ud1);        // Delayed D-axis voltage (one sample delay)
-HAL_PIN(uq1);        // Delayed Q-axis voltage (one sample delay)
-HAL_PIN(ud2);        // Delayed D-axis voltage (two sample delays)
-HAL_PIN(uq2);        // Delayed Q-axis voltage (two sample delays)
+HAL_PIN(id);         // *input*, D-axis current
+HAL_PIN(iq);         // *input*, Q-axis current
+HAL_PIN(ud);         // *input*, D-axis voltage (current measurement)
+HAL_PIN(uq);         // *input*, Q-axis voltage (current measurement)
+HAL_PIN(ud1);        // *internal*, Delayed D-axis voltage (one sample delay)
+HAL_PIN(uq1);        // *internal*, Delayed Q-axis voltage (one sample delay)
+HAL_PIN(ud2);        // *internal*, Delayed D-axis voltage (two sample delays)
+HAL_PIN(uq2);        // *internal*, Delayed Q-axis voltage (two sample delays)
 
 // Output pins
-HAL_PIN(vel);        // Estimated velocity of the motor
-HAL_PIN(pos);        // Estimated position of the motor
+HAL_PIN(vel);        // *output*, Estimated velocity of the motor
+HAL_PIN(pos);        // *output*, Estimated position of the motor
 
 // Estimated back EMF in the d-q reference frame
-HAL_PIN(ed);         // D-axis back EMF
-HAL_PIN(eq);         // Q-axis back EMF
+HAL_PIN(ed);         // *output*, D-axis back EMF
+HAL_PIN(eq);         // *output*, Q-axis back EMF
 
 // Previous current values for low-pass filtering
 HAL_PIN(old_id);     // Previous D-axis current
 HAL_PIN(old_iq);     // Previous Q-axis current
 
 // Changes in current for back EMF calculation
-HAL_PIN(delta_id);   // Change in D-axis current
-HAL_PIN(delta_iq);   // Change in Q-axis current
+HAL_PIN(delta_id);   // *output*, Change in D-axis current
+HAL_PIN(delta_iq);   // *output*, Change in Q-axis current
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct sensorless_ctx_t *ctx      = (struct sensorless_ctx_t *)ctx_ptr;

@@ -74,10 +74,10 @@ def main(output_file, comp_files, config_templates):
     with open(output_file, 'w') as md_file:
         md_file.write(description + '\n\n')
         if pins:
-            md_file.write("## Pins\n")
+            md_file.write("## Pins  \n| Name | Description |\n|----|----|\n")
             for pin_name, pin_description in pins:
-                md_file.write(f"- **{pin_name}**: {pin_description}\n")
-        md_file.write(f"\n\n Source: [.c File](https://github.com/freakontrol/stmbl/blob/main/{matching_comp_file})\n")
+                md_file.write(f"| **{pin_name}** | {pin_description} |\n")
+        md_file.write(f"\n## References  \n Source: [.c File](https://github.com/freakontrol/stmbl/blob/main/{matching_comp_file})\n")
 
 if __name__ == "__main__":
     if len(sys.argv) < 4 or '__TEMPLATE_MARKER__' not in sys.argv:
