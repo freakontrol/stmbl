@@ -51,27 +51,27 @@ HAL_PIN(mode);          // *parameter*, 0 = slip, 1 = mtpa, 2 = u/f
 HAL_PIN(sensorless);    // *parameter*, Flag indicating whether sensorless control is enabled (1 = enabled, 0 = disabled)
 
 // Motor values and parameters
-HAL_PIN(torque_n);      // *parameter*, Nominal torque of the motor
-HAL_PIN(cur_n);         // *parameter*, Nominal current of the motor
-HAL_PIN(slip_n);        // *parameter*, Nominal slip frequency of the motor
+HAL_PIN(torque_n);      // *parameter*, Nominal torque of the motor (N/M)
+HAL_PIN(cur_n);         // *parameter*, Nominal current of the motor (A)
+HAL_PIN(slip_n);        // *parameter*, Nominal slip frequency of the motor (rad/s)
 HAL_PIN(polecount);     // *parameter*, Number of pole pairs in the motor
-HAL_PIN(freq_n);        // *parameter*, Nominal frequency of the motor
-HAL_PIN(vel_n);         // *parameter*, Nominal velocity of the motor
-HAL_PIN(u_n);           // *parameter*, Nominal voltage of the motor
+HAL_PIN(freq_n);        // *parameter*, Nominal frequency of the motor (Hz)
+HAL_PIN(vel_n);         // *parameter*, Nominal velocity of the motor (rad/s)
+HAL_PIN(u_n);           // *parameter*, Nominal voltage of the motor (V)
 HAL_PIN(u_boost);       // *parameter*, Voltage boost factor for startup
 HAL_PIN(t_boost);       // *parameter*, Torque boost factor for startup
 HAL_PIN(s_boost);       // *parameter*, Slip boost factor for startup
 
 // Torque command inputs
-HAL_PIN(torque);        // *input*, Torque command input
-HAL_PIN(vel_m);         // *input*, Measured velocity input
+HAL_PIN(torque);        // *input*, Torque command (N/M)
+HAL_PIN(vel_m);         // *input*, Motor velocity, (rad/s)
+HAL_PIN(vel_e);         // *input* if Sensorless>0, *output* otherwise, synchronous speed (rad/s)
 
 // Current command outputs
 HAL_PIN(d_cmd);         // *output*, D-axis current command
 HAL_PIN(q_cmd);         // *output*, Q-axis current command
 HAL_PIN(cmd_mode);      // *output*, Command mode (0 = voltage control, 1 = current control)
 HAL_PIN(pos);           // *output*, Estimated position of the motor
-HAL_PIN(vel_e);         // *output*, Estimated velocity of the motor
 HAL_PIN(slip);          // *output*, Estimated slip of the motor
 HAL_PIN(t_min);         // Minimum torque limit
 HAL_PIN(t_max);         // Maximum torque limit
