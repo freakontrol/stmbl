@@ -91,5 +91,8 @@ stm32f303/src/hal_tbl.c
 toolchain-user.mak
 
 docs/stmbldoc/static/graph
+docs/stmbldoc/content/docs/hal_components
+docs/stmbldoc/content/docs/hal_configs
+docs/stmbldoc/content/docs/hal_templates
 
 public
