@@ -3,11 +3,15 @@ class Pin:
         self.name = name
         self.value = value
         self.component = component  # Reference to the component
-        self.connections = []
+        self.connected_pin = None # self <= connected_pin
 
-    def connect(self, pin):
-        if pin not in self.connections and pin is not self:
-            self.connections.append(pin)
+    def connect(self, src_pin):
+        if(src_pin is not self):
+            self.connected_pin = src_pin
+            self.update()
+        
+    def update(self):
+        self.value = self.connected_pin.value
 
     def __eq__(self, other):
         return self.name == other.name

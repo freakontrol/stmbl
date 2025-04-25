@@ -39,15 +39,16 @@ class Graph:
             # Handle any other exceptions that might occur
             print(f"An error occurred while retrieving dst_pin: {e}")
             return
+
         if src_pin and dst_pin:
-            src_pin.connect(dst_pin)
-            
+            dst_pin.connect(src_pin)
+
     def get_next_component_name(self, base_name):
         if base_name not in self.component_counter:
             self.component_counter[base_name] = -1  # Start from 0
         self.component_counter[base_name] += 1
         return f"{base_name}{self.component_counter[base_name]}"
-    
+
     def extract_component_name(self, name):
         # Find all digits at the end of the string
         match = re.search(r'(\D*)(\d+)$', name)
@@ -55,7 +56,6 @@ class Graph:
             return match.group(1)  # Return the part before the last integer
         else:
             return name  # If no digits are found, return the original string
-
 
     def build_graph_from_commands_and_pins(self, commands, pins_dict, config_commands):
 
@@ -83,39 +83,39 @@ class Graph:
             else:
                 # Handle pin assignments and connections
                 if '=' in parts[1]:
-                    src_comp_name = parts[0].split('.')[0]
-                    src_pin_name = parts[0].split('.')[1]
-                    dst_pin_info = parts[2]
-            
-                    if self.get_component(src_comp_name) is None:
-                        add_comp_cmd = "load " + self.extract_component_name(src_comp_name)
+                    left_comp_name = parts[0].split('.')[0]
+                    left_pin_name = parts[0].split('.')[1]
+                    right_pin_info = parts[2]
+
+                    if self.get_component(left_comp_name) is None:
+                        add_comp_cmd = "load " + self.extract_component_name(left_comp_name)
                         print(add_comp_cmd)
                         self.build_graph_from_commands_and_pins([add_comp_cmd], pins_dict, config_commands)
-                        print(src_comp_name)
+                        print(left_comp_name)
 
-                    if re.match(r'^-?\d+(\.\d+)?$', dst_pin_info):
+                    if re.match(r'^-?\d+(\.\d+)?$', right_pin_info):
                         # Pin value assignment (integer or float)
-                        pin_value = float(dst_pin_info) if '.' in dst_pin_info else int(dst_pin_info)
+                        pin_value = float(right_pin_info) if '.' in right_pin_info else int(right_pin_info)
                         try:
-                            self.get_component(src_comp_name).get_pin(src_pin_name).value = pin_value
+                            self.get_component(left_comp_name).get_pin(left_pin_name).value = pin_value
                         except AttributeError as e:
                             # Handle the case where the component or pin does not exist
-                            print(f"Warning: {src_comp_name}.{src_pin_name} does not exist.")
+                            print(f"Warning: {left_comp_name}.{left_pin_name} does not exist.")
                         except Exception as e:
                             # Handle any other exceptions that might occur
                             print(f"An error occurred: {e}")
 
-                    elif '.' in dst_pin_info:
+                    elif '.' in right_pin_info:
                         # Pin connection
                         try:
-                            dst_comp_name, dst_pin_name = dst_pin_info.split('.', 1)  # Split only at the first '.'
-                            if self.get_component(dst_comp_name) is None:
-                                add_comp_cmd = "load " + self.extract_component_name(dst_comp_name)
+                            right_comp_name, right_pin_name = right_pin_info.split('.', 1)  # Split only at the first '.'
+                            if self.get_component(right_comp_name) is None:
+                                add_comp_cmd = "load " + self.extract_component_name(right_comp_name)
                                 print(add_comp_cmd)
                                 self.build_graph_from_commands_and_pins([add_comp_cmd], pins_dict, config_commands)
-                                print(dst_pin_info)
-                            
-                            self.connect_pins(src_comp_name, src_pin_name, dst_comp_name, dst_pin_name)
+                                print(right_pin_info)
+
+                            self.connect_pins(right_comp_name, right_pin_name, left_comp_name, left_pin_name)
                         except ValueError as e:
                             print(f"Error parsing pin connection: {e}")
         return self
@@ -138,14 +138,14 @@ class Graph:
 
         for comp_name, comp in self.components.items():
             for pin_name, pin in comp.pins.items():
-                for connected_pin in pin.connections:
+                if(pin.connected_pin is not None):
                     dst_pin_ref = f'{comp_name}:{pin_name}'
-                    src_pin_ref = f'{connected_pin.component.name}:{connected_pin.name}'
-                    edge_color = get_color_for_edge(comp_name, pin_name, connected_pin.component.name, connected_pin.name)
+                    src_pin_ref = f'{pin.connected_pin.component.name}:{pin.connected_pin.name}'
+                    edge_color = get_color_for_edge(comp_name, pin_name, pin.connected_pin.component.name, pin.connected_pin.name)
                     dot.edge(src_pin_ref, dst_pin_ref, color=edge_color)
 
         return dot
-    
+
     def __repr__(self):
         return f"Graph({list(self.components.keys())})"
 

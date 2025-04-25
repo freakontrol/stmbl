@@ -39,7 +39,7 @@ class TestGraph(unittest.TestCase):
         src_pin = src_component.get_pin(src_pin_name)
         dst_pin = dst_component.get_pin(dst_pin_name)
 
-        self.assertIn(dst_pin, src_pin.connections)
+        self.assertEqual(dst_pin.connected_pin, src_pin)
 
     def test_get_next_component_name(self):
         base_name = "base"
@@ -65,7 +65,9 @@ class TestGraph(unittest.TestCase):
 
         self.assertIn("base0", self.graph.components)
         base_component = self.graph.get_component("base0")
+        another_component = self.graph.get_component("another_comp0")
         self.assertEqual(base_component.pins["pin1"].value, 10)
+        self.assertEqual(base_component.pins["pin2"].connected_pin, another_component.pins["pin3"])
 
     def test_generate_dot_file(self):
         commands = [

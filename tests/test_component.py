@@ -34,8 +34,8 @@ class TestComponent(unittest.TestCase):
         comp1 = Component("test_comp")
         comp2 = Component("test_comp")
         comp3 = Component("different_comp")
-        self.assertTrue(comp1 == comp2)
-        self.assertFalse(comp1 == comp3)
+        self.assertEqual(comp1, comp2)
+        self.assertNotEqual(comp1, comp3)
 
     def test_repr(self):
         component = Component("test_comp")
