@@ -53,7 +53,8 @@ class TestGraph(unittest.TestCase):
             "load base",
             "load another_comp",
             "base0.pin1 = 10",
-            "base0.pin2 = another_comp0.pin3"
+            "base0.pin2 = another_comp0.pin3",
+            "another_comp0.pin3 = 5"
         ]
         pins_dict = {
             "base": ["pin1", "pin2"],
@@ -63,11 +64,15 @@ class TestGraph(unittest.TestCase):
 
         self.graph.build_graph_from_commands_and_pins(commands, pins_dict, config_commands)
 
+        self.graph.update()
+
         self.assertIn("base0", self.graph.components)
         base_component = self.graph.get_component("base0")
         another_component = self.graph.get_component("another_comp0")
+        
         self.assertEqual(base_component.pins["pin1"].value, 10)
         self.assertEqual(base_component.pins["pin2"].connected_pin, another_component.pins["pin3"])
+        self.assertEqual(base_component.pins["pin2"].value, 5)
 
     def test_generate_dot_file(self):
         commands = [

@@ -1,4 +1,5 @@
 from .pin import Pin
+
 class Component:
     def __init__(self, name):
         self.name = name
@@ -10,6 +11,15 @@ class Component:
 
     def get_pin(self, pin_name):
         return self.pins.get(pin_name)
+
+    def update(self):
+        for pin in self.pins.values():
+            if not pin.updated:
+                pin.update()
+
+    def reset(self):
+        for pin in self.pins.values():
+            pin.reset()
 
     def __eq__(self, other):
         return self.name == other.name

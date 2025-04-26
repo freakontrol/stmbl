@@ -41,5 +41,35 @@ class TestComponent(unittest.TestCase):
         component = Component("test_comp")
         self.assertEqual(repr(component), "Component(test_comp)")
 
+    def test_update_pins(self):
+        component = Component("test_comp")
+        another_comp = Component("another_comp")
+        component.add_pin("pin1", 10)
+        component.add_pin("pinx", 30)
+        another_comp.add_pin("pinx", 50)
+        another_comp.add_pin("pin2", 20)
+        
+        pin1 = component.get_pin("pin1")
+        pin2 = another_comp.get_pin("pin2")
+
+        pin1.connect(pin2)
+
+        pin1.update()
+
+        self.assertEqual(pin1.value, 20)
+        self.assertTrue(pin1.updated)
+        self.assertTrue(pin2.updated)
+
+    def test_reset_pins(self):
+        component = Component("test_comp")
+        component.add_pin("pin1", 10)
+
+        pin1 = component.get_pin("pin1")
+        pin1.updated = True
+
+        component.reset()
+
+        self.assertFalse(pin1.updated)
+
 if __name__ == '__main__':
     unittest.main()

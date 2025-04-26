@@ -14,6 +14,12 @@ class Graph:
 
     def get_component(self, component_name):
         return self.components.get(component_name)
+    
+    def update(self):
+        for comp in self.components.values():
+            comp.reset()
+        for comp in self.components.values():
+            comp.update()
 
     def connect_pins(self, src_comp_name, src_pin_name, dst_comp_name, dst_pin_name):
         try:
@@ -121,6 +127,7 @@ class Graph:
         return self
 
     def generate_dot_file(self):
+        self.update()
         dot = Digraph()
         dot.attr(fontname="Roboto")
         dot.node_attr.update(fontsize="16", shape="ellipse", fontname="Roboto", color="white", fontcolor="white")
