@@ -56,6 +56,8 @@ jobs:
         run: sudo apt-get install -y python3-graphviz
       - name: Install make
         run: sudo apt-get install -y build-essential
+      - name: Run Doc Code Tests
+        run: python -m unittest discover -s tests
       - name: Build Documentation
         run: make docs
       - name: Build with Hugo
