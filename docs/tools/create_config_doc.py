@@ -26,9 +26,7 @@ def collect_comp_docs(infile):
 
 def extract_conf_content(infile):
     with open(infile, 'r') as f:
-        content = f.readlines()
-    # Extract the configuration content
-    conf_content = '\n'.join(content)
+        conf_content = f.read()
     return conf_content
 
 def main(output_file, config_templates):

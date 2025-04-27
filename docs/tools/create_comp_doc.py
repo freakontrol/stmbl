@@ -29,7 +29,7 @@ def extract_pins(infile):
     return pins
 
 def collect_comp_docs(infile):
-    description = None
+    description = ""
     with open(infile, 'r') as f:
         content = f.read()
         # Extract Doxygen-style comments
