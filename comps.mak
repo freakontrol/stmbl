@@ -82,6 +82,8 @@ LV_SHARED_COMPS += shared/comps/idm.c
 LV_SHARED_COMPS += shared/comps/ids.c
 LV_SHARED_COMPS += shared/comps/motsim.c
 
+LV_SHARED_COMPS += shared/comps/zv_ip.c
+
 F4COMPS = $(LV_SRC_COMPS) $(LV_SHARED_COMPS)
 
 CONFIG_TEMPLATES = $(wildcard conf/template/*.txt)
