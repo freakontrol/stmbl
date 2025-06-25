@@ -17,6 +17,8 @@ LV_SRC_COMPS += src/comps/enc_fb.c
 LV_SRC_COMPS += src/comps/conf.c
 LV_SRC_COMPS += src/comps/res.c
 LV_SRC_COMPS += src/comps/hx711.c
+LV_SRC_COMPS += src/comps/siserial.c
+LV_SRC_COMPS += src/comps/smart_torque.c
 
 LV_SHARED_COMPS += shared/comps/sim.c
 LV_SHARED_COMPS += shared/comps/term.c

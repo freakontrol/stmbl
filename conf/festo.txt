@@ -1,16 +1,75 @@
 link pid
 link pmsm
-link res_fb0
+link enc_fb0
+link uvw_fb1
 link jog_cmd
 link misc
-conf0.r = 9.6
-conf0.l = 0.01
-conf0.j = 0.000026
+
+load smart_torque
+
+conf0.r = 0.915
+conf0.l = 0.001
+conf0.j = 0.000297
+conf0.psi=0.275
 conf0.polecount = 4
-conf0.mot_fb_rev = 1
-io0.out0 = fault0.mot_brake
-conf0.max_ac_cur = 10
-conf0.max_force = 3
-res0.freq = 5000
-res0.phase = 0.8
-conf0.mot_fb_offset = -0.255
+
+# encoder ABZ
+conf0.mot_fb_res=40000
+conf0.mot_fb_offset=2.07
+conf0.mot_fb_rev=0
+
+# encoder UVW
+conf0.com_fb_rev=0
+uvw0.p0 = 0.000000
+uvw0.p1 = 3.000000
+uvw0.p2 = 5.000000
+uvw0.p3 = 4.000000
+uvw0.p4 = 1.000000
+uvw0.p5 = 2.000000
+uvw0.p6 = 0.000000
+uvw0.p7 = 0.000000
+
+conf0.max_ac_cur = 4.5
+conf0.max_force = 10
+conf0.max_vel = 250
+
+# Fan
+conf0.fan_hv_temp=20
+
+# Jog test in servoterm only
+stp0.max_pos=100000
+stp0.min_pos=-100000
+stp0.max_vel=140
+stp0.max_acc=400
+
+
+
+
+conf0.pos_p = 7.000000
+conf0.vel_p = 10000.000000
+conf0.vel_i = 100.000000
+conf0.vel_g = 1.000000
+conf0.cur_p = 0.200000
+conf0.cur_i = 1.500000
+conf0.cur_ff = 0.000000
+conf0.cur_ind = 0.000000
+conf0.max_sat = 0.000000
+conf0.max_pos_error=0
+
+smart_torque0.frt_prio=2.0
+smart_torque0.out0=enc_fb0.pos
+
+fault0.en=smart_torque0.enable
+
+
+pid0.torque_ext_cmd=0
+pid0.min_torque=smart_torque0.torque_neg
+pid0.max_torque=smart_torque0.torque_pos
+
+term0.wave0=smart_torque0.out0
+term0.gain0=100
+
+term0.wave1=0
+term0.wave2=0
+term0.wave3=0
+term0.wave4=0
