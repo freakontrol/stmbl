@@ -76,7 +76,7 @@ struct io_ctx_t {
 #define ARES 4096.0  // analog resolution, 12 bit
 #define ADC(a) ((a) / ARES * AREF)
 
-#define HV_TEMP_PULLUP 3600
+#define HV_TEMP_PULLUP 3900
 #define HV_R(a) (HV_TEMP_PULLUP / (AREF / (a)-1))
 
 #define MOT_TEMP_PULLUP 10000
