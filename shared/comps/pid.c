@@ -121,8 +121,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         PIN(vel_sat) = MAX(PIN(vel_sat) - period, 0.0);
       }
       PIN(vel_cmd) = CLAMP(PIN(vel_cmd), -PIN(neg_min_vel) * PIN(vel_g), PIN(max_vel) * PIN(vel_g));  // p clamping
-      PIN(vel_cmd) += PIN(vel_ext_cmd);                                                               // ff
-      PIN(vel_cmd) = CLAMP(PIN(vel_cmd), -PIN(neg_min_vel), PIN(max_vel));                            // clamping
     } else {
       PIN(pos_error) = 0.0;
       PIN(vel_cmd)   = 0.0;
@@ -131,6 +129,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     if(PIN(vel_en) > 0.0) {
       // vel -> acc
+      PIN(vel_cmd) += PIN(vel_ext_cmd);                                                               // ff
+      PIN(vel_cmd) = CLAMP(PIN(vel_cmd), -PIN(neg_min_vel), PIN(max_vel));                            // clamping
       PIN(vel_error) = PIN(vel_cmd) - PIN(vel_fb);
       PIN(acc_cmd)   = PIN(vel_error) * PIN(vel_bw) * PIN(scale);  // p
       PIN(acc_cmd)   = LIMIT(PIN(acc_cmd), PIN(max_acc));          // clamping
