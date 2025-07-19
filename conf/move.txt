@@ -80,7 +80,7 @@ fault0.en = en0.en_out1
 
 load th
 th0.rt_prio = 4
-th0.in = pid0.torque_cor_cmd
+th0.in = pid0.torque_cmd
 th0.min = -1
 th0.max = 1
 th0.in_lpf = 0.25
