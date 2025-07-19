@@ -46,7 +46,7 @@ curpid0.pwm_volt = hv0.pwm_volt
 
 
 pmsm_ttc0.rt_prio = 9
-pmsm_ttc0.torque = pid0.torque_cor_cmd
+pmsm_ttc0.torque = pid0.torque_cmd
 pmsm_ttc0.polecount = conf0.polecount
 pmsm_ttc0.psi = conf0.psi
 
