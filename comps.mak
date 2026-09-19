@@ -79,6 +79,7 @@ LV_SHARED_COMPS += shared/comps/en.c
 LV_SHARED_COMPS += shared/comps/th.c
 #LV_SHARED_COMPS += shared/comps/asm.c
 LV_SHARED_COMPS += shared/comps/idpmsm.c
+LV_SHARED_COMPS += shared/comps/idacim.c
 LV_SHARED_COMPS += shared/comps/iddc.c
 LV_SHARED_COMPS += shared/comps/idm.c
 LV_SHARED_COMPS += shared/comps/ids.c
