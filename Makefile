@@ -30,6 +30,11 @@ SOURCES += src/hal_tbl.c
 
 HWVERSION = v5
 
+# Generate documentation as part of 'make all'.
+# 'make DOCS=0' skips it; 'make docs' still builds it explicitly.
+#
+DOCS ?= 1
+
 CFLAGS += -DV4
 
 include comps.mak # Templates and Components
@@ -197,7 +202,10 @@ ADDRESS = 0x08010000
 
 # Default target
 #
-all:  gccversion tbl boot build showsize docs
+all:  gccversion tbl boot build showsize
+ifeq ($(DOCS),1)
+all: docs
+endif
 
 build: tbl elf hex bin lss sym f3_boot
 
