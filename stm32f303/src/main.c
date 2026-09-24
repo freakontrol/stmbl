@@ -338,6 +338,7 @@ int main(void) {
   hal_parse("curpid0.en = ls0.en");
   hal_parse("curpid0.cmd_mode = ls0.cmd_mode");
   hal_parse("hv0.arr = ls0.arr");
+  hal_parse("hv0.drop_k = ls0.drop_k");
   hal_parse("io0.ignore_fault_pin = ls0.ignore_fault_pin");
   // hal_parse("load sensorless");
   // hal_parse("sensorless0.rt_prio = 7");
@@ -347,9 +348,13 @@ int main(void) {
   // hal_parse("sensorless0.iq = dq0.q");
   // hal_parse("sensorless0.ud = curpid0.ud");
   // hal_parse("sensorless0.uq = curpid0.uq");
-  hal_parse("hv0.iu = io0.iu");
-  hal_parse("hv0.iv = io0.iv");
-  hal_parse("hv0.iw = io0.iw");
+  // dead time compensation sign from the commanded current, not from io0
+  hal_parse("hv0.d_cmd = ls0.d_cmd");
+  hal_parse("hv0.q_cmd = ls0.q_cmd");
+  hal_parse("hv0.si = dq0.si");
+  hal_parse("hv0.co = dq0.co");
+  hal_parse("hv0.cmd_mode = ls0.cmd_mode");
+  hal_parse("hv0.phase_mode = ls0.phase_mode");
 
   hal_parse("debug_level 0");
 

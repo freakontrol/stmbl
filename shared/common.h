@@ -90,7 +90,8 @@ typedef struct {
 } packet_to_hv_t;
 _Static_assert(sizeof(packet_to_hv_t) == 32, "packet_to_hv_t size error");
 
-//config data for f3
+// config data for f3. Append only: between flashing the f4 and pushing the
+// matching f3 image, the old f3 must still find its words where it expects.
 typedef union {
   struct f3_config_data_temp {
     float r;
@@ -102,6 +103,7 @@ typedef union {
     float max_y;
     float max_cur;
     float dac;
+    float drop_k;     // dead time compensation, fraction of the ideal
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;

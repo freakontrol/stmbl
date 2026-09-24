@@ -28,6 +28,10 @@ HAL_PIN(y);
 HAL_PIN(d);
 HAL_PIN(q);
 
+// sin and cos of the electrical angle, for the f3's dead time sign
+HAL_PIN(si);
+HAL_PIN(co);
+
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct dq_ctx_t * ctx = (struct dq_ctx_t *)ctx_ptr;
   struct dq_pin_ctx_t *pins = (struct dq_pin_ctx_t *)pin_ptr;
@@ -87,6 +91,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(d) = d;
   PIN(q) = q;
+
+  PIN(si) = si;
+  PIN(co) = co;
 }
 
 hal_comp_t dq_comp_struct = {
