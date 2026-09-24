@@ -15,6 +15,8 @@ hv0.pos = idpmsm0.com_pos
 hv0.rev = idpmsm0.out_rev
 hv0.r = idpmsm0.r
 hv0.l = idpmsm0.l
+# identify with the dead time compensation off
+hv0.drop_k = 0
 idpmsm0.ud_fb = hv0.ud_fb
 idpmsm0.uq_fb = hv0.uq_fb
 idpmsm0.id_fb = hv0.id_fb

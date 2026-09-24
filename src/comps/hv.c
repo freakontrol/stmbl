@@ -31,6 +31,7 @@ HAL_PIN(cur_ind);
 HAL_PIN(max_y);
 HAL_PIN(max_cur);
 HAL_PIN(dac);
+HAL_PIN(drop_k);     // dead time compensation, fraction of the ideal
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -205,6 +206,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
   ctx->timeout          = 0;
   PIN(dac)              = 2500;
+  PIN(drop_k)           = 0;
   send_to_bootloader    = 0;
   flash_state           = SLAVE_IN_APP;
   ctx->send_state       = 0;
@@ -227,6 +229,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.max_y   = PIN(max_y);
   ctx->config.pins.max_cur = PIN(max_cur) * PIN(scale);
   ctx->config.pins.dac     = PIN(dac);
+  ctx->config.pins.drop_k  = PIN(drop_k);
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - DMA_GetCurrDataCounter(UART_DRV_RX_DMA);
 

@@ -21,13 +21,18 @@
 #define PWM_V TIM8->CCR2
 #define PWM_W TIM8->CCR1
 
-//#define PWM_DEADTIME 0
-#define PWM_DEADTIME 60  // 1/144e6 * 58 = 402ns
+#define PWM_TIM_CLK 144000000.0  // TIM8 clock, prescaler 0, CKD div 1
+// BDTR.DTG code, not a tick count: 196 = 0b110_00100 is (32 + 4) * 8 = 288
+// ticks = 2.0us. DTG_TICKS decodes the four DTG ranges into the ticks ARR
+// counts (valid while tim8 runs at CKD = DIV1).
+#define PWM_DEADTIME 196
+#define DTG_TICKS(v) ((v) < 0x80 ? (v) : (v) < 0xC0 ? ((64 + ((v)&0x3F)) * 2) : (v) < 0xE0 ? ((32 + ((v)&0x1F)) * 8) : ((32 + ((v)&0x1F)) * 16))
+#define PWM_DEADTIME_TICKS DTG_TICKS(PWM_DEADTIME)
 #define PWM_RES 4800
 
 #define ABS_MAX_TEMP 110.0
 #define ABS_MAX_VOLT 400.0
-#define ABS_MAX_CURRENT 35.0
+#define ABS_MAX_CURRENT 30.0
 
 //io board
 //#define USB_CONNECT_PIN GPIO_PIN_15
