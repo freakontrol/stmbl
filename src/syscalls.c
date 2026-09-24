@@ -64,35 +64,24 @@ ssize_t _read(int fd, void *ptr, size_t len) {
   while(!usb_rx_buf.len)
     ;
 
+  // same interrupt as cdc_getline guards against, see usb_cdc.c
+  NVIC_DisableIRQ(OTG_FS_IRQn);
   if(len > usb_rx_buf.len)
     len = usb_rx_buf.len;
 
   char *c = (char *)ptr;
   for(uint16_t i = 0; i < len; i++)
     rb_getc(&usb_rx_buf, c++);
+  NVIC_EnableIRQ(OTG_FS_IRQn);
 
   return len;
 }
 
 //TODO: check if connected?
 int _write(int fd, const char *ptr, int len) {
+  (void)fd;
   if(!USB_CDC_is_connected()) {
     return 0;
   }
-  char *c = (char *)ptr;
-  (void)fd;
-  int sent = 0;
-
-  while(len--) {
-    // send a queued byte - copy to usb stack buffer
-    APP_Rx_Buffer[APP_Rx_ptr_in++] = *c;
-    c++;
-
-    // To avoid buffer overflow
-    if(APP_Rx_ptr_in >= APP_RX_DATA_SIZE) {
-      APP_Rx_ptr_in = 0;
-    }
-    sent++;
-  }
-  return sent;
+  return cdc_tx_text(ptr, len);
 }

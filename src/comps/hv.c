@@ -263,7 +263,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               }
 
               uint16_t a         = ctx->from_hv.packet_from_hv.header.conf_addr;
-              a                  = CLAMP(a, 0, sizeof(f3_state_data_t) / 4);
+              a                  = CLAMP(a, 0, sizeof(f3_state_data_t) / 4 - 1);
               ctx->state.data[a] = ctx->from_hv.packet_from_hv.header.config.f32;
 
               PIN(dc_volt)   = ctx->state.pins.dc_volt;

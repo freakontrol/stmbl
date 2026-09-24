@@ -194,17 +194,23 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&(ctx->packet_to_hv.header.slave_addr), sizeof(packet_to_hv_t) / 4 - 1);
     if(ctx->packet_to_hv.header.slave_addr == 0 && ctx->packet_to_hv.header.len == (sizeof(packet_to_hv_t) - sizeof(stmbl_talk_header_t)) / 4 && crc == ctx->packet_to_hv.header.crc) {
       //
-      uint8_t a = ctx->packet_to_hv.header.conf_addr;
-      a         = CLAMP(a, 0, sizeof(config) / 4);
+      // an address past this image's config is a newer f4's word: ignore it
+      uint8_t a     = ctx->packet_to_hv.header.conf_addr;
+      uint8_t valid = a < sizeof(config) / 4;
+      a             = CLAMP(a, 0, sizeof(config) / 4 - 1);
 
       switch(ctx->packet_to_hv.header.flags.cmd) {
         case NO_CMD:
           break;
         case WRITE_CONF:
-          config.data[a] = ctx->packet_to_hv.header.config.f32;  // TODO: first enable after complete update
+          if(valid) {
+            config.data[a] = ctx->packet_to_hv.header.config.f32;  // TODO: first enable after complete update
+          }
           break;
         case READ_CONF:
-          ctx->tx_addr = a;
+          if(valid) {
+            ctx->tx_addr = a;
+          }
           break;
         case DO_RESET:
           NVIC_SystemReset();
