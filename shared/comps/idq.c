@@ -18,6 +18,13 @@ HAL_PIN(q);
 HAL_PIN(pos);
 HAL_PIN(polecount);
 
+// sin/cos of the same angle from elsewhere (dq0 on the f3, which transforms
+// the currents with it a moment earlier), used instead of a second
+// sincos_fast when ext_sc > 0
+HAL_PIN(si);
+HAL_PIN(co);
+HAL_PIN(ext_sc);
+
 //a,b output
 HAL_PIN(a);
 HAL_PIN(b);
@@ -37,9 +44,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float p   = (int)MAX(PIN(polecount), 1.0);
   float pos = PIN(pos) * p;
 
-  float si = 0.0;
-  float co = 0.0;
-  sincos_fast(pos, &si, &co);
+  float si = PIN(si);
+  float co = PIN(co);
+  if(PIN(ext_sc) <= 0.0) {
+    sincos_fast(pos, &si, &co);
+  }
 
   //inverse park transformation
   float a = d * co - q * si;
