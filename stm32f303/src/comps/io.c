@@ -187,9 +187,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct io_ctx_t *ctx      = (struct io_ctx_t *)ctx_ptr;
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
 
-  while(!(DMA1->ISR & DMA_ISR_TCIF1)) {
-  }
-  while(!(DMA2->ISR & DMA_ISR_TCIF5)) {
+  // The sequence ends ~6 us after the tick; if the ADC DMA stalls (it only
+  // requests once both ADCs of a pair finish) waiting here forever would hang
+  // the rt with irqs of its priority blocked. Give up after ~50 us and stop
+  // the rt instead: the watchdog then resets the F3.
+  for(uint32_t n = 0; !((DMA1->ISR & DMA_ISR_TCIF1) && (DMA2->ISR & DMA_ISR_TCIF5)); n++) {
+    if(n > 1000) {
+      hal_stop();
+      return;
+    }
   }
 
   DMA1->IFCR = DMA_IFCR_CTCIF1;
@@ -221,7 +227,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(v)        = VOLT(adc_12_buf[5] >> 16) * 0.05 + PIN(v) * 0.95;
     PIN(u)        = VOLT(adc_34_buf[5] & 0xFFFF) * 0.05 + PIN(u) * 0.95;
     PIN(udc)      = VOLT(adc_34_buf[5] >> 16) * 0.05 + PIN(udc) * 0.95;
-    PIN(iabs)     = MAX3(ABS(PIN(iu)), PIN(iv), PIN(iw));
+    PIN(iabs)     = MAX3(ABS(PIN(iu)), ABS(PIN(iv)), ABS(PIN(iw)));
     ctx->hv_temp  = adc_34_buf[0];
     ctx->mot_temp = adc_34_buf[3];
 
