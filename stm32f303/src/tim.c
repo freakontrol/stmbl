@@ -84,21 +84,31 @@ void MX_TIM8_Init(void) {
     Error_Handler();
   }
 
-  sBreakDeadTimeConfig.OffStateRunMode  = TIM_OSSR_DISABLE;
-  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  // RM0316 20.3.16: "BRK2 must only be used with OSSR = OSSI = 1". With OSSI
+  // the outputs are driven to their idle level (OISx = OISxN = 0: all
+  // switches off) when MOE drops, instead of being handed to the GPIOs.
+  sBreakDeadTimeConfig.OffStateRunMode  = TIM_OSSR_ENABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_ENABLE;
   sBreakDeadTimeConfig.LockLevel        = TIM_LOCKLEVEL_OFF;
   sBreakDeadTimeConfig.DeadTime         = PWM_DEADTIME;
   sBreakDeadTimeConfig.BreakState       = TIM_BREAK_ENABLE;
   sBreakDeadTimeConfig.BreakPolarity    = TIM_BREAKPOLARITY_HIGH;
-  sBreakDeadTimeConfig.BreakFilter      = 0xa;  //0.55uS
-  // BRK2 carries COMP1, phase W's overcurrent comparator (main.c)
-  sBreakDeadTimeConfig.Break2State      = TIM_BREAK2_ENABLE;
+  // 0xF: fDTS/32, N = 8. The sense nodes ring for about 0.5 us after every
+  // edge; a real short still trips well inside the short-circuit time.
+  sBreakDeadTimeConfig.BreakFilter      = 0xf;
+  // BRK2 carries COMP1 and COMP2, the W and U overcurrent comparators (main.c).
+  // BK2E follows in a second write below: RM0316 20.3.16 forbids setting BK2P
+  // and BK2E in one TIMx_BDTR write
+  sBreakDeadTimeConfig.Break2State      = TIM_BREAK2_DISABLE;
   sBreakDeadTimeConfig.Break2Polarity   = TIM_BREAK2POLARITY_HIGH;
-  sBreakDeadTimeConfig.Break2Filter     = 0xa;  //0.55uS
+  sBreakDeadTimeConfig.Break2Filter     = 0xf;
   sBreakDeadTimeConfig.AutomaticOutput  = TIM_AUTOMATICOUTPUT_DISABLE;
   if(HAL_TIMEx_ConfigBreakDeadTime(&htim8, &sBreakDeadTimeConfig) != HAL_OK) {
     Error_Handler();
   }
+  TIM8->BDTR |= TIM_BDTR_BK2E;
+  __DSB();                                // BK2E takes an APB cycle to act
+  TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);  // a break flag from the setup is not a trip
 
   HAL_TIM_MspPostInit(&htim8);
 }
