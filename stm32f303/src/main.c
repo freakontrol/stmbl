@@ -206,12 +206,20 @@ int main(void) {
   MX_ADC3_Init();
   MX_ADC4_Init();
   MX_DAC_Init();
-  //COMP1 in+ pa1(ADC1_IN2)  in- pa4(dac1_ch1) out TIM8 BRK2
+  //COMP1 in+ pa1 = W (ADC1_IN2)  in- pa4(dac1_ch1) out TIM8 BRK2
   COMP1->CSR = COMP_CSR_COMPxINSEL_2 | COMP1_CSR_COMP1OUTSEL_2 | COMP_CSR_COMPxEN;
-  //COMP2 in+ pa7(ADC2_IN4)  in- pa4(dac1_ch1) out TIM8 BRK_ACTH COMP_CSR_COMPxNONINSEL
-  COMP2->CSR = COMP_CSR_COMPxINSEL_2 | COMP2_CSR_COMP2OUTSEL_0 | COMP2_CSR_COMP2OUTSEL_1 | COMP_CSR_COMPxEN;
-  //COMP4 in+ pb0(ADC3_IN12) in- pa4(dac1_ch1)  out TIM8 BRK
+  //COMP2 in+ pa7 = U (ADC2_IN4)  in- pa4(dac1_ch1) out TIM8 BRK2, like COMP1: BRK_ACTH has
+  //no digital filter (RM0316 table 27 note), so U alone tripped on switching spikes
+  COMP2->CSR = COMP_CSR_COMPxINSEL_2 | COMP2_CSR_COMP2OUTSEL_2 | COMP_CSR_COMPxEN;
+  //COMP4 in+ pb0 = V (ADC3_IN12) in- pa4(dac1_ch1)  out TIM8 BRK
   COMP4->CSR = COMP_CSR_COMPxINSEL_2 | COMP4_CSR_COMP4OUTSEL_0 | COMP4_CSR_COMP4OUTSEL_1 | COMP_CSR_COMPxEN;
+  // no hysteresis: tried low (RM0316 17.3.5) on Y, it holds the output through
+  // the ringing after an edge and the break filter then trips 10-25 counts
+  // earlier. Lock the three CSRs read-only until reset (17.3.4), as the RM
+  // suggests for overcurrent protection; the threshold is the DAC, not the CSR.
+  COMP1->CSR |= COMP_CSR_COMPxLOCK;
+  COMP2->CSR |= COMP_CSR_COMPxLOCK;
+  COMP4->CSR |= COMP_CSR_COMPxLOCK;
   MX_OPAMP1_Init();
   MX_OPAMP2_Init();
   MX_OPAMP3_Init();
@@ -385,6 +393,7 @@ int main(void) {
   hal_parse("curpid0.ff = ls0.cur_ff");
   hal_parse("curpid0.kind = ls0.cur_ind");
   hal_parse("curpid0.max_cur = ls0.max_cur");
+  hal_parse("io0.max_cur = ls0.max_cur");
   hal_parse("curpid0.pwm_volt = ls0.pwm_volt");
   hal_parse("curpid0.vel = ls0.vel");
   hal_parse("curpid0.en = ls0.en");
