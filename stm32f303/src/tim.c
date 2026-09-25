@@ -91,9 +91,10 @@ void MX_TIM8_Init(void) {
   sBreakDeadTimeConfig.BreakState       = TIM_BREAK_ENABLE;
   sBreakDeadTimeConfig.BreakPolarity    = TIM_BREAKPOLARITY_HIGH;
   sBreakDeadTimeConfig.BreakFilter      = 0xa;  //0.55uS
-  sBreakDeadTimeConfig.Break2State      = TIM_BREAK2_DISABLE;
+  // BRK2 carries COMP1, phase W's overcurrent comparator (main.c)
+  sBreakDeadTimeConfig.Break2State      = TIM_BREAK2_ENABLE;
   sBreakDeadTimeConfig.Break2Polarity   = TIM_BREAK2POLARITY_HIGH;
-  sBreakDeadTimeConfig.Break2Filter     = 0;
+  sBreakDeadTimeConfig.Break2Filter     = 0xa;  //0.55uS
   sBreakDeadTimeConfig.AutomaticOutput  = TIM_AUTOMATICOUTPUT_DISABLE;
   if(HAL_TIMEx_ConfigBreakDeadTime(&htim8, &sBreakDeadTimeConfig) != HAL_OK) {
     Error_Handler();
