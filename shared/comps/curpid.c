@@ -99,13 +99,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   if(PIN(cmd_mode) == VOLT_MODE) {
     absvolt = idc * idc + iqc * iqc;  // clamp cmd
-    PIN(scale) *= sqrtf(CLAMP(max_volt * max_volt / MAX(absvolt, max_volt * 0.1), 0.0, 1.0));
+    PIN(scale) *= __builtin_sqrtf(CLAMP(max_volt * max_volt / MAX(absvolt, max_volt * 0.1), 0.0, 1.0));
 
     abscur = id * id + iq * iq;  // clamp over fb
     PIN(scale) += (max_cur * max_cur - abscur) * PIN(kci) * period;
   } else {
-    abscur     = idc * idc + iqc * iqc;  // clamp cmd
-    PIN(scale) = sqrtf(max_cur * max_cur / MAX(abscur, max_cur * 0.1));
+    // clamp cmd. __builtin_sqrtf is the FPU's vsqrt: with -fno-builtin plain
+    // sqrtf is a software routine that cost several us of the f3's tick
+    abscur     = idc * idc + iqc * iqc;
+    PIN(scale) = abscur > max_cur * max_cur ? max_cur / __builtin_sqrtf(abscur) : 1.0;
   }
   PIN(scale) = CLAMP(PIN(scale), 0.0, 1.0);
 

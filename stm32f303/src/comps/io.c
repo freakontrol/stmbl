@@ -92,6 +92,11 @@ struct io_ctx_t {
 #define SHUNT_GAIN 16.0
 
 #define AMP(a, gain) (((a)*AREF / ARES / (gain)-AREF / (SHUNT_PULLUP + SHUNT_SERIE) * SHUNT_SERIE) / (SHUNT * SHUNT_PULLUP) * (SHUNT_PULLUP + SHUNT_SERIE))
+// AMP and VOLT folded to one multiply for the rt path; sum5 is the sum of 5 samples
+#define AMP_K ((float)(AREF / ARES / SHUNT_GAIN / 5.0 / (SHUNT * SHUNT_PULLUP) * (SHUNT_PULLUP + SHUNT_SERIE)))
+#define AMP_0 ((float)(AREF / (SHUNT_PULLUP + SHUNT_SERIE) * SHUNT_SERIE / (SHUNT * SHUNT_PULLUP) * (SHUNT_PULLUP + SHUNT_SERIE)))
+#define AMP5(sum5) ((float)(sum5)*AMP_K - AMP_0)
+#define VOLT_K ((float)(AREF / ARES / VDIVDOWN * (VDIVUP + VDIVDOWN)))
 
 float r2temp(float r) {
     if (r < 1000)
@@ -220,13 +225,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(uo)       = ctx->u_offset;
     PIN(vo)       = ctx->v_offset;
     PIN(wo)       = ctx->w_offset;
-    PIN(iw)       = -AMP((float)(a12 & 0xFFFF) / 5.0, SHUNT_GAIN) + ctx->w_offset;  // 1u
-    PIN(iu)       = -AMP((float)(a12 >> 16) / 5.0, SHUNT_GAIN) + ctx->u_offset;
-    PIN(iv)       = -AMP((float)(a34 & 0xFFFF) / 5.0, SHUNT_GAIN) + ctx->v_offset;
-    PIN(w)        = VOLT(adc_12_buf[5] & 0xFFFF) * 0.05 + PIN(w) * 0.95;  // 0.6u
-    PIN(v)        = VOLT(adc_12_buf[5] >> 16) * 0.05 + PIN(v) * 0.95;
-    PIN(u)        = VOLT(adc_34_buf[5] & 0xFFFF) * 0.05 + PIN(u) * 0.95;
-    PIN(udc)      = VOLT(adc_34_buf[5] >> 16) * 0.05 + PIN(udc) * 0.95;
+    PIN(iw)       = -AMP5(a12 & 0xFFFF) + ctx->w_offset;  // 1u
+    PIN(iu)       = -AMP5(a12 >> 16) + ctx->u_offset;
+    PIN(iv)       = -AMP5(a34 & 0xFFFF) + ctx->v_offset;
+    PIN(w)        = (float)(adc_12_buf[5] & 0xFFFF) * VOLT_K * 0.05 + PIN(w) * 0.95;  // 0.6u
+    PIN(v)        = (float)(adc_12_buf[5] >> 16) * VOLT_K * 0.05 + PIN(v) * 0.95;
+    PIN(u)        = (float)(adc_34_buf[5] & 0xFFFF) * VOLT_K * 0.05 + PIN(u) * 0.95;
+    PIN(udc)      = (float)(adc_34_buf[5] >> 16) * VOLT_K * 0.05 + PIN(udc) * 0.95;
     PIN(iabs)     = MAX3(ABS(PIN(iu)), ABS(PIN(iv)), ABS(PIN(iw)));
     ctx->hv_temp  = adc_34_buf[0];
     ctx->mot_temp = adc_34_buf[3];
