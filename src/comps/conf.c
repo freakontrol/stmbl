@@ -7,7 +7,8 @@
 HAL_COMP(conf);
 
 HAL_PIN(r);              // phase resistance [ohm]
-HAL_PIN(l);              // phase inductance [H]
+HAL_PIN(l);              // phase inductance [H], d axis when lq is set
+HAL_PIN(lq);             // q axis inductance [H], 0 = same as l
 HAL_PIN(j);              // motor inertia [kg*m^2]
 HAL_PIN(d);              // motor damping [Nm/rad/s]
 HAL_PIN(f);              // motor friction [Nm]

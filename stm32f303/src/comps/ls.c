@@ -25,6 +25,7 @@ HAL_PIN(cmd_mode);
 HAL_PIN(phase_mode);
 HAL_PIN(r);
 HAL_PIN(l);
+HAL_PIN(lq);  // q axis inductance for curpid0.lq: config lq, or l when that is 0
 HAL_PIN(psi);
 HAL_PIN(cur_bw);
 HAL_PIN(cur_ff);
@@ -145,6 +146,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.max_cur = 0.0;
   config.pins.dac     = 0.0;
   config.pins.drop_k  = 0.0;
+  config.pins.lq      = 0.0;
 
   USART3->RTOR = 16;               // 16 bits timeout
   USART3->CR2 |= USART_CR2_RTOEN;  // timeout en
@@ -245,6 +247,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(max_cur) = config.pins.max_cur;
       PIN(dac)     = config.pins.dac;
       PIN(drop_k)  = config.pins.drop_k;
+      PIN(lq)      = config.pins.lq > 0.0 ? config.pins.lq : config.pins.l;
       ctx->timeout = 0;
       PIN(crc_ok)
       ++;

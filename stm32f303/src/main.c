@@ -327,7 +327,7 @@ int main(void) {
   hal_parse("idq0.q = curpid0.uq");
   hal_parse("curpid0.r = ls0.r");
   hal_parse("curpid0.ld = ls0.l");
-  hal_parse("curpid0.lq = ls0.l");
+  hal_parse("curpid0.lq = ls0.lq");  // ls0.lq falls back to ls0.l
   hal_parse("curpid0.psi = ls0.psi");
   hal_parse("curpid0.cur_bw = ls0.cur_bw");
   hal_parse("curpid0.ff = ls0.cur_ff");

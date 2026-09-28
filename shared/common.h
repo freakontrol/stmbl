@@ -104,6 +104,7 @@ typedef union {
     float max_cur;
     float dac;
     float drop_k;     // dead time compensation, fraction of the ideal
+    float lq;         // q axis inductance, 0 = same as l
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;
