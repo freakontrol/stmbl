@@ -105,6 +105,9 @@ typedef union {
     float dac;
     float drop_k;     // dead time compensation, fraction of the ideal
     float lq;         // q axis inductance, 0 = same as l
+    float emf_run;    // emf0: 1 accumulate, 0 hold, -1 clear
+    float emf_sel;    // emf0 result returned in emf_val
+    float emf_pp;     // emf0 pole pairs
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;
@@ -121,6 +124,7 @@ typedef union {
     float dc_volt;
     float pwm_volt;
     float y;
+    float emf_val;  // emf0 result number emf_sel
   } pins;
   float data[sizeof(struct f3_state_data_temp) / 4];
 } f3_state_data_t;
