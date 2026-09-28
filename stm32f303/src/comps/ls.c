@@ -37,6 +37,7 @@ HAL_PIN(drop_k);
 HAL_PIN(emf_run);
 HAL_PIN(emf_sel);
 HAL_PIN(emf_pp);
+HAL_PIN(drop_knee);
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -154,6 +155,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.emf_run = 0.0;
   config.pins.emf_sel = 0.0;
   config.pins.emf_pp  = 0.0;
+  config.pins.drop_knee = 0.0;
 
   USART3->RTOR = 16;               // 16 bits timeout
   USART3->CR2 |= USART_CR2_RTOEN;  // timeout en
@@ -258,6 +260,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(emf_run) = config.pins.emf_run;
       PIN(emf_sel) = config.pins.emf_sel;
       PIN(emf_pp)  = config.pins.emf_pp;
+      PIN(drop_knee) = config.pins.drop_knee;
       ctx->timeout = 0;
       PIN(crc_ok)
       ++;

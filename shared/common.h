@@ -108,6 +108,7 @@ typedef union {
     float emf_run;    // emf0: 1 accumulate, 0 hold, -1 clear
     float emf_sel;    // emf0 result returned in emf_val
     float emf_pp;     // emf0 pole pairs
+    float drop_knee;  // dead time compensation curve knee [A], 0 = latched sign
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;

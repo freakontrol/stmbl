@@ -34,6 +34,7 @@ HAL_PIN(max_y);
 HAL_PIN(max_cur);
 HAL_PIN(dac);
 HAL_PIN(drop_k);     // dead time compensation, fraction of the ideal
+HAL_PIN(drop_knee);  // dead time compensation curve knee [A], 0 = latched sign
 HAL_PIN(emf_run);  // f3 emf0 back emf map: 1 sum, 0 hold, -1 clear
 HAL_PIN(emf_sel);  // which emf0 result comes back in emf_val
 HAL_PIN(emf_pp);   // pole pairs, for emf0's per pole bins
@@ -245,6 +246,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.emf_run = PIN(emf_run);
   ctx->config.pins.emf_sel = PIN(emf_sel);
   ctx->config.pins.emf_pp  = PIN(emf_pp);
+  ctx->config.pins.drop_knee = PIN(drop_knee);
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - DMA_GetCurrDataCounter(UART_DRV_RX_DMA);
 
