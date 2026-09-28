@@ -34,6 +34,9 @@ HAL_PIN(max_y);
 HAL_PIN(max_cur);
 HAL_PIN(dac);
 HAL_PIN(drop_k);
+HAL_PIN(emf_run);
+HAL_PIN(emf_sel);
+HAL_PIN(emf_pp);
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -52,6 +55,7 @@ HAL_PIN(y);
 HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
+HAL_PIN(emf_val);
 
 // misc
 HAL_PIN(pwm_volt);
@@ -147,6 +151,9 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.dac     = 0.0;
   config.pins.drop_k  = 0.0;
   config.pins.lq      = 0.0;
+  config.pins.emf_run = 0.0;
+  config.pins.emf_sel = 0.0;
+  config.pins.emf_pp  = 0.0;
 
   USART3->RTOR = 16;               // 16 bits timeout
   USART3->CR2 |= USART_CR2_RTOEN;  // timeout en
@@ -248,6 +255,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(dac)     = config.pins.dac;
       PIN(drop_k)  = config.pins.drop_k;
       PIN(lq)      = config.pins.lq > 0.0 ? config.pins.lq : config.pins.l;
+      PIN(emf_run) = config.pins.emf_run;
+      PIN(emf_sel) = config.pins.emf_sel;
+      PIN(emf_pp)  = config.pins.emf_pp;
       ctx->timeout = 0;
       PIN(crc_ok)
       ++;
@@ -299,6 +309,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     state.pins.y         = PIN(y);
     state.pins.dc_volt   = PIN(dc_volt);
     state.pins.pwm_volt  = PIN(pwm_volt);
+    state.pins.emf_val   = PIN(emf_val);
 
     // fill tx struct
     ctx->packet_from_hv.fault             = (uint8_t)PIN(fault_in);

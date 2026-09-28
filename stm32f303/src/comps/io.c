@@ -26,6 +26,11 @@ HAL_PIN(w);
 //dclink voltage
 HAL_PIN(udc);
 
+// phase voltages to ground, one unfiltered adc sample per pwm period, for emf0
+HAL_PIN(ur);
+HAL_PIN(vr);
+HAL_PIN(wr);
+
 //driver temoerature
 HAL_PIN(hv_temp);
 //motor temperature
@@ -228,9 +233,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(iw)       = -AMP5(a12 & 0xFFFF) + ctx->w_offset;  // 1u
     PIN(iu)       = -AMP5(a12 >> 16) + ctx->u_offset;
     PIN(iv)       = -AMP5(a34 & 0xFFFF) + ctx->v_offset;
-    PIN(w)        = (float)(adc_12_buf[5] & 0xFFFF) * VOLT_K * 0.05 + PIN(w) * 0.95;  // 0.6u
-    PIN(v)        = (float)(adc_12_buf[5] >> 16) * VOLT_K * 0.05 + PIN(v) * 0.95;
-    PIN(u)        = (float)(adc_34_buf[5] & 0xFFFF) * VOLT_K * 0.05 + PIN(u) * 0.95;
+    PIN(wr)       = (float)(adc_12_buf[5] & 0xFFFF) * VOLT_K;
+    PIN(vr)       = (float)(adc_12_buf[5] >> 16) * VOLT_K;
+    PIN(ur)       = (float)(adc_34_buf[5] & 0xFFFF) * VOLT_K;
+    PIN(w)        = PIN(wr) * 0.05 + PIN(w) * 0.95;  // 0.6u
+    PIN(v)        = PIN(vr) * 0.05 + PIN(v) * 0.95;
+    PIN(u)        = PIN(ur) * 0.05 + PIN(u) * 0.95;
     PIN(udc)      = (float)(adc_34_buf[5] >> 16) * VOLT_K * 0.05 + PIN(udc) * 0.95;
     PIN(iabs)     = MAX3(ABS(PIN(iu)), ABS(PIN(iv)), ABS(PIN(iw)));
     ctx->hv_temp  = adc_34_buf[0];

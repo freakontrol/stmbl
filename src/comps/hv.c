@@ -34,6 +34,9 @@ HAL_PIN(max_y);
 HAL_PIN(max_cur);
 HAL_PIN(dac);
 HAL_PIN(drop_k);     // dead time compensation, fraction of the ideal
+HAL_PIN(emf_run);  // f3 emf0 back emf map: 1 sum, 0 hold, -1 clear
+HAL_PIN(emf_sel);  // which emf0 result comes back in emf_val
+HAL_PIN(emf_pp);   // pole pairs, for emf0's per pole bins
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -57,6 +60,7 @@ HAL_PIN(y);
 HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
+HAL_PIN(emf_val);  // emf0 result number emf_sel, from the f3
 
 // misc
 HAL_PIN(rev);
@@ -238,6 +242,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.dac     = PIN(dac);
   ctx->config.pins.drop_k  = PIN(drop_k);
   ctx->config.pins.lq      = PIN(lq);
+  ctx->config.pins.emf_run = PIN(emf_run);
+  ctx->config.pins.emf_sel = PIN(emf_sel);
+  ctx->config.pins.emf_pp  = PIN(emf_pp);
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - DMA_GetCurrDataCounter(UART_DRV_RX_DMA);
 
@@ -283,6 +290,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               PIN(mot_temp)  = ctx->state.pins.mot_temp;
               PIN(core_temp) = ctx->state.pins.core_temp;
               PIN(y)         = ctx->state.pins.y;
+              PIN(emf_val)   = ctx->state.pins.emf_val;
 
               // not measured: P = 3/2 (ud id + uq iq) from the commanded
               // voltages, so inverter losses are left out

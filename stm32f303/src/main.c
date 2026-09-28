@@ -321,6 +321,7 @@ int main(void) {
   hal_parse("load svm");
   hal_parse("load hv");
   hal_parse("load curpid");
+  hal_parse("load emf");
 
   hal_parse("ls0.rt_prio = 0.6");
   hal_parse("io0.rt_prio = 1.0");
@@ -329,6 +330,7 @@ int main(void) {
   hal_parse("idq0.rt_prio = 4.0");
   hal_parse("svm0.rt_prio = 5.0");
   hal_parse("hv0.rt_prio = 6.0");
+  hal_parse("emf0.rt_prio = 7.0");
 
   hal_parse("term0.send_step = 0.0");
 
@@ -405,6 +407,19 @@ int main(void) {
   hal_parse("hv0.co = dq0.co");
   hal_parse("hv0.cmd_mode = ls0.cmd_mode");
   hal_parse("hv0.phase_mode = ls0.phase_mode");
+
+  // per pole back emf on a bridge off coast, read back by idpmsm's psi test
+  hal_parse("emf0.u = io0.ur");
+  hal_parse("emf0.v = io0.vr");
+  hal_parse("emf0.w = io0.wr");
+  hal_parse("emf0.pos = ls0.pos");
+  hal_parse("emf0.si = dq0.si");
+  hal_parse("emf0.co = dq0.co");
+  hal_parse("emf0.en = ls0.en");
+  hal_parse("emf0.run = ls0.emf_run");
+  hal_parse("emf0.sel = ls0.emf_sel");
+  hal_parse("emf0.pp = ls0.emf_pp");
+  hal_parse("ls0.emf_val = emf0.val");
 
   hal_parse("debug_level 0");
 
