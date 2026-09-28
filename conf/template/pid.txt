@@ -13,8 +13,8 @@ load io
 load iit
 load pe
 link conf
-hv0.rt_prio = 0.9
 adc0.rt_prio = 1
+hv0.rt_prio = 10
 reslimit0.rt_prio = 3
 rev0.rt_prio = 4
 fb_switch0.rt_prio = 5
@@ -68,6 +68,7 @@ fault0.ac_cur = hv0.abs_cur
 hv0.rev = conf0.out_rev
 hv0.r = conf0.r
 hv0.l = conf0.l
+hv0.lq = conf0.lq
 hv0.psi = conf0.psi
 hv0.cur_bw = conf0.cur_bw
 hv0.cur_ff = conf0.cur_ff

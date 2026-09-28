@@ -13,6 +13,7 @@ hv0.pos = iddc0.com_pos
 hv0.rev = iddc0.out_rev
 hv0.r = iddc0.r
 hv0.l = iddc0.l
+hv0.lq = 0
 hv0.phase_mode = 3
 # iddc drives a brushed motor on q alone; r and l are its own outputs
 iddc0.uq_fb = hv0.uq_fb

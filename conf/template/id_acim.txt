@@ -14,6 +14,7 @@ hv0.pos = idacim0.com_pos
 hv0.rev = idacim0.out_rev
 hv0.r = idacim0.r
 hv0.l = idacim0.l
+hv0.lq = 0
 idacim0.ud_fb = hv0.ud_fb
 idacim0.id_fb = hv0.id_fb
 idacim0.pwm_volt = hv0.pwm_volt

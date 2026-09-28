@@ -17,13 +17,15 @@ HAL_PIN(d_cmd);
 HAL_PIN(q_cmd);
 HAL_PIN(pos);
 HAL_PIN(vel);
+HAL_PIN(adv);  // commutation advance [s], pos is sent as pos + vel * adv
 HAL_PIN(en);
 
 // config data from LS
 HAL_PIN(phase_mode);
 HAL_PIN(cmd_mode);
 HAL_PIN(r);
-HAL_PIN(l);
+HAL_PIN(l);   // d axis inductance, and q too while lq is 0
+HAL_PIN(lq);  // q axis inductance, 0 = same as l
 HAL_PIN(psi);
 HAL_PIN(cur_bw);
 HAL_PIN(cur_ff);
@@ -42,6 +44,8 @@ HAL_PIN(uq_fb);
 HAL_PIN(abs_cur);
 HAL_PIN(abs_volt);
 HAL_PIN(duty);
+HAL_PIN(power);   // electrical power into the motor [W], negative when braking
+HAL_PIN(dc_cur);  // dc link current [A], estimated from power balance, negative when braking
 
 // state data to LS
 HAL_PIN(hv_temp);
@@ -207,6 +211,8 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->timeout          = 0;
   PIN(dac)              = 2500;
   PIN(drop_k)           = 0;
+  PIN(lq)               = 0;
+  PIN(adv)              = 0;
   send_to_bootloader    = 0;
   flash_state           = SLAVE_IN_APP;
   ctx->send_state       = 0;
@@ -219,6 +225,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float e                   = PIN(en);
   float pos                 = PIN(pos);
   float vel                 = PIN(vel);
+  pos                       = mod(pos + vel * PIN(adv));
 
   ctx->config.pins.r       = PIN(r);
   ctx->config.pins.l       = PIN(l);
@@ -230,6 +237,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.max_cur = PIN(max_cur) * PIN(scale);
   ctx->config.pins.dac     = PIN(dac);
   ctx->config.pins.drop_k  = PIN(drop_k);
+  ctx->config.pins.lq      = PIN(lq);
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - DMA_GetCurrDataCounter(UART_DRV_RX_DMA);
 
@@ -275,6 +283,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               PIN(mot_temp)  = ctx->state.pins.mot_temp;
               PIN(core_temp) = ctx->state.pins.core_temp;
               PIN(y)         = ctx->state.pins.y;
+
+              // not measured: P = 3/2 (ud id + uq iq) from the commanded
+              // voltages, so inverter losses are left out
+              PIN(power) = 1.5 * (PIN(ud_fb) * PIN(id_fb) + PIN(uq_fb) * PIN(iq_fb)) * 0.5 + PIN(power) * 0.5;
+              if(PIN(dc_volt) > 1.0) {
+                PIN(dc_cur) = PIN(power) / PIN(dc_volt);
+              }
 
               PIN(value) = 1.0;
 
@@ -360,6 +375,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(PIN(rev) > 0.0) {
     q_cmd *= -1.0;
     pos = minus(0, pos);
+    vel *= -1.0;  // the f3 extrapolates pos and decouples with vel
   }
 
 

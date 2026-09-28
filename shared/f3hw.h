@@ -1,5 +1,5 @@
 //stmbl
-#define AREF 3.338  // analog reference voltage
+#define AREF 3.362  // analog reference voltage, measured on the X board
 #define HV_EN_PIN GPIO_PIN_15
 #define HV_EN_PORT GPIOA
 //fault pin cannot be used, as it is sometimes reset by the iram due to 15v ripple
