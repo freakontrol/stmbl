@@ -15,6 +15,7 @@ HAL_COMP(hv);
 // compensation drives the current it reads and runs away.
 HAL_PIN(drop_k);      // compensation, fraction of the ideal PWM_DEADTIME volts
 HAL_PIN(drop_band);   // latched sign flips outside +-drop_band [A]
+HAL_PIN(drop_knee);   // >0: curve knee on the commanded current [A], 0 = latched sign
 HAL_PIN(cmd_mode);    // compensation in current mode only
 HAL_PIN(phase_mode);  // compensation in 120 deg 3ph mode only
 HAL_PIN(d_cmd);       // command from the f4
@@ -78,6 +79,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(arr)       = PWM_RES;
   PIN(drop_k)    = 0;
   PIN(drop_band) = 0.5;
+  PIN(drop_knee) = 0.0;
 }
 
 // the latches survive a stop; start without a stale sign
@@ -120,10 +122,24 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(iv) = -a / 2.0 + b / 2.0 * M_SQRT3;
   PIN(iw) = -a / 2.0 - b / 2.0 * M_SQRT3;
 
-  float band = MAX(PIN(drop_band), 0.05);
-  float uu   = PIN(u) + dt_drop * drop_sign(&(ctx->drop_su), PIN(iu), band);
-  float uv   = PIN(v) + dt_drop * drop_sign(&(ctx->drop_sv), PIN(iv), band);
-  float uw   = PIN(w) + dt_drop * drop_sign(&(ctx->drop_sw), PIN(iw), band);
+  float uu, uv, uw;
+  if(PIN(drop_knee) > 0.0) {
+    // k(i) = 1 - 1 / (1 + |i| / knee)^2, the shape of the real loss: it falls
+    // away at low current, where the ripple carries the phase through zero
+    // inside the pwm period, and settles above. No latch to stick on an
+    // axis drawing less than drop_band.
+    float kk = 1.0 / MAX(PIN(drop_knee), 0.02);
+    float au = 1.0 + ABS(PIN(iu)) * kk, av = 1.0 + ABS(PIN(iv)) * kk, aw = 1.0 + ABS(PIN(iw)) * kk;
+    float ku = 1.0 - 1.0 / (au * au), kv = 1.0 - 1.0 / (av * av), kw = 1.0 - 1.0 / (aw * aw);
+    uu       = PIN(u) + dt_drop * (PIN(iu) >= 0.0 ? ku : -ku);
+    uv       = PIN(v) + dt_drop * (PIN(iv) >= 0.0 ? kv : -kv);
+    uw       = PIN(w) + dt_drop * (PIN(iw) >= 0.0 ? kw : -kw);
+  } else {
+    float band = MAX(PIN(drop_band), 0.05);
+    uu         = PIN(u) + dt_drop * drop_sign(&(ctx->drop_su), PIN(iu), band);
+    uv         = PIN(v) + dt_drop * drop_sign(&(ctx->drop_sv), PIN(iv), band);
+    uw         = PIN(w) + dt_drop * drop_sign(&(ctx->drop_sw), PIN(iw), band);
+  }
   //convert voltages to PWM output compare values
   int32_t u = (int32_t)(CLAMP(uu, 0.0, udc) / udc * (float)(ctx->pwm_res));
   int32_t v = (int32_t)(CLAMP(uv, 0.0, udc) / udc * (float)(ctx->pwm_res));

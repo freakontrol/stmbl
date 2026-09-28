@@ -391,6 +391,7 @@ int main(void) {
   hal_parse("curpid0.cmd_mode = ls0.cmd_mode");
   hal_parse("hv0.arr = ls0.arr");
   hal_parse("hv0.drop_k = ls0.drop_k");
+  hal_parse("hv0.drop_knee = ls0.drop_knee");
   hal_parse("io0.ignore_fault_pin = ls0.ignore_fault_pin");
   // hal_parse("load sensorless");
   // hal_parse("sensorless0.rt_prio = 7");
