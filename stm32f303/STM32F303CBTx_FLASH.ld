@@ -101,13 +101,14 @@ SECTIONS
     *comps/dq.o(.text.rt_func)
     *comps/curpid.o(.text.rt_func)
     *comps/idq.o(.text.rt_func)
-    *comps/svm.o(.text.rt_func)
     *comps/hv.o(.text.rt_func)
     *(.text.TIM8_UP_IRQHandler .text.hal_run_rt .text.hal_get_systick_value .text.hal_reset_watchdog)
     *(.text.sincos_fast .text.err_filter)
     *(.text.HAL_GPIO_ReadPin .text.HAL_GPIO_WritePin)
-    /* rb_read/rb_write (terminal chars) and HAL_CRC_Calculate (once per link
-       packet, every third tick) run from flash: CCM is full */
+    /* from flash, CCM is full: svm0 (one short pass per tick),
+       rb_read/rb_write (terminal chars) and HAL_CRC_Calculate (once per link
+       packet, every third tick). Moving small functions out does not help:
+       each call from CCM to flash adds a long-branch stub in CCM. */
     . = ALIGN(4);
     _eccmram = .;       /* create a global symbol at ccmram end */
   } >CCMRAM AT> FLASH
