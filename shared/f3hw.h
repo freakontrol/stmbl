@@ -30,6 +30,19 @@
 #define PWM_DEADTIME_TICKS DTG_TICKS(PWM_DEADTIME)
 #define PWM_RES 4800
 
+// ADC regular sequence per ADC pair: ADC_CUR_SAMPLES current samples, then
+// one slow voltage (adc.c)
+#define ADC_CUR_SAMPLES 3
+#define ADC_SEQ_LEN (ADC_CUR_SAMPLES + 1)
+
+// How long the phase current sample takes, from the TIM8 trigger at the
+// counter extreme: ADC_CUR_SAMPLES conversions of 61.5 + 12.5 ADC clocks at
+// 72 MHz (3.1 us for three), plus about 0.5 us for the sense node to ring
+// down after the low side's own switching edge (scope, 2026-09-25). io.c
+// uses it to tell which phase's low side was not on for the whole window.
+// In timer ticks.
+#define ADC_CUR_WINDOW_TICKS ((int32_t)((ADC_CUR_SAMPLES * 74.0 / 72e6 + 0.5e-6) * PWM_TIM_CLK))
+
 #define ABS_MAX_TEMP 110.0
 #define ABS_MAX_VOLT 400.0
 #define ABS_MAX_CURRENT 30.0

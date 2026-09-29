@@ -286,10 +286,35 @@ int main(void) {
   htim8.Instance->CCR2 = 0;
   htim8.Instance->CCR3 = 0;
 
-  HAL_ADC_Start(&hadc1);
-  HAL_ADC_Start(&hadc2);
-  HAL_ADC_Start(&hadc3);
+  // ADC1/2 and ADC3/4 in regular simultaneous dual mode, one DMA request per
+  // pair (MDMA 10, 12 bit) that reads both results from the common CDR. CDR
+  // holds the slave's result only in dual mode (RM0316 15.6.3, 15.3.29). The
+  // sequences match rank for rank in length and sampling time, as the mode
+  // needs. DUAL and MDMA only while the ADCs are disabled, and DMAEN/DMACFG
+  // only with ADSTART = 0 (RM0316 15.5.4): all of it before the start, so the
+  // first DMA word is always rank 1.
+  extern volatile uint32_t adc_12_buf[ADC_SEQ_LEN];
+  extern volatile uint32_t adc_34_buf[ADC_SEQ_LEN];
+  DMA1_Channel1->CCR &= ~DMA_CCR_EN;
+  DMA1_Channel1->CPAR  = (uint32_t) & (ADC12_COMMON->CDR);
+  DMA1_Channel1->CMAR  = (uint32_t)adc_12_buf;
+  DMA1_Channel1->CNDTR = ADC_SEQ_LEN;
+  DMA1_Channel1->CCR   = DMA_CCR_MINC | DMA_CCR_PL_0 | DMA_CCR_MSIZE_1 | DMA_CCR_PSIZE_1 | DMA_CCR_CIRC;
+  DMA1_Channel1->CCR |= DMA_CCR_EN;
+  DMA2_Channel5->CCR &= ~DMA_CCR_EN;
+  DMA2_Channel5->CPAR  = (uint32_t) & (ADC34_COMMON->CDR);
+  DMA2_Channel5->CMAR  = (uint32_t)adc_34_buf;
+  DMA2_Channel5->CNDTR = ADC_SEQ_LEN;
+  DMA2_Channel5->CCR   = DMA_CCR_MINC | DMA_CCR_PL_0 | DMA_CCR_MSIZE_1 | DMA_CCR_PSIZE_1 | DMA_CCR_CIRC;
+  DMA2_Channel5->CCR |= DMA_CCR_EN;
+  const uint32_t ccr = ADC_CCR_DUAL_1 | ADC_CCR_DUAL_2 | ADC_CCR_MDMA_1 | ADC_CCR_DMACFG;  // DUAL 00110
+  ADC12_COMMON->CCR = (ADC12_COMMON->CCR & ~(ADC_CCR_DUAL | ADC_CCR_MDMA)) | ccr;
+  ADC34_COMMON->CCR = (ADC34_COMMON->CCR & ~(ADC_CCR_DUAL | ADC_CCR_MDMA)) | ccr;
+
+  HAL_ADC_Start(&hadc2);  // slaves first: in dual mode only enables them
   HAL_ADC_Start(&hadc4);
+  HAL_ADC_Start(&hadc1);  // masters: enable and ADSTART, the pair follows T8_TRGO
+  HAL_ADC_Start(&hadc3);
   HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
   HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
   if(HAL_TIM_Base_Start_IT(&htim8) != HAL_OK) {
