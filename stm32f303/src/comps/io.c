@@ -38,6 +38,10 @@ HAL_PIN(v);
 HAL_PIN(w);
 //dclink voltage
 HAL_PIN(udc);
+// the link for the duty division (hv0, svm0): 0.5 IIR, about 1.4 ticks, so
+// sag on acceleration and rise on regen reach the duty within ~100 us
+// instead of udc's 1.3 ms (0.05 IIR, kept for display and trips)
+HAL_PIN(udc_duty);
 
 // phase voltages to ground, one unfiltered adc sample per pwm period, for emf0
 HAL_PIN(ur);
@@ -271,7 +275,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(w)        = PIN(wr) * 0.05 + PIN(w) * 0.95;  // 0.6u
     PIN(v)        = PIN(vr) * 0.05 + PIN(v) * 0.95;
     PIN(u)        = PIN(ur) * 0.05 + PIN(u) * 0.95;
-    PIN(udc)      = (float)(adc_34_buf[ADC_SEQ_LEN - 1] >> 16) * VOLT_K * 0.05 + PIN(udc) * 0.95;
+    float udc_raw = (float)(adc_34_buf[ADC_SEQ_LEN - 1] >> 16) * VOLT_K;
+    PIN(udc)      = udc_raw * 0.05 + PIN(udc) * 0.95;
+    PIN(udc_duty) = udc_raw * 0.5 + PIN(udc_duty) * 0.5;
 
     // Which phase could not be sampled. TIM8 is centre aligned and the ADC is
     // triggered at the counter extreme where the low sides conduct, so a

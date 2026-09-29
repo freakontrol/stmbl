@@ -351,7 +351,6 @@ int main(void) {
   hal_parse("load ls");
   hal_parse("load dq");
   hal_parse("load idq");
-  hal_parse("load svm");
   hal_parse("load hv");
   hal_parse("load curpid");
   hal_parse("load emf");
@@ -361,7 +360,6 @@ int main(void) {
   hal_parse("dq0.rt_prio = 2.0");
   hal_parse("curpid0.rt_prio = 3.0");
   hal_parse("idq0.rt_prio = 4.0");
-  hal_parse("svm0.rt_prio = 5.0");
   hal_parse("hv0.rt_prio = 6.0");
   hal_parse("emf0.rt_prio = 7.0");
 
@@ -375,11 +373,9 @@ int main(void) {
   hal_parse("io0.led = ls0.fault");
   hal_parse("curpid0.id_cmd = ls0.d_cmd");
   hal_parse("curpid0.iq_cmd = ls0.q_cmd");
-  hal_parse("idq0.pos = ls0.pos");
+  hal_parse("idq0.pos = ls0.pos_v");  // the voltage angle, see ls.c
   hal_parse("idq0.mode = ls0.phase_mode");
-  hal_parse("idq0.si = dq0.si");  // dq0 runs first on the same ls0.pos
-  hal_parse("idq0.co = dq0.co");
-  hal_parse("idq0.ext_sc = 1");
+  hal_parse("idq0.ext_sc = 0");  // own sincos at pos_v; dq0 keeps the sample angle
   hal_parse("dq0.pos = ls0.pos");
   hal_parse("dq0.mode = ls0.phase_mode");
   hal_parse("io0.hv_en = ls0.en");
@@ -388,18 +384,17 @@ int main(void) {
   hal_parse("io0.dac = ls0.dac");
 
   //ADC TEST
-  hal_parse("hv0.udc = io0.udc");
+  hal_parse("hv0.udc = io0.udc_duty");
+  hal_parse("ls0.duty_max = hv0.duty_max");
   hal_parse("dq0.u = io0.iu");
   hal_parse("dq0.v = io0.iv");
   hal_parse("dq0.w = io0.iw");
 
-  hal_parse("svm0.u = idq0.u");
-  hal_parse("svm0.v = idq0.v");
-  hal_parse("svm0.w = idq0.w");
-  hal_parse("hv0.u = svm0.su");
-  hal_parse("hv0.v = svm0.sv");
-  hal_parse("hv0.w = svm0.sw");
-  hal_parse("svm0.udc = io0.udc");
+  hal_parse("hv0.u = idq0.u");  // hv0 adds the dead-time comp, then the SVM offset
+  hal_parse("hv0.v = idq0.v");
+  hal_parse("hv0.w = idq0.w");
+  hal_parse("hv0.id_fb = dq0.d");  // volt-mode dead-time reference
+  hal_parse("hv0.iq_fb = dq0.q");
   hal_parse("curpid0.id_fb = dq0.d");
   hal_parse("curpid0.iq_fb = dq0.q");
   hal_parse("ls0.id_fb = dq0.d");
@@ -440,8 +435,8 @@ int main(void) {
   // dead time compensation sign from the commanded current, not from io0
   hal_parse("hv0.d_cmd = ls0.d_cmd");
   hal_parse("hv0.q_cmd = ls0.q_cmd");
-  hal_parse("hv0.si = dq0.si");
-  hal_parse("hv0.co = dq0.co");
+  hal_parse("hv0.si = idq0.si_out");  // dead-time reference on the voltage angle
+  hal_parse("hv0.co = idq0.co_out");
   hal_parse("hv0.cmd_mode = ls0.cmd_mode");
   hal_parse("hv0.phase_mode = ls0.phase_mode");
 

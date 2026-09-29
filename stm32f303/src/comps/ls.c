@@ -18,6 +18,14 @@ HAL_PIN(d_cmd);
 HAL_PIN(q_cmd);
 HAL_PIN(pos);
 HAL_PIN(vel);
+// The angle the voltage computed this tick lands at, on average: the
+// compares are preloaded, so it is applied over the next period, 1.5
+// periods after the current sample that dq0 transforms at pos. idq0 and
+// hv0's dead-time reference use it; hv0.adv on the f4 is then the encoder
+// to sample latency alone. v_lead in periods, default 1.5, 0 = old
+// behaviour (one angle for both).
+HAL_PIN(pos_v);
+HAL_PIN(v_lead);
 HAL_PIN(en);
 
 // config data from LS
@@ -66,6 +74,7 @@ HAL_PIN(emf_val);
 
 // misc
 HAL_PIN(pwm_volt);
+HAL_PIN(duty_max);  // from hv0: what min_on/min_off leave of the link, 0 = unwired
 HAL_PIN(crc_error);
 HAL_PIN(crc_ok);
 HAL_PIN(timeout);
@@ -97,7 +106,7 @@ f3_state_data_t state;
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_ctx_t *ctx = (struct ls_ctx_t *)ctx_ptr;
-  // struct ls_pin_ctx_t * pins = (struct ls_pin_ctx_t *)pin_ptr;
+  struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   GPIO_InitTypeDef GPIO_InitStruct;
 
@@ -163,6 +172,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.emf_sel = 0.0;
   config.pins.emf_pp  = 0.0;
   config.pins.drop_knee = 0.0;
+  PIN(v_lead) = 1.5;
 
   USART3->RTOR = 16;               // 16 bits timeout
   USART3->CR2 |= USART_CR2_RTOEN;  // timeout en
@@ -288,6 +298,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   } else if(ctx->timeout <= 5) {  // if no packet and no timeout, advance pos by velovity
     PIN(pos) = PIN(pos) + PIN(vel) * period;
   }
+  PIN(pos_v) = PIN(pos) + PIN(vel) * PIN(v_lead) * period;  // sincos_fast wraps
 
 
   if(USART3->ISR & USART_ISR_RTOF) {                                    // idle line
@@ -372,23 +383,30 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(fault) = MAX(fault, PIN(fault_in));
 
 
+  // The ceiling curpid may ask for. hv.c reserves min_on at one end of the
+  // period and min_off at the other, so the usable link is duty_max of it (0.91
+  // at the 3 us defaults, where the old fixed 0.95 promised 4% more than the
+  // clamp would pass, and the loop wound up against the clamp instead of its
+  // own limit). Falls back to 0.95 when the pin is not wired.
+  float duty = PIN(duty_max) > 0.0 ? PIN(duty_max) : 0.95;
+
   // TODO: sin = 0.5
   switch((uint16_t)PIN(phase_mode)) {
     case PHASE_90_3PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_2 * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_2 * duty;
       break;
 
     case PHASE_90_4PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * duty;
       break;
 
     case PHASE_120_3PH:  // 120°
-      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_3 * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_3 * duty;
       break;
 
     case PHASE_180_2PH:  // 180°
     case PHASE_180_3PH:  // 180°
-      PIN(pwm_volt) = PIN(dc_volt) * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * duty;
       break;
 
     default:

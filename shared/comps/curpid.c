@@ -141,6 +141,21 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ud += ctx->id_error_sum;
   uq += ctx->iq_error_sum;
 
+  // One voltage vector, limited as a vector with d first: per-axis clamps
+  // let |u| reach sqrt(2) pwm_volt, which hv0 then scaled down in the phase
+  // domain behind the loop's back (the predictor, the integrators and
+  // ud_fb/uq_fb all saw the unlimited vector). d keeps what it needs for
+  // the flux, q gets the rest of the circle. Back-calculation: an integrator
+  // takes whatever the limit cut from its axis, so it holds at the limit
+  // instead of winding up.
+  float ud_lim = LIMIT(ud, max_volt);
+  float uq_max = __builtin_sqrtf(MAX(max_volt * max_volt - ud_lim * ud_lim, 0.0));
+  float uq_lim = LIMIT(uq, uq_max);
+  ctx->id_error_sum += ud_lim - ud;
+  ctx->iq_error_sum += uq_lim - uq;
+  ud = ud_lim;
+  uq = uq_lim;
+
   if(PIN(cmd_mode) == VOLT_MODE) {
     ud                = idc;
     uq                = iqc;

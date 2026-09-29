@@ -24,6 +24,9 @@ HAL_PIN(polecount);
 HAL_PIN(si);
 HAL_PIN(co);
 HAL_PIN(ext_sc);
+// the sin/cos this tick used, for hv0's dead-time reference currents
+HAL_PIN(si_out);
+HAL_PIN(co_out);
 
 //a,b output
 HAL_PIN(a);
@@ -49,6 +52,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(PIN(ext_sc) <= 0.0) {
     sincos_fast(pos, &si, &co);
   }
+  PIN(si_out) = si;
+  PIN(co_out) = co;
 
   //inverse park transformation
   float a = d * co - q * si;
