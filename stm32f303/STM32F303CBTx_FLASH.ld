@@ -104,8 +104,10 @@ SECTIONS
     *comps/svm.o(.text.rt_func)
     *comps/hv.o(.text.rt_func)
     *(.text.TIM8_UP_IRQHandler .text.hal_run_rt .text.hal_get_systick_value .text.hal_reset_watchdog)
-    *(.text.sincos_fast .text.err_filter .text.rb_read .text.rb_write)
-    *(.text.HAL_CRC_Calculate .text.HAL_GPIO_ReadPin .text.HAL_GPIO_WritePin)
+    *(.text.sincos_fast .text.err_filter)
+    *(.text.HAL_GPIO_ReadPin .text.HAL_GPIO_WritePin)
+    /* rb_read/rb_write (terminal chars) and HAL_CRC_Calculate (once per link
+       packet, every third tick) run from flash: CCM is full */
     . = ALIGN(4);
     _eccmram = .;       /* create a global symbol at ccmram end */
   } >CCMRAM AT> FLASH
