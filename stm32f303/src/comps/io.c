@@ -389,11 +389,17 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 #endif
         //Master out enable is cleared by timer break input.
         //Timer break input is connected to comperators
-        if(!(TIM8->BDTR & TIM_BDTR_MOE)) {
+        // the flags too: a break between the enable edge's MOE and HV_EN
+        // writes can leave MOE set again once the comparator releases
+        if(!(TIM8->BDTR & TIM_BDTR_MOE) || (TIM8->SR & (TIM_SR_BIF | TIM_SR_B2IF))) {
           ctx->fault = HV_OVERCURRENT_HW;
         }
       } else {
         ctx->fault_pin_error = 0;
+        // a software trip (oc_lim, temperature, voltage, fault pin) takes the
+        // bridge off in this tick too, not only the driver enable: MOE off
+        // puts all six outputs in their OSSR idle state at once
+        TIM8->BDTR &= ~TIM_BDTR_MOE;
 #ifdef HV_EN_PIN
         //set driver enable pin
         HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
@@ -489,6 +495,15 @@ void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, BLINK(led) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+  // re-arm the break interrupt (second shutdown via HV_EN, main.c) while the
+  // bridge is idle. Done here, in flash, because CCM is full. A trip while
+  // enabled is already latched by rt from MOE, and braking clears the flags
+  // itself when it starts, so clearing them here loses nothing.
+  if(!ctx->enabled && PIN(sbrake_on) <= 0.0 && !(TIM8->DIER & TIM_DIER_BIE)) {
+    TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);
+    TIM8->DIER |= TIM_DIER_BIE;
+  }
 
   float hv_v = ADC(ctx->hv_temp >> 16);
   if(ctx->enabled && ctx->en_ticks > HV_TEMP_SETTLE && hv_v > HV_TEMP_MIN_V) {

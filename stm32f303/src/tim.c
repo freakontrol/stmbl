@@ -40,6 +40,10 @@ void MX_TIM8_Init(void) {
   htim8.Init.CounterMode   = TIM_COUNTERMODE_CENTERALIGNED3;
   htim8.Init.Period        = PWM_RES;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  // hv0 rewrites ARR every tick (phase lock). Preloaded, it changes at the
+  // next UEV together with the compares; without it a smaller ARR written
+  // after the counter passed it would miss the overflow (RM0316 20.3.1).
+  htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
 #ifdef PWM_INVERT
   htim8.Init.RepetitionCounter = 1;
 #else
@@ -93,22 +97,33 @@ void MX_TIM8_Init(void) {
   sBreakDeadTimeConfig.DeadTime         = PWM_DEADTIME;
   sBreakDeadTimeConfig.BreakState       = TIM_BREAK_ENABLE;
   sBreakDeadTimeConfig.BreakPolarity    = TIM_BREAKPOLARITY_HIGH;
-  // 0xF: fDTS/32, N = 8. The sense nodes ring for about 0.5 us after every
-  // edge; a real short still trips well inside the short-circuit time.
-  sBreakDeadTimeConfig.BreakFilter      = 0xf;
+  // 0xC: fDTS/16, N = 8, 0.89 us (0xF was 1.78 us). The IM06B50GC1 allows
+  // about 3 us from overcurrent to off, 1.43 us of it inside the module
+  // after ITRIP. On X (C38 3.3 uF, sense caps) 0xC trips 3-5 A earlier than
+  // 0xF at the same hv0.dac from switching ringing, so the dac goes up: 0xC
+  // at 255 trips where 0xF did at 215 (19.5-21 A); 0xA tripped at 1 A at 150.
+  sBreakDeadTimeConfig.BreakFilter      = 0xc;
   // BRK2 carries COMP1 and COMP2, the W and U overcurrent comparators (main.c).
   // BK2E follows in a second write below: RM0316 20.3.16 forbids setting BK2P
   // and BK2E in one TIMx_BDTR write
   sBreakDeadTimeConfig.Break2State      = TIM_BREAK2_DISABLE;
   sBreakDeadTimeConfig.Break2Polarity   = TIM_BREAK2POLARITY_HIGH;
-  sBreakDeadTimeConfig.Break2Filter     = 0xf;
+  sBreakDeadTimeConfig.Break2Filter     = 0xc;
   sBreakDeadTimeConfig.AutomaticOutput  = TIM_AUTOMATICOUTPUT_DISABLE;
   if(HAL_TIMEx_ConfigBreakDeadTime(&htim8, &sBreakDeadTimeConfig) != HAL_OK) {
     Error_Handler();
   }
   TIM8->BDTR |= TIM_BDTR_BK2E;
-  __DSB();                                // BK2E takes an APB cycle to act
-  TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);  // a break flag from the setup is not a trip
+  __DSB();  // BK2E takes an APB cycle to act
+  // LOCK level 1 (RM0316 20.3.16/20.4.21): DTG, BKE/BKP/BKF, BK2E/BK2P/BK2F,
+  // AOE and OISx are read-only until reset, so no read-modify-write of BDTR
+  // can change the break setup. MOE, which io0 toggles, stays writable.
+  TIM8->BDTR |= TIM_BDTR_LOCK_0;
+  for(volatile int i = 0; i < 4; i++) {  // "wait 4 timer clocks" before B2IF
+  }
+  // Clears only what the setup itself raised: the comparators come up later
+  // with the DAC at 0 V and set BIF/B2IF again; the enable path handles that.
+  TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);
 
   HAL_TIM_MspPostInit(&htim8);
 }
@@ -120,7 +135,11 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *tim_baseHandle) {
     /* USER CODE END TIM8_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_TIM8_CLK_ENABLE();
-    HAL_NVIC_SetPriority(TIM8_UP_IRQn, 0, 0);
+    // the break interrupt must preempt the rt (TIM8_UP), so it gets the
+    // highest priority and the rt moves one level down
+    HAL_NVIC_SetPriority(TIM8_BRK_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(TIM8_BRK_IRQn);
+    HAL_NVIC_SetPriority(TIM8_UP_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(TIM8_UP_IRQn);
     /* USER CODE BEGIN TIM8_MspInit 1 */
 
