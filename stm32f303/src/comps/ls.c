@@ -25,6 +25,7 @@ HAL_PIN(vel);
 // to sample latency alone. v_lead in periods, default 1.5, 0 = old
 // behaviour (one angle for both).
 HAL_PIN(pos_v);
+HAL_PIN(conf_ok);  // every config word received once since boot
 HAL_PIN(v_lead);
 HAL_PIN(en);
 
@@ -92,6 +93,7 @@ struct ls_ctx_t {
   uint32_t timeout;
   uint32_t sbrake_loss;  // brake for this link loss
   uint32_t tx_addr;
+  uint32_t conf_seen;  // bit per config word written since boot
   uint8_t send;
   volatile packet_to_hv_t packet_to_hv;
   volatile packet_from_hv_t packet_from_hv;
@@ -190,6 +192,7 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->timeout     = 0;
   ctx->sbrake_loss = 0;
   ctx->tx_addr     = 0;
+  ctx->conf_seen   = 0;
   ctx->send        = 0;
   PIN(crc_error)   = 0.0;
   PIN(crc_ok)      = 0.0;
@@ -236,7 +239,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           break;
         case WRITE_CONF:
           if(valid) {
-            config.data[a] = ctx->packet_to_hv.header.config.f32;  // TODO: first enable after complete update
+            config.data[a] = ctx->packet_to_hv.header.config.f32;
+            ctx->conf_seen |= 1u << a;
           }
           break;
         case READ_CONF:
@@ -253,7 +257,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           break;
       }
 
-      PIN(en)               = ctx->packet_to_hv.flags.enable;
+      // no enable before every config word has arrived once since boot: the
+      // f4 cycles through them one per packet, and until then r, l, max_cur,
+      // dac etc. are still 0
+      PIN(conf_ok) = ctx->conf_seen == (1u << (sizeof(config) / 4)) - 1u;
+      PIN(en)      = PIN(conf_ok) > 0.0 ? ctx->packet_to_hv.flags.enable : 0;
       PIN(phase_mode)       = ctx->packet_to_hv.flags.phase_type;
       PIN(cmd_mode)         = ctx->packet_to_hv.flags.cmd_type;
       PIN(ignore_fault_pin) = ctx->packet_to_hv.flags.ignore_fault_pin;

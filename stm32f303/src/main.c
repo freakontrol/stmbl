@@ -74,7 +74,7 @@ void Error_Handler(void);
 // TIM8 runs on its own: once the rt stops (overrun, MISC_ERROR, stop) the
 // last compares stay latched with no current loop behind them. Nothing on
 // that path reliably calls rt_stop, so the tick checks the state instead.
-static void bridge_off(void) {
+void bridge_off(void) {
   TIM8->BDTR &= ~TIM_BDTR_MOE;
 #ifdef HV_EN_PIN
   HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
@@ -107,6 +107,21 @@ void hal_init_watchdog(float time) {
 
 void hal_reset_watchdog() {
   IWDG->KR = 0xAAAA;
+}
+
+// Second shutdown path: a comparator break (BRK or BRK2, after the 0xC
+// digital filter) has already cleared MOE in hardware. Raise HV_EN (IPM
+// ITRIP) here, within about a microsecond, instead of waiting for io.c's
+// next rt tick. The IPM then turns its gate driver off on its own and holds
+// it off for at least 40 us. BIE is switched off so the still-set break
+// flag can't re-enter; io.c's nrt re-arms it once the bridge is idle.
+// io.c's rt keeps using MOE and the flags to report HV_OVERCURRENT_HW.
+void TIM8_BRK_IRQHandler() {
+  TIM8->BDTR &= ~TIM_BDTR_MOE;
+#ifdef HV_EN_PIN
+  HV_EN_PORT->BSRR = HV_EN_PIN;
+#endif
+  TIM8->DIER &= ~TIM_DIER_BIE;
 }
 
 void TIM8_UP_IRQHandler() {
@@ -183,6 +198,17 @@ int main(void) {
   /* Configure the system clock */
   SystemClock_Config();
   systick_freq = HAL_RCC_GetHCLKFreq();
+  // RM0316 20.3.16: with the break filters on (BKF/BK2F 0xC), break handling
+  // is only guaranteed with a fail-safe clock. CSS switches to HSI if the HSE
+  // fails and also drives TIM8's break (9.2.7); NMI_Handler clears it.
+  HAL_RCC_EnableCSS();
+  // RM0316 20.3.28: with the core halted by a debugger, stop TIM8 and let its
+  // outputs go to the OSSI idle state instead of holding the last compares
+  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM8_STOP;
+  // a core lockup (fault inside a fault handler) breaks TIM8 in hardware
+  // (SYSCFG_CFGR2 LOCKUP_LOCK), whatever the software is doing
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  SYSCFG->CFGR2 |= SYSCFG_CFGR2_LOCKUP_LOCK;
   /* Initialize all configured peripherals */
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -525,7 +551,7 @@ void SystemClock_Config(void) {
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 
   /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);  // same level as the rt, below the break
 }
 
 /**
