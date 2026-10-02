@@ -1,4 +1,5 @@
 load uvw
+adc0.rt_prio = 1
 uvw0.rt_prio = 3
 uvw0.u = io0.fb0a
 uvw0.v = io0.fb0b

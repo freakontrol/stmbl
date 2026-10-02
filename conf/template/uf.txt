@@ -8,7 +8,6 @@ link conf
 load uf
 hv0.rt_prio = 0.9
 hv0.frt_prio = 1
-adc0.rt_prio = 1
 uf0.rt_prio = 6
 io0.rt_prio = 7
 fault0.rt_prio = 10
