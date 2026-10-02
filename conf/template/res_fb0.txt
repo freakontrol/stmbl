@@ -1,4 +1,5 @@
 load res
+adc0.rt_prio = 1
 res0.rt_prio = 2
 res0.sin = adc0.sin0
 res0.cos = adc0.cos0

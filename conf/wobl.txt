@@ -26,6 +26,7 @@ fault0.en = debounce0.out
 wobl0.en = debounce0.out
 avg0.in = io0.in0
 avg1.in = io0.in1
+adc0.rt_prio = 1
 avg2.in = adc0.cos1
 wobl0.freq = avg0.out
 wobl0.freq_diff = avg1.out
