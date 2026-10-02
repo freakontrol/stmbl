@@ -51,8 +51,10 @@ HAL_PIN(wr);
 //driver temoerature
 HAL_PIN(hv_temp);
 // The IPM's NTC shares VFO, which the module pulls low while the bridge is
-// disabled. hv_temp is read only while enabled and held otherwise (the IPM
-// only heats while switching). hv_temp_ok: 0 never read, 1 live, 2 held.
+// disabled. hv_temp is read while HV_EN is low: enabled, or short braking.
+// Otherwise the last value is held and decays toward the coolest live reading
+// since power up, since the IPM only heats while switching.
+// hv_temp_ok: 0 never read, 1 live, 2 held.
 HAL_PIN(hv_temp_ok);
 //motor temperature
 HAL_PIN(mot_temp);
@@ -112,6 +114,9 @@ struct io_ctx_t {
   int32_t lo_u;  // low-side half pulse of the previous tick, in timer ticks
   int32_t lo_v;
   int32_t lo_w;
+  float hv_temp_min;    // coolest live hv_temp since power up, the decay target
+  uint32_t hv_temp_ms;  // HAL_GetTick() at the last nrt pass
+  uint32_t sbrake_ms;   // HAL_GetTick() at the last nrt pass not braking
 };
 
 #define ARES 4096.0  // analog resolution, 12 bit
@@ -120,7 +125,9 @@ struct io_ctx_t {
 #define HV_TEMP_PULLUP 3900
 #define HV_R(a) (HV_TEMP_PULLUP / (AREF / (a)-1))
 #define HV_TEMP_SETTLE 75  // rt ticks after enable before VFO counts as released, 5 ms
+#define HV_TEMP_SETTLE_MS 5  // the same after short braking starts [ms]
 #define HV_TEMP_MIN_V 0.3  // below this the pin is held low, not an NTC reading [V]
+#define HV_TEMP_TAU 90.0   // decay of the held value, X cooled 42.4 to 31.2 C in about 140 s [s]
 
 #define MOT_TEMP_PULLUP 10000
 #define MOT_TEMP_PULLMID 51000
@@ -142,14 +149,33 @@ struct io_ctx_t {
 #define AMPN(sum) ((float)(sum)*AMP_K - AMP_0)
 #define VOLT_K ((float)(AREF / ARES / VDIVDOWN * (VDIVUP + VDIVDOWN)))
 
+// single precision natural log for r2temp, in place of the soft-float double log():
+// x = m * 2^e with m in [0.707, 1.414), ln m = 2 atanh(s), s = (m - 1) / (m + 1),
+// |s| < 0.172, series to s^7, error below 2e-6 (under 0.0001 K here); x > 0, finite
+static float ln_f(float x) {
+  union {
+    float f;
+    uint32_t i;
+  } u   = {x};
+  int e = (int)((u.i >> 23) & 0xff) - 127;
+  u.i   = (u.i & 0x007fffff) | 0x3f800000;  // m in [1, 2)
+  if(u.f > 1.41421356) {
+    u.f *= 0.5;
+    e++;
+  }
+  float s  = (u.f - 1.0) / (u.f + 1.0);
+  float s2 = s * s;
+  return e * 0.69314718 + 2.0 * s * (1.0 + s2 * (1.0 / 3.0 + s2 * (1.0 / 5.0 + s2 * (1.0 / 7.0))));
+}
+
 float r2temp(float r) {
-    if (r < 1000)
+    if (r < 500)  // above about 200 C, past any data on the part
       return 0;
 
     const float B  = 4092.0;      // Beta coefficient
     const float T0 = 298.15;      // reference temp in Kelvin (25 degC)
     const float R0 = 85000.0;     // resistance at 25 degC, in ohms
-    float tempK = 1.0 / (1.0 / T0 + (1.0 / B) * log(r / R0));
+    float tempK = 1.0 / (1.0 / T0 + (1.0 / B) * ln_f(r / R0));
     return tempK - 273.15;        // convert to Celsius
 }
 
@@ -193,6 +219,9 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->overcurrent_error = 0;
   ctx->fault_pin_error   = 0;
   ctx->hv_temp           = 0;
+  ctx->hv_temp_min       = 0.0;
+  ctx->hv_temp_ms        = HAL_GetTick();
+  ctx->sbrake_ms         = ctx->hv_temp_ms;
   ctx->mot_temp          = 0;
   ctx->enabled           = 0;
   ctx->en_ticks          = 0;
@@ -505,13 +534,30 @@ void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     TIM8->DIER |= TIM_DIER_BIE;
   }
 
+  uint32_t now    = HAL_GetTick();
+  float dt        = (now - ctx->hv_temp_ms) * 0.001;
+  ctx->hv_temp_ms = now;
+
+  // short braking keeps HV_EN low, so VFO carries the NTC then too, and the
+  // low side dies are heating
+  if(PIN(sbrake_on) <= 0.0) {
+    ctx->sbrake_ms = now;
+  }
+  int hv_en_low = (ctx->enabled && ctx->en_ticks > HV_TEMP_SETTLE) || (PIN(sbrake_on) > 0.0 && now - ctx->sbrake_ms >= HV_TEMP_SETTLE_MS);
+
   float hv_v = ADC(ctx->hv_temp >> 16);
-  if(ctx->enabled && ctx->en_ticks > HV_TEMP_SETTLE && hv_v > HV_TEMP_MIN_V) {
+  if(hv_en_low && hv_v > HV_TEMP_MIN_V) {
     float t = r2temp(HV_R(hv_v));
-    // first reading since power up: start from it, not from 0
-    PIN(hv_temp)    = PIN(hv_temp_ok) > 0.0 ? t * 0.01 + PIN(hv_temp) * 0.99 : t;
-    PIN(hv_temp_ok) = 1.0;
+    // first reading since power up or after a hold: start from it, not from
+    // 0 or from the decayed estimate
+    PIN(hv_temp)     = PIN(hv_temp_ok) == 1.0 ? t * 0.01 + PIN(hv_temp) * 0.99 : t;
+    ctx->hv_temp_min = PIN(hv_temp_ok) > 0.0 ? MIN(ctx->hv_temp_min, PIN(hv_temp)) : t;
+    PIN(hv_temp_ok)  = 1.0;
   } else if(PIN(hv_temp_ok) > 0.0) {
+    // a frozen value never cools, so a fan or derate keyed to it never lets
+    // go: decay it toward the coolest reading seen. dt is a few ms against a
+    // 90 s tau, so a first order step needs no expf (not linked on the f3)
+    PIN(hv_temp) -= (PIN(hv_temp) - ctx->hv_temp_min) * MIN(dt / HV_TEMP_TAU, 1.0);
     PIN(hv_temp_ok) = 2.0;
   }
   PIN(mot_temp) = r2temp(MOT_R(MOT_REF(ADC(ctx->mot_temp >> 16)))) * 0.01 + PIN(mot_temp) * 0.99;

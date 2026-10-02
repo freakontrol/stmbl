@@ -1,7 +1,9 @@
 # IM06B50GC1, 600 V 50 A, pin and package compatible with the IKCM30F60GD.
-# rth is the datasheet Rth(J-C), 0.6 and 1.0 K/W, times 3.6, which this
-# part's own SOA chart needs. At the same current it runs about as hot as the
-# GD: it buys current headroom, not temperature. ABS_MAX_CURRENT is unchanged.
+# Device values are the datasheet's (V 1.20). rth is the datasheet Rth(J-C),
+# 0.6 and 1.0 K/W, times 2.84: ipm.c fitted to the part's SOA chart (Fig. 12,
+# 15 kHz, 300 V, MI 0.8, PF 0.8, Tj 150 C) needs 2.63 at Tc 80 C, 1.74 at
+# 125 C and 2.84 with the line extended to 30 C, a water cooled case.
+# ABS_MAX_CURRENT is unchanged.
 ipm0.f_sw = 15000
 ipm0.e_volt = 300
 ipm0.v_tc = 0.00156
@@ -10,13 +12,13 @@ ipm0.vi = 0.90
 ipm0.ri = 0.0180
 ipm0.ei = 70.8e-6
 ipm0.ei_tc = 0.00327
-ipm0.rth_i = 2.18
+ipm0.rth_i = 1.70
 
 ipm0.vd = 1.15
 ipm0.rd = 0.0230
 ipm0.ed = 2.9e-6
 ipm0.ed_tc = 0.01462
-ipm0.rth_d = 3.63
+ipm0.rth_d = 2.84
 
 ipm0.tau1 = 0.00193
 ipm0.tau2 = 0.0498
