@@ -12,6 +12,7 @@ load sim
 load io
 load iit
 load pe
+load angle
 link conf
 hv0.rt_prio = 10
 rev0.rt_prio = 4
@@ -25,6 +26,7 @@ vel2.rt_prio = 6
 io0.rt_prio = 7
 io0.frt_prio = 3
 pid0.rt_prio = 8
+angle0.rt_prio = 9.5
 fault0.rt_prio = 10
 iit0.rt_prio = 13
 sim0.rt_prio = 13
@@ -114,8 +116,10 @@ hv0.sbrake = fault0.sbrake
 hv0.sbrake_arm = fault0.sbrake_en
 fault0.vel_fb = vel1.vel
 pid0.stop = fault0.rstop
-hv0.pos = vel2.pos_out
-hv0.vel = vel2.vel
+angle0.pos_fb = vel2.pos_out
+angle0.vel_fb = vel2.vel
+hv0.pos = angle0.pos
+hv0.vel = angle0.vel
 hv0.scale = fault0.scale
 io0.fan = fault0.hv_fan
 io0.fault = fault0.fault

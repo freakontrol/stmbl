@@ -8,4 +8,5 @@ hv0.d_cmd = fb_switch0.id
 hv0.q_cmd = pmsm_ttc0.cur
 hv0.cmd_mode = 1
 hv0.phase_mode = 2
-hv0.pos = pmsm_ttc0.pos_out
+angle0.pos_fb = pmsm_ttc0.pos_out
+hv0.pos = angle0.pos
