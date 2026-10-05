@@ -20,7 +20,10 @@ HAL_PIN(temp);
 HAL_PIN(cur);
 
 struct iit_ctx_t {
-  float e;
+  // double: at a motor-length time constant (max_time several minutes) a
+  // float e is so large that one period's increment rounds away, and the
+  // estimate stalls short of its final value
+  double e;
 };
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -41,12 +44,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float cur_n = PIN(max_cur) / MAX(PIN(cur_boost), 1.0);
   float max_e = PIN(max_cur) * PIN(max_cur) * MAX(PIN(max_time), 0.1);
 
-  float temp = ctx->e / max_e * (PIN(max_temp) - PIN(amb_temp)) + PIN(amb_temp);
+  float temp = (float)ctx->e / max_e * (PIN(max_temp) - PIN(amb_temp)) + PIN(amb_temp);
 
   float pin  = PIN(cur) * PIN(cur);
   float pout = (temp - PIN(amb_temp)) * cur_n * cur_n / (PIN(high_temp) - PIN(amb_temp));
 
-  ctx->e += (pin - pout) * period;
+  ctx->e += (double)((pin - pout) * period);
 
   PIN(temp) = temp;
 }
