@@ -1,0 +1,38 @@
+# induction motor, rotor flux orientation on the encoder.
+# link after pid: link pid, link acim_foc. Needs in the config:
+# acim_flux0.tr, acim_flux0.lmr (idacim), acim_foc0.id_n,
+# conf0.l = sigma*Ls (leakage), conf0.lq 0, conf0.psi 0.
+# field weakening: acim_fw0.duty = hv0.duty (optional)
+load acim_fw
+load acim_flux
+load acim_foc
+acim_fw0.rt_prio = 8.5
+acim_flux0.rt_prio = 8.6
+acim_foc0.rt_prio = 8.7
+acim_fw0.en = fault0.en_out
+acim_fw0.vel = angle0.vel
+acim_fw0.polecount = conf0.polecount
+acim_flux0.en = fault0.en_out
+acim_flux0.id = hv0.id_fb
+acim_flux0.iq = hv0.iq_fb
+acim_flux0.polecount = conf0.polecount
+acim_foc0.en = fault0.en_out
+acim_foc0.torque = pid0.torque_cmd
+acim_foc0.scale = acim_fw0.scale
+acim_foc0.t_lim = acim_fw0.t_lim
+acim_foc0.i_mr = acim_flux0.i_mr
+acim_foc0.lmr = acim_flux0.lmr
+acim_foc0.max_cur = conf0.max_ac_cur
+acim_foc0.polecount = conf0.polecount
+pid0.max_torque = acim_foc0.t_max
+pid0.neg_min_torque = acim_foc0.t_max
+pid0.max_vel = conf0.max_vel
+angle0.src = 1
+angle0.polecount = conf0.polecount
+angle0.vel_m = vel1.vel
+angle0.slip = acim_flux0.slip
+hv0.d_cmd = acim_foc0.d_cmd
+hv0.q_cmd = acim_foc0.q_cmd
+hv0.cmd_mode = 1
+hv0.phase_mode = 2
+hv0.psi = acim_flux0.psi
