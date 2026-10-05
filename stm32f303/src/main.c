@@ -176,6 +176,11 @@ int main(void) {
   for(uint32_t *src = &_siccmram, *dst = &_sccmram; dst < &_eccmram;) {
     *dst++ = *src++;
   }
+  // and the rt code that no longer fits in CCM into SRAM
+  extern uint32_t _siramfunc, _sramfunc, _eramfunc;
+  for(uint32_t *src = &_siramfunc, *dst = &_sramfunc; dst < &_eramfunc;) {
+    *dst++ = *src++;
+  }
 
   // Relocate interrupt vectors
   extern void *g_pfnVectors;
@@ -278,7 +283,7 @@ int main(void) {
   dac_start();
   tim8_start();
 
-  hal_init(1.0 / 15000.0, 0.0);
+  hal_init(1.0 / PWM_FREQ, 0.0);
   // hal load comps
   hal_parse("debug_level 1");
   hal_parse("load term");
@@ -364,14 +369,6 @@ int main(void) {
   hal_parse("hv0.drop_k = ls0.drop_k");
   hal_parse("hv0.drop_knee = ls0.drop_knee");
   hal_parse("io0.ignore_fault_pin = ls0.ignore_fault_pin");
-  // hal_parse("load sensorless");
-  // hal_parse("sensorless0.rt_prio = 7");
-  // hal_parse("sensorless0.r = ls0.r");
-  // hal_parse("sensorless0.l = ls0.l");
-  // hal_parse("sensorless0.id = dq0.d");
-  // hal_parse("sensorless0.iq = dq0.q");
-  // hal_parse("sensorless0.ud = curpid0.ud");
-  // hal_parse("sensorless0.uq = curpid0.uq");
   // dead time compensation sign from the commanded current, not from io0
   hal_parse("hv0.d_cmd = ls0.d_cmd");
   hal_parse("hv0.q_cmd = ls0.q_cmd");

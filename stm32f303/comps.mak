@@ -9,7 +9,6 @@ HV_SHARED_COMPS += shared/comps/curpid.c
 HV_SHARED_COMPS += shared/comps/svm.c
 HV_SHARED_COMPS += shared/comps/dq.c
 HV_SHARED_COMPS += shared/comps/idq.c
-HV_SHARED_COMPS += shared/comps/sensorless.c
 HV_SHARED_COMPS += shared/comps/angle.c
 HV_SHARED_COMPS += shared/comps/obs.c
 # HV_SHARED_COMPS += shared/comps/vel.c

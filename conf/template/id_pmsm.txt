@@ -25,6 +25,7 @@ idpmsm0.id_fb = hv0.id_fb
 idpmsm0.iq_fb = hv0.iq_fb
 idpmsm0.pwm_volt = hv0.pwm_volt
 idpmsm0.dc_volt = hv0.dc_volt
+idpmsm0.pwm_freq = hv0.pwm_freq
 idpmsm0.u_fb = hv0.u_fb
 idpmsm0.v_fb = hv0.v_fb
 # per pole back emf map on the psi test's coast, summed on the f3 (emf0)

@@ -52,8 +52,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float torque = PIN(torque);
   float pos    = PIN(pos_in);
 
-  float tc = PIN(ac) * sinf(PIN(pc) + pos * PIN(nc));
-  float te = torque * PIN(ae) * sinf(PIN(pe) + pos * PIN(ne));
+  // ttc is normally loaded with ac = ae = 0, skip the sinf then
+  float tc = PIN(ac) != 0.0 ? PIN(ac) * sinf(PIN(pc) + pos * PIN(nc)) : 0.0;
+  float te = PIN(ae) != 0.0 ? torque * PIN(ae) * sinf(PIN(pe) + pos * PIN(ne)) : 0.0;
 
   PIN(pos_out) = pos * (1.0 - PIN(block_gain)) + (((int)((pos / 2.0 * M_1_PI + 0.5) * 6 + 0.5)) / 6.0 * 2.0 * M_PI - M_PI) * PIN(block_gain);
   PIN(t)       = tc + te;
