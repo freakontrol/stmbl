@@ -9,6 +9,11 @@ OPT = -O1
 #
 OBJDIR = obj_app
 
+# F3 PWM frequency of the embedded hv image (stm32f303/Makefile): make
+# PWM_FREQ=10000 passes it down to the f3 build
+PWM_FREQ ?= 15000
+HVF3_OBJDIR = obj_hvf3$(if $(filter-out 15000,$(PWM_FREQ)),_$(PWM_FREQ))
+
 # Target file name (without extension)
 TARGET = $(OBJDIR)/stmbl
 
@@ -124,6 +129,7 @@ CPPFLAGS += $(addprefix -I,$(INCDIRS))
 #  -save-temps    preserve .s and .i-files
 #
 CPPFLAGS += -fsingle-precision-constant
+CPPFLAGS += -fno-math-errno  # sqrtf is a bare vsqrt, nothing reads errno from libm
 CPPFLAGS += -g
 # CPPFLAGS += -save-temps=obj
 
@@ -139,7 +145,7 @@ CFLAGS += -fdata-sections
 CFLAGS += -Wall
 CFLAGS += -Wmaybe-uninitialized
 CFLAGS += -Wuninitialized
-CFLAGS += -fno-builtin ## from old
+# no -fno-builtin: sqrtf/fabsf compile to vsqrt/vabs instead of libm calls
 CFLAGS += -nostartfiles
 CFLAGS += -Wfatal-errors
 #CFLAGS += -Wstrict-prototypes
@@ -309,9 +315,9 @@ f4.bin: obj_boot/blboot.bin conf/festo.txt $(TARGET).bin
 	cat conf/festo.txt /dev/zero | head -c 32768 >> f4.bin
 	cat $(TARGET).bin >> f4.bin
 
-f3.bin: obj_f3_boot/f3_boot.bin obj_hvf3/hvf3.bin
+f3.bin: obj_f3_boot/f3_boot.bin $(HVF3_OBJDIR)/hvf3.bin
 	cat obj_f3_boot/f3_boot.bin /dev/zero | head -c 16384 > f3.bin
-	cat obj_hvf3/hvf3.bin >> f3.bin
+	cat $(HVF3_OBJDIR)/hvf3.bin >> f3.bin
 
 # TODO: consolidate these two rules into a wildcard version?
 f4.dfu: tools/dfu-convert.py f4.bin

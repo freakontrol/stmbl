@@ -1,7 +1,7 @@
 # IKCM30F60GD, the module fitted to v5.0: ipm.c's own defaults, so linking
 # this after another module's template restores them. Change both together.
 # rth_i and rth_d are the datasheet Rth(J-C), 1.58 and 2.05 K/W, times 1.5.
-ipm0.f_sw = 15000
+ipm0.f_sw = hv0.pwm_freq
 ipm0.e_volt = 300
 ipm0.v_tc = 0.00155
 

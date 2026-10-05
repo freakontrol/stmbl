@@ -130,7 +130,11 @@ struct io_ctx_t {
 
 #define HV_TEMP_PULLUP 3900
 #define HV_R(a) (HV_TEMP_PULLUP / (AREF / (a)-1))
-#define HV_TEMP_SETTLE 75  // rt ticks after enable before VFO counts as released, 5 ms
+// u/v/w and udc low pass: 0.05 per tick at 15 kHz, tau 1.33 ms at any rate
+#define IO_LP_K (750.0 / PWM_FREQ)
+// err_filter trip: 5 bad ticks at 15 kHz, about 0.33 ms at any rate
+#define IO_ERR_TICKS (PWM_FREQ / 3000.0)
+#define HV_TEMP_SETTLE (PWM_FREQ / 200)  // rt ticks after enable before VFO counts as released, 5 ms
 #define HV_TEMP_SETTLE_MS 5  // the same after short braking starts [ms]
 #define HV_TEMP_MIN_V 0.3  // below this the pin is held low, not an NTC reading [V]
 #define HV_TEMP_TAU 90.0   // decay of the held value, X cooled 42.4 to 31.2 C in about 140 s [s]
@@ -308,11 +312,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(wr)       = (float)(adc_12_buf[ADC_SEQ_LEN - 1] & 0xFFFF) * VOLT_K;
     PIN(vr)       = (float)(adc_12_buf[ADC_SEQ_LEN - 1] >> 16) * VOLT_K;
     PIN(ur)       = (float)(adc_34_buf[ADC_SEQ_LEN - 1] & 0xFFFF) * VOLT_K;
-    PIN(w)        = PIN(wr) * 0.05 + PIN(w) * 0.95;  // 0.6u
-    PIN(v)        = PIN(vr) * 0.05 + PIN(v) * 0.95;
-    PIN(u)        = PIN(ur) * 0.05 + PIN(u) * 0.95;
+    PIN(w)        = PIN(wr) * IO_LP_K + PIN(w) * (1.0 - IO_LP_K);  // 0.6u
+    PIN(v)        = PIN(vr) * IO_LP_K + PIN(v) * (1.0 - IO_LP_K);
+    PIN(u)        = PIN(ur) * IO_LP_K + PIN(u) * (1.0 - IO_LP_K);
     float udc_raw = (float)(adc_34_buf[ADC_SEQ_LEN - 1] >> 16) * VOLT_K;
-    PIN(udc)      = udc_raw * 0.05 + PIN(udc) * 0.95;
+    PIN(udc)      = udc_raw * IO_LP_K + PIN(udc) * (1.0 - IO_LP_K);
     PIN(udc_duty) = udc_raw * 0.5 + PIN(udc_duty) * 0.5;
 
     // Which phase could not be sampled. TIM8 is centre aligned and the ADC is
@@ -377,15 +381,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     }
     ctx->mot_temp = adc_34_buf[2];  // ADC4 rank 3
 
-    if(err_filter(&(ctx->overtemp_error), 5.0, 0.001, PIN(hv_temp) > ABS_MAX_TEMP)) {
+    if(err_filter(&(ctx->overtemp_error), IO_ERR_TICKS, 0.001, PIN(hv_temp) > ABS_MAX_TEMP)) {
       ctx->fault = HV_TEMP_ERROR;
     }
 
-    if(err_filter(&(ctx->overvoltage_error), 5.0, 0.001, PIN(udc) > ABS_MAX_VOLT)) {
+    if(err_filter(&(ctx->overvoltage_error), IO_ERR_TICKS, 0.001, PIN(udc) > ABS_MAX_VOLT)) {
       ctx->fault = HV_VOLT_ERROR;
     }
 
-    if(err_filter(&(ctx->overcurrent_error), 5.0, 0.001, PIN(iabs) > ABS_MAX_CURRENT * 0.95)) {
+    if(err_filter(&(ctx->overcurrent_error), IO_ERR_TICKS, 0.001, PIN(iabs) > ABS_MAX_CURRENT * 0.95)) {
       ctx->fault = HV_OVERCURRENT_RMS;
     }
 
@@ -419,7 +423,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       if(ctx->fault == NO_ERROR) {
 #ifdef HV_FAULT_PIN
         //read fault pin from driver
-        if(PIN(ignore_fault_pin) <= 0.0 && err_filter(&(ctx->fault_pin_error), 5.0, 0.01, LL_GPIO_IsInputPinSet(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY)) {
+        if(PIN(ignore_fault_pin) <= 0.0 && err_filter(&(ctx->fault_pin_error), IO_ERR_TICKS, 0.01, LL_GPIO_IsInputPinSet(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY)) {
           ctx->fault = HV_FAULT_ERROR;
         }
 #endif

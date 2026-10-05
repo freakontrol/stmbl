@@ -101,7 +101,7 @@ SECTIONS
     *comps/curpid.o(.text.rt_func)
     *comps/idq.o(.text.rt_func)
     *comps/hv.o(.text.rt_func)
-    *(.text.TIM8_UP_IRQHandler .text.hal_run_rt .text.hal_get_systick_value .text.hal_reset_watchdog)
+    *(.text.TIM8_UP_IRQHandler .text.hal_run_rt .text.hal_get_systick_value .text.hal_get_systick_reload .text.hal_reset_watchdog)
     *(.text.sincos_fast .text.err_filter)
     /* from flash, CCM is full: dq0 and svm0 (short passes per tick),
        rb_read/rb_write (terminal chars). Moving small functions out does not
@@ -109,6 +109,21 @@ SECTIONS
     . = ALIGN(4);
     _eccmram = .;       /* create a global symbol at ccmram end */
   } >CCMRAM AT> FLASH
+
+  /* rt code CCM has no room for: SRAM also runs with no wait states (on the
+   * S-bus, shared with data). main() copies it like .ccmram. */
+  _siramfunc = LOADADDR(.ramfunc);
+  .ramfunc :
+  {
+    . = ALIGN(4);
+    _sramfunc = .;
+    *comps/emf.o(.text.rt_func)
+    *comps/term.o(.text.rt_func)
+    *comps/dq.o(.text.rt_func)
+    *(.text.mod)
+    . = ALIGN(4);
+    _eramfunc = .;
+  } >RAM AT> FLASH
 
   /* The program code and other data goes into FLASH */
   .text :

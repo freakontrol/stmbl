@@ -3,6 +3,7 @@
 #include "hal.h"
 #include "math.h"
 #include "defines.h"
+#include "angle.h"
 
 HAL_COMP(ipm);
 
@@ -79,7 +80,7 @@ struct ipm_ctx_t {
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ipm_pin_ctx_t *pins = (struct ipm_pin_ctx_t *)pin_ptr;
 
-  PIN(f_sw)   = 15000.0;  // PWM_TIM_CLK / (2 * PWM_RES), centre aligned
+  PIN(f_sw)   = 15000.0;  // the f3 PWM rate, the templates link hv0.pwm_freq
   PIN(e_volt) = 300.0;
   PIN(v_tc)   = 0.00155;  // 1.55 V to 1.85 V between 25 C and 150 C
 
@@ -139,7 +140,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   const float th = src->value;
 
   // phase currents and voltages, amplitude invariant inverse park and clarke
-  float c = cosf(th), s = sinf(th);
+  float c, s;
+  sincos_fast(th, &s, &c);
   float ia = PIN(id) * c - PIN(iq) * s, ib = PIN(id) * s + PIN(iq) * c;
   float ua = PIN(ud) * c - PIN(uq) * s, ub = PIN(ud) * s + PIN(uq) * c;
   float il[3] = {ia, -0.5 * ia + 0.5 * M_SQRT3 * ib, -0.5 * ia - 0.5 * M_SQRT3 * ib};

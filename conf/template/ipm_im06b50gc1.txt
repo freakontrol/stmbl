@@ -4,7 +4,7 @@
 # 15 kHz, 300 V, MI 0.8, PF 0.8, Tj 150 C) needs 2.63 at Tc 80 C, 1.74 at
 # 125 C and 2.84 with the line extended to 30 C, a water cooled case.
 # ABS_MAX_CURRENT is unchanged.
-ipm0.f_sw = 15000
+ipm0.f_sw = hv0.pwm_freq
 ipm0.e_volt = 300
 ipm0.v_tc = 0.00156
 

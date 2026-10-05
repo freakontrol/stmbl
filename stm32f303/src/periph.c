@@ -29,7 +29,7 @@ static void gpio_af(GPIO_TypeDef *port, uint32_t pins, uint32_t af) {
 
 // HSE 8 MHz * 9 = 72 MHz SYSCLK/HCLK, APB1 36 MHz, APB2 72 MHz,
 // TIM8 and ADCs from the PLL (TIM8 144 MHz), USART3 from SYSCLK, RTC from LSI.
-// SysTick 1 kHz, priority 1.
+// SysTick 1 kHz, priority 14.
 void clock_init(void) {
   LL_FLASH_EnablePrefetch();
   NVIC_SetPriorityGrouping(3);  // 4 bits preemption, no subpriority
@@ -105,7 +105,7 @@ void clock_init(void) {
   LL_RCC_SetTIMClockSource(LL_RCC_TIM8_CLKSOURCE_PLL);
 
   SysTick_Config(SystemCoreClock / 1000);  // HCLK source
-  NVIC_SetPriority(SysTick_IRQn, 1);        // same level as the rt, below the break
+  NVIC_SetPriority(SysTick_IRQn, 14);       // below TIM8 (rt 1, break 0): its handler runs from flash and must not delay the rt
 }
 
 // Center aligned PWM on TIM8 CH1-3 with complementary outputs, dead time and

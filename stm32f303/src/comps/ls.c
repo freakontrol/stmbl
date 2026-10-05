@@ -15,6 +15,14 @@ HAL_COMP(ls);
 //process data from LS
 HAL_PIN(d_cmd);
 HAL_PIN(q_cmd);
+// The f4 sends d/q every PWM_TICKS_PER_PACKET ticks (3 at 15 kHz); stepped straight in, the command carries
+// a 5 kHz staircase into the current loop. ramp = 1 spreads each step over
+// the LS_RAMP_TICKS ticks to the next packet, a linear ramp that lags the
+// step by half an f4 period. 0 = step as before.
+HAL_PIN(ramp);
+#define LS_RAMP_TICKS PWM_TICKS_PER_PACKET
+// link loss after two missed packets (0.4 ms): 5 ticks at 15 kHz
+#define LS_TIMEOUT_TICKS (2 * PWM_TICKS_PER_PACKET - 1)
 HAL_PIN(pos);
 HAL_PIN(vel);
 // The angle the voltage computed this tick lands at, on average: the
@@ -94,6 +102,9 @@ HAL_PIN(window);
 
 struct ls_ctx_t {
   uint32_t timeout;
+  uint32_t lock_voted;  // the first tick in this packet has trimmed ARR
+  float d_tgt, q_tgt;    // the last packet's command
+  float d_step, q_step;  // per tick towards it while ramping
   uint32_t sbrake_loss;  // brake for this link loss
   uint32_t tx_addr;
   uint32_t conf_seen;  // bit per config word written since boot
@@ -190,6 +201,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(v_lead) = 1.5;
   config.pins.obs_mode  = 0.0;
   config.pins.obs_bw    = 200.0;
+  PIN(ramp)   = 1.0;
 
   LL_USART_SetRxTimeout(USART3, 16);  // 16 bits timeout
   LL_USART_EnableRxTimeout(USART3);
@@ -205,6 +217,7 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   ctx->timeout     = 0;
+  ctx->lock_voted  = 0;
   ctx->sbrake_loss = 0;
   ctx->tx_addr     = 0;
   ctx->conf_seen   = 0;
@@ -217,7 +230,7 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(sbrake_time) = 1.0;
   PIN(idle)        = 0.0;
   PIN(dma_pos_cmd) = 4;
-  PIN(inc)         = 5;
+  PIN(inc)         = PWM_RES * 5 / 4800;  // ARR step, 5 at 15 kHz, about 0.1 %
   PIN(window)      = 1;
 }
 
@@ -230,12 +243,21 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(dma_pos2) = dma_pos;
   PIN(arr)      = PWM_RES;
 
+  // Phase lock to the f4 packets: the first tick inside a packet compares
+  // how far it has come with dma_pos_cmd and trims this period. Only the
+  // first: at 20 kHz three ticks land inside a packet and their votes never
+  // cancel. Between packets dma_pos is 0 or the whole packet.
   if(dma_pos > PIN(window) && dma_pos < sizeof(packet_to_hv_t) - PIN(window)) {
-    if(PIN(dma_pos_cmd) < dma_pos) {
-      PIN(arr) = PWM_RES - PIN(inc);
-    } else if(PIN(dma_pos_cmd) > dma_pos) {
-      PIN(arr) = PWM_RES + PIN(inc);
+    if(!ctx->lock_voted) {
+      ctx->lock_voted = 1;
+      if(PIN(dma_pos_cmd) < dma_pos) {
+        PIN(arr) = PWM_RES - PIN(inc);
+      } else if(PIN(dma_pos_cmd) > dma_pos) {
+        PIN(arr) = PWM_RES + PIN(inc);
+      }
     }
+  } else {
+    ctx->lock_voted = 0;
   }
 
   uint32_t fault = 0;
@@ -282,8 +304,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(ignore_fault_pin) = ctx->packet_to_hv.flags.ignore_fault_pin;
       PIN(sbrake)           = ctx->packet_to_hv.flags.sbrake;
       PIN(sbrake_arm)       = ctx->packet_to_hv.flags.sbrake_arm;
-      PIN(d_cmd)            = ctx->packet_to_hv.d_cmd;
-      PIN(q_cmd)            = ctx->packet_to_hv.q_cmd;
+      ctx->d_tgt            = ctx->packet_to_hv.d_cmd;
+      ctx->q_tgt            = ctx->packet_to_hv.q_cmd;
+      ctx->d_step           = (ctx->d_tgt - PIN(d_cmd)) * (1.0 / LS_RAMP_TICKS);
+      ctx->q_step           = (ctx->q_tgt - PIN(q_cmd)) * (1.0 / LS_RAMP_TICKS);
       PIN(pos)              = ctx->packet_to_hv.pos;
       PIN(vel)              = ctx->packet_to_hv.vel;
 
@@ -321,8 +345,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ++;
       fault = 3;
     }
-  } else if(ctx->timeout <= 5) {  // if no packet and no timeout, advance pos by velovity
+  } else if(ctx->timeout <= LS_TIMEOUT_TICKS) {  // if no packet and no timeout, advance pos by velovity
     PIN(pos) = PIN(pos) + PIN(vel) * period;
+  }
+
+  // timeout counts the ticks since the packet: 0, 1, 2 are the ramp, a late
+  // or missing packet lands on the target (also cleans up the float sum)
+  if(PIN(ramp) > 0.0 && ctx->timeout < LS_RAMP_TICKS) {
+    PIN(d_cmd) += ctx->d_step;
+    PIN(q_cmd) += ctx->q_step;
+  } else {
+    PIN(d_cmd) = ctx->d_tgt;
+    PIN(q_cmd) = ctx->q_tgt;
   }
 
 
@@ -365,6 +399,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     state.pins.emf_val   = PIN(emf_val);
     state.pins.obs_err   = PIN(obs_err);
     state.pins.obs_vel   = PIN(obs_vel);
+    state.pins.pwm_freq  = PWM_FREQ;
 
     // fill tx struct
     ctx->packet_from_hv.fault             = (uint8_t)PIN(fault_in);
@@ -392,14 +427,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     //ctx->send = 0;
   }
 
-  if(ctx->timeout == 6) {
+  if(ctx->timeout == LS_TIMEOUT_TICKS + 1) {
     // brake on the loss only if the motor was driven or already braking
     ctx->sbrake_loss = PIN(sbrake_arm) > 0.0 && (PIN(en) > 0.0 || PIN(sbrake) > 0.0);
   }
-  if(ctx->timeout > 5) {  //disable driver
+  if(ctx->timeout > LS_TIMEOUT_TICKS) {  //disable driver
     PIN(en)     = 0.0;
     PIN(vel)    = 0.0;
-    PIN(sbrake) = ctx->sbrake_loss && (float)(ctx->timeout - 5) * period < PIN(sbrake_time);
+    PIN(sbrake) = ctx->sbrake_loss && (float)(ctx->timeout - LS_TIMEOUT_TICKS) * period < PIN(sbrake_time);
     PIN(timeout)
     ++;
     fault = 1;

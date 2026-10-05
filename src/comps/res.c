@@ -139,7 +139,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   float p = MAX(1.0, PIN(poles));
 
-  float pos  = atan2f(s, c);
+  float pos  = atan2_fast(s, c);
   float dpos = PIN(vel) * period / 2.0;
 
   if(a < PIN(min_amp)) {

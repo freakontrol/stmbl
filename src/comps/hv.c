@@ -69,6 +69,7 @@ HAL_PIN(w_fb);
 HAL_PIN(emf_val);  // emf0 result number emf_sel, from the f3
 HAL_PIN(obs_err);  // f3 obs angle minus the commutation frame [rad], shadow check
 HAL_PIN(obs_vel);  // f3 obs speed [rad/s electrical]
+HAL_PIN(pwm_freq);  // f3 PWM and rt rate [Hz], 15000 from an f3 that doesn't report it
 
 // misc
 HAL_PIN(rev);
@@ -300,6 +301,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               PIN(emf_val)   = ctx->state.pins.emf_val;
               PIN(obs_err)   = ctx->state.pins.obs_err;
               PIN(obs_vel)   = ctx->state.pins.obs_vel;
+              PIN(pwm_freq)  = ctx->state.pins.pwm_freq > 0.0 ? ctx->state.pins.pwm_freq : 15000.0;
 
               // not measured: P = 3/2 (ud id + uq iq) from the commanded
               // voltages, so inverter losses are left out

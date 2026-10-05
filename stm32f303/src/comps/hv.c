@@ -116,7 +116,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->pwm_res = (int32_t)CLAMP(PIN(arr), PWM_RES * 0.9, PWM_RES * 1.1);
   LL_TIM_SetAutoReload(TIM8, ctx->pwm_res);
 
-  float udc = MAX(PIN(udc), 0.1);
+  float udc     = MAX(PIN(udc), 0.1);
+  float udc_inv = 1.0 / udc;                   // one division, used three times below
+  float res_inv = 1.0 / (float)ctx->pwm_res;  // and this one twice
 
   // Dead time compensation. While a phase current keeps its sign the bridge
   // loses the dead time's share of the pwm period times the link voltage.
@@ -127,7 +129,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // In volt mode there is no commanded current to take the sign from. The
   // instantaneous measured one would close a loop and run away; its low
   // passed fundamental does not (drop_volt, off by default).
-  float dt_drop = PIN(drop_k) * (float)PWM_DEADTIME_TICKS / (2.0 * (float)ctx->pwm_res) * udc;
+  float dt_drop = PIN(drop_k) * (float)PWM_DEADTIME_TICKS * 0.5 * res_inv * udc;
   float d_ref   = PIN(d_cmd);
   float q_ref   = PIN(q_cmd);
   if(PIN(cmd_mode) == VOLT_MODE) {
@@ -179,9 +181,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   uw -= off;
 
   //convert voltages to PWM output compare values
-  int32_t u = (int32_t)(CLAMP(uu, 0.0, udc) / udc * (float)(ctx->pwm_res));
-  int32_t v = (int32_t)(CLAMP(uv, 0.0, udc) / udc * (float)(ctx->pwm_res));
-  int32_t w = (int32_t)(CLAMP(uw, 0.0, udc) / udc * (float)(ctx->pwm_res));
+  int32_t u = (int32_t)(CLAMP(uu, 0.0, udc) * udc_inv * (float)(ctx->pwm_res));
+  int32_t v = (int32_t)(CLAMP(uv, 0.0, udc) * udc_inv * (float)(ctx->pwm_res));
+  int32_t w = (int32_t)(CLAMP(uw, 0.0, udc) * udc_inv * (float)(ctx->pwm_res));
   //convert on and off times to PWM output compare values.
   //TIM8 is center aligned, so a PWM period spans 2*ARR timer ticks and one
   //compare unit is worth 2 ticks of on time -- the on time resolution is a
@@ -200,7 +202,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //what is left for the line to line voltage once both ends are reserved.
   //ls.c scales pwm_volt by it, so curpid's ceiling matches what this clamp
   //will actually pass rather than a fixed 95%.
-  PIN(duty_max) = (float)MAX(ctx->pwm_res - min_on - min_off, 0) / (float)ctx->pwm_res;
+  PIN(duty_max) = (float)MAX(ctx->pwm_res - min_on - min_off, 0) * res_inv;
 
   // a phase spread wider than min_on/min_off leave room for cannot be
   // fixed by a common mode shift: scale it down around its center

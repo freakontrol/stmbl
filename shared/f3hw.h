@@ -30,7 +30,17 @@
 #define PWM_DEADTIME 196
 #define DTG_TICKS(v) ((v) < 0x80 ? (v) : (v) < 0xC0 ? ((64 + ((v)&0x3F)) * 2) : (v) < 0xE0 ? ((32 + ((v)&0x1F)) * 8) : ((32 + ((v)&0x1F)) * 16))
 #define PWM_DEADTIME_TICKS DTG_TICKS(PWM_DEADTIME)
-#define PWM_RES 4800
+// PWM and F3 rt rate, set at build time (stm32f303/Makefile PWM_FREQ). The
+// rt runs once per period (TIM8 RCR 1), and ls.c locks the period to the f4's
+// 5 kHz packets, so only whole multiples of 5 kHz work.
+#ifndef PWM_FREQ
+#define PWM_FREQ 15000
+#endif
+#define PWM_RES ((int)(PWM_TIM_CLK / (2 * PWM_FREQ)))  // center aligned, 7200 4800 3600
+#define PWM_TICKS_PER_PACKET (PWM_FREQ / 5000)          // f3 ticks per f4 packet
+_Static_assert(PWM_FREQ % 5000 == 0, "PWM_FREQ must be a multiple of the 5 kHz f4 packet rate");
+_Static_assert(PWM_FREQ >= 10000 && PWM_FREQ <= 20000, "PWM_FREQ out of the 10 to 20 kHz range");
+_Static_assert(PWM_RES * 11 / 10 < 65536, "hv0 ARR clamp overflows TIM8");
 
 // ADC regular sequence per ADC pair: ADC_CUR_SAMPLES current samples, then
 // one slow voltage (adc.c)

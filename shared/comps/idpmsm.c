@@ -41,7 +41,8 @@ HAL_PIN(l_iq);      // [A]
 // r test: d dwells at four angles and seven currents; r, the per phase dead
 // time volts V0 and the knee of hv.c's compensation curve are fitted together
 HAL_PIN(r_known);   // *parameter*, measured winding resistance: fit V0 and the knee only
-HAL_PIN(dt_ideal);  // *parameter*, ideal dead time volts per link volt, 2 us * 15 kHz = 0.03
+HAL_PIN(dt_ideal);  // *parameter*, ideal dead time volts per link volt, 0 = 2 us * pwm_freq (0.03 at 15 kHz)
+HAL_PIN(pwm_freq);  // f3 PWM and rt rate, from hv0.pwm_freq [Hz], 0 = 15000
 HAL_PIN(dt_v0);     // fitted per phase dead time volts at the link [V]
 HAL_PIN(dt_knee);   // fitted knee, for hv0.drop_knee [A]
 HAL_PIN(dt_k);      // dt_v0 over the ideal, for hv0.drop_k
@@ -211,10 +212,10 @@ struct idpmsm_ctx_t {
   float rb[EMF_RB_N];
 };
 
-// hv0.u_fb/v_fb come through io.c's u = 0.05 * adc + 0.95 * u at 15 kHz,
-// which the coast undoes
-#define HV_IO_ALPHA 0.05
-#define HV_IO_PERIOD (1.0 / 15000.0)
+// hv0.u_fb/v_fb come through io.c's u = a * adc + (1 - a) * u per f3 tick,
+// a = 750 / f (0.05 at 15 kHz, tau 1.33 ms), which the coast undoes
+#define HV_IO_ALPHA(f) (750.0 / (f))
+#define HV_DEADTIME 2.0e-6  // f3 PWM_DEADTIME [s]
 // the f3 sends one word of its state block per packet, so u_fb and v_fb
 // each refresh every HV_STATE_WORDS rt periods: a zero order hold that
 // scales the back emf by sinc(w T / 2)
@@ -238,10 +239,14 @@ struct idpmsm_ctx_t {
 #define PSI_COAST_HOLDOFF 0.05 // psi coast: wait after the bridge drops, for the winding current to die [s]
 #define PSI_COAST_N 200     // psi coast: fewest samples a band needs
 
+static float hv_pwm_freq(struct idpmsm_pin_ctx_t *pins) {
+  return PIN(pwm_freq) > 0.0 ? PIN(pwm_freq) : 15000.0;
+}
+
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct idpmsm_pin_ctx_t *pins = (struct idpmsm_pin_ctx_t *)pin_ptr;
   PIN(r_known)  = 0.0;
-  PIN(dt_ideal) = 0.03;
+  PIN(dt_ideal) = 0.0;
   PIN(test_cur) = 6.0;
   // 0: at the current loop's crossover, loop_bw / 2 pi (480 Hz at cur_bw
   // 3000), where the loop uses l; on Y that reads Ld/Lq ~5% under 250 Hz
@@ -354,7 +359,8 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(dt_rms)    = sqrtf(best / DW_N);
       PIN(dt_v0)     = bv;
       PIN(dt_knee)   = bk;
-      PIN(dt_k)      = PIN(dc_volt) > 1.0 ? bv / (PIN(dt_ideal) * PIN(dc_volt)) : 0.0;
+      float dt_ideal = PIN(dt_ideal) > 0.0 ? PIN(dt_ideal) : HV_DEADTIME * hv_pwm_freq(pins);
+      PIN(dt_k)      = PIN(dc_volt) > 1.0 ? bv / (dt_ideal * PIN(dc_volt)) : 0.0;
       PIN(r_ok)      = r_ok;
       if(r_ok > 0.0) {
         PIN(r)             = br;
@@ -1031,10 +1037,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
             float w = vel * PIN(pp);
             float s_th, c_th, s_wt, c_wt;
             sincos_fast((PIN(pos_fb) + PIN(com_offset)) * PIN(pp), &s_th, &c_th);
-            sincos_fast(w * HV_IO_PERIOD, &s_wt, &c_wt);
+            float f_io = hv_pwm_freq(pins);
+            float a_io = HV_IO_ALPHA(f_io);
+            sincos_fast(w / f_io, &s_wt, &c_wt);
             // 1 / H = (1 - (1 - a) exp(-j w T)) / a
-            float hi_re = (1.0 - (1.0 - HV_IO_ALPHA) * c_wt) / HV_IO_ALPHA;
-            float hi_im = ((1.0 - HV_IO_ALPHA) * s_wt) / HV_IO_ALPHA;
+            float hi_re = (1.0 - (1.0 - a_io) * c_wt) / a_io;
+            float hi_im = ((1.0 - a_io) * s_wt) / a_io;
             // the hold's sinc(w T / 2): its delay stays in, emf_delay reports it
             float x    = w * (float)HV_STATE_WORDS * period * 0.5;
             float zoh  = ABS(x) > 1e-3 ? sinf(x) / x : 1.0;
