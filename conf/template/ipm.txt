@@ -1,6 +1,7 @@
-# bridge junction temperature model and its derate. link it after the motor
-# template (pid, mpid or uf): link pid, link ipm. The defaults are for the
-# IKCM30F60GD; link ipm_im06b50gc1 after this one for that module.
+# bridge junction temperature model and its derate. The motor templates (pid,
+# mpid, uf and vf) link this at their end, so a config doesn't: a second
+# link ipm loads an ipm1 nothing reads. The defaults are for the IKCM30F60GD;
+# link ipm_im06b50gc1 after the motor template for that module.
 # conf0.high_ipm_temp starts the derate, conf0.max_ipm_temp trips.
 load ipm
 ipm0.rt_prio = 13
@@ -9,6 +10,7 @@ ipm0.iq = hv0.iq_fb
 ipm0.ud = hv0.ud_fb
 ipm0.uq = hv0.uq_fb
 ipm0.dc_volt = hv0.dc_volt
+ipm0.f_sw = hv0.pwm_freq
 ipm0.case_temp = hv0.hv_temp
 ipm0.pos = hv0.pos
 fault0.ipm_temp = ipm0.temp

@@ -58,3 +58,5 @@ iit0.high_temp = conf0.high_mot_temp
 iit0.max_cur = conf0.max_ac_cur
 fault0.mot_temp = iit0.temp
 iit0.cur = hv0.abs_cur
+# bridge junction model and derate, conf0.high_ipm_temp and max_ipm_temp
+link ipm
