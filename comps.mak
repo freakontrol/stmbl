@@ -42,6 +42,7 @@ LV_SHARED_COMPS += shared/comps/acim_flux.c
 LV_SHARED_COMPS += shared/comps/acim_foc.c
 LV_SHARED_COMPS += shared/comps/acim_fw.c
 LV_SHARED_COMPS += shared/comps/angle.c
+LV_SHARED_COMPS += shared/comps/vf.c
 LV_SHARED_COMPS += shared/comps/uvw.c
 LV_SHARED_COMPS += shared/comps/fanuc.c
 LV_SHARED_COMPS += shared/comps/fb_switch.c
