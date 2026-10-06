@@ -21,7 +21,12 @@ acim_fw0.vel = angle0.vel
 acim_fw0.polecount = conf0.polecount
 acim_fw0.pwm_volt = hv0.pwm_volt
 acim_fw0.id_n = acim_foc0.id_n
-# acim_fw0.ls = conf0.l + lmr (stator inductance); 0 = no feedforward
+# feedforward on l + lmr; ki from tr (acim_fw0.ki 0); a config ls or ki wins
+acim_fw0.l = conf0.l
+acim_fw0.lmr = acim_flux0.lmr_act
+acim_fw0.tr = acim_flux0.tr_act
+# acim_fw0.p_max = the motor's S1 power; it gets iit0's overload headroom
+acim_fw0.p_boost = iit0.cur_boost
 acim_flux0.en = fault0.en_out
 acim_flux0.id = hv0.id_fb
 acim_flux0.iq = hv0.iq_fb

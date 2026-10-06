@@ -1,8 +1,9 @@
 # induction motor sensorless: link pid, link acim_foc, link sl_acim.
 # obs uses conf0.l = sigma*Ls for both axes (conf0.lq 0). chk_err is not
 # meaningful here: the encoder angle is the rotor's, not the flux's.
-# Set in the config: sl_seq0.i_f (about acim_foc0.id_n),
-# sl_seq0.align_time (about 3 * acim_flux0.tr), sl_seq0.w_hand, obs0.bw.
+# From the motor values: i_f = id_n, align_time 3 * tr, w_hand where the
+# emf is 5 * obs0.e_min, hyst w_hand / 3 (sl_seq0.align, hand show them);
+# a value in the config wins. Set obs0.bw (about 5 * w_hand * polecount).
 # Optional, f3 commutates from its own observer once handed over:
 # hv0.obs_mode = sl_seq0.f3_mode
 # Optional, with a spindle encoder: sl_seq0.vel_enc = <encoder speed,
@@ -11,6 +12,9 @@
 # command through ramp0: sl_seq0.vel_cmd = ramp0.vel_cmd (sensorless
 # links vel0.vel); pid takes sl_seq0.vel_ref, keep no pid0.vel_ext_cmd line.
 link sensorless
+sl_seq0.i_f = acim_foc0.id_n
+sl_seq0.tr = acim_flux0.tr
+sl_seq0.lmr = acim_flux0.lmr
 sl_seq0.d_in = acim_foc0.d_cmd
 sl_seq0.q_in = acim_foc0.q_cmd
 obs0.slip = acim_flux0.slip
