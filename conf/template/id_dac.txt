@@ -1,5 +1,5 @@
 # one shot hv0.dac search: prints hv0.dac for a trip at iddac0.cur
-# set conf0.max_ac_cur >= 1.1 x cur (1.2 x in mode 1) first; reset afterwards
+# set conf0.max_ac_cur over 1.05 x cur (1.2 x in mode 1) first; reset afterwards
 load iddac
 iddac0.rt_prio = 4
 iddac0.en = fault0.en_out

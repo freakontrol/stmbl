@@ -29,8 +29,9 @@
  * mode 0, free axis: the three fixed angles, so all three comparators.
  *
  * Expect one comparator trip per ramp, a few dozen in all.
- * conf0.max_ac_cur must be at least 1.1 x cur, or the f3 software trip
- * (fault 15) or fault0 fires first and the run stops.
+ * hv0.max_cur (conf0.max_ac_cur) must be over 1.05 x cur, 1.2 x in mode 1
+ * (the vector goes up to 1.155 x cur); otherwise the run stops at once with
+ * fail 1 and leaves hv0.dac at dac_lo.
  */
 HAL_COMP(iddac);
 
@@ -118,8 +119,9 @@ static void finish(struct iddac_ctx_t *ctx, struct iddac_pin_ctx_t *pins, int fa
   PIN(state)  = fail ? 3.0 : 2.0;
   PIN(en_out) = 0.0;
   PIN(d_cmd)  = 0.0;
-  // leave the comparator at the result, or at the old safe floor
-  ctx->dac = ctx->lo;
+  // leave the comparator at the result, or at the safe floor dac_lo when
+  // the run stopped before the search started (fail 1 after boot: lo is 0)
+  ctx->dac = ctx->lo > 0 ? ctx->lo : (int)PIN(dac_lo);
 }
 
 // a whole test of one dac is over: pass when all three angles tripped
@@ -175,7 +177,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     // disabled: stop, a run cut short leaves state 0; the next enable runs again
     if(PIN(state) == 1.0 || PIN(state) == 3.0) {  // a result (2) stays until reset
       PIN(state) = 0.0;
-      ctx->dac   = ctx->lo;
+      ctx->dac   = ctx->lo > 0 ? ctx->lo : (int)PIN(dac_lo);
     }
     ctx->phase  = IDLE;
     PIN(en_out) = 0.0;
@@ -322,7 +324,7 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       printf("<font color='red'>iddac failed</font>: hv fault %i during a ramp\n", (int)PIN(hv_fault));
       break;
     case 3:
-      printf("<font color='red'>iddac stopped</font>: disabled, or hv0.fault did not clear\n");
+      printf("<font color='red'>iddac failed</font>: hv0.fault %i did not clear %.0f s after a trip\n", (int)PIN(hv_fault), CLEAR_T);
       break;
     case 4:
       printf("<font color='red'>iddac failed</font>: dac_lo %.0f does not trip by %.1f A at every angle; lower dac_lo or raise cur\n", PIN(dac_lo), PIN(cur));

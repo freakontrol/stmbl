@@ -288,6 +288,8 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(pp_ok)      = 0.0;
       PIN(com_ok)     = 0.0;
       PIN(psi_ok)     = 0.0;
+      PIN(com_fb_offset) = 0.0;
+      PIN(com_fb_ok)  = 0.0;
       break;
 
     case 10:  // r
@@ -393,8 +395,16 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           printf("<font color='red'>l not measured</font>: the injection drew %f A on d and %f A on q\n", PIN(l_id), PIN(l_iq));
           printf("of the %f A it aimed for. check idpmsm0.iq_fb/uq_fb are wired\n", PIN(l_ripple) * PIN(test_cur));
         }
-        printf("hv0.drop_k = %f <font color='green'># append to config</font>\n", PIN(dt_k));
+        if(PIN(dc_volt) > 1.0) {
+          printf("hv0.drop_k = %f <font color='green'># append to config</font>\n", PIN(dt_k));
+        } else {
+          printf("<font color='red'>hv0.drop_k not computed</font>: idpmsm0.dc_volt reads %f V, wire it to hv0.dc_volt\n", PIN(dc_volt));
+        }
         printf("hv0.drop_knee = %f <font color='green'># append to config</font>\n", PIN(dt_knee));
+        if(PIN(dt_knee) < 0.06 || PIN(dt_knee) > 1.99) {
+          printf("<font color='red'>knee at the edge of the 0.05 to 2.0 A grid</font>: the dead time fit is unreliable,\n");
+          printf("check the residual below and keep the old hv0.drop_k and hv0.drop_knee if it is large\n");
+        }
         if(PIN(r_known) > 0.0) {
           printf("<font color='green'># dead time curve fitted over %i d dwells with r held at the %f you gave\n", DW_N, PIN(r_known));
         } else {
@@ -431,11 +441,6 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ctx->com_cos    = 0.0;
       PIN(com_fb_ok)  = 0.0;
 
-      if(PIN(mot_state) != 3.0) {
-        printf("<font color='red'>motor feedback not absolute</font> (fb_switch0.mot_state %f):\n", PIN(mot_state));
-        printf("the offsets below are relative to power-up. index the encoder first\n");
-      }
-
       if(PIN(auto_step) >= 2) {
         PIN(state) = 2.2;
       } else {
@@ -466,6 +471,11 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       break;
 
     case 25:  // pp, out_rev, com_offset
+      // checked after the move: an encoder that indexes during the pp test is fine
+      if(PIN(mot_state) != 3.0) {
+        printf("<font color='red'>motor feedback not absolute</font> (fb_switch0.mot_state %f):\n", PIN(mot_state));
+        printf("the offsets below are relative to power-up. index the encoder first\n");
+      }
       printf("conf0.polecount = %f <font color='green'># append to config</font>\n", PIN(pp));
       printf("conf0.mot_fb_offset = %f <font color='green'># append to config</font>\n", PIN(com_offset));
       if(PIN(com_fb_ok) > 0.0) {
@@ -534,7 +544,7 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       } else {
         printf("Measure torque constant\n");
         printf("the motor will move\n");
-        printf("id0.state = 3.2 to start\n");
+        printf("idpmsm0.state = 3.2 <font color='green'>to start</font>\n");
       }
       break;
 
@@ -961,7 +971,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           // the clamp slews the integrator only: a clamped P limit-cycles
           float vel_raw   = v_t - PIN(vel_fb);
           float vel_error = LIMIT(vel_raw, PIN(test_vel) / 100.0);
-          PIN(cur_sum) += PIN(ki) * vel_error * period;
+          PIN(cur_sum) = LIMIT(PIN(cur_sum) + PIN(ki) * vel_error * period, PIN(test_cur));
           PIN(q_cmd) = LIMIT(PIN(vel_bw) * period * vel_raw + PIN(cur_sum), PIN(test_cur));
         }
 
