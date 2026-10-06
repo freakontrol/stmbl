@@ -1,0 +1,29 @@
+load idtune
+idtune0.rt_prio = 4
+
+# run after id_pmsm, with its results in the config. hv0.pos and hv0.vel stay
+# on the running path, so the angle tuned is the angle that runs.
+idtune0.en = fault0.en_out
+fault0.pos_error = 0
+fault0.sat = 0
+pid0.en = 0
+hv0.en = idtune0.en_out
+hv0.cmd_mode = idtune0.cmd_mode
+hv0.d_cmd = idtune0.d_cmd
+hv0.q_cmd = idtune0.q_cmd
+hv0.adv = idtune0.adv
+# before hv0.drop_k is pointed at id_tune: the config's drop_k, kept when
+# drop_knee > 0
+idtune0.drop_k_cfg = hv0.drop_k
+idtune0.drop_knee = hv0.drop_knee
+hv0.drop_k = idtune0.drop_k
+idtune0.ud_fb = hv0.ud_fb
+idtune0.uq_fb = hv0.uq_fb
+idtune0.id_fb = hv0.id_fb
+idtune0.iq_fb = hv0.iq_fb
+idtune0.dc_volt = hv0.dc_volt
+idtune0.vel_fb = vel1.vel
+idtune0.vel_e = vel2.vel
+idtune0.r = conf0.r
+idtune0.l = conf0.l
+idtune0.lq = conf0.lq

@@ -5,6 +5,9 @@ fb_switch0.com_abs_pos = encf0.com_pos
 fb_switch0.com_state = 3
 fb_switch0.com_polecount = conf0.com_fb_polecount
 conf0.com_fb_polecount = conf0.polecount
+# commutation track: fb_switch commutates from com_pos + conf0.com_fb_offset
+# until encf is indexed (state 3), e.g. after a battery loss before the first
+# index crossing. id_pmsm prints conf0.com_fb_offset; append it to the config
 fb_switch0.mot_pos = encf0.pos
 fb_switch0.mot_abs_pos = encf0.abs_pos
 fb_switch0.mot_state = encf0.state

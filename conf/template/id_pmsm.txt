@@ -8,6 +8,7 @@ fault0.sat = 0
 pid0.en = 0
 hv0.en = idpmsm0.en_out
 hv0.cur_bw = idpmsm0.cur_bw
+idpmsm0.loop_bw = conf0.cur_bw
 hv0.cmd_mode = idpmsm0.cmd_mode
 hv0.d_cmd = idpmsm0.d_cmd
 hv0.q_cmd = idpmsm0.q_cmd
@@ -23,6 +24,21 @@ idpmsm0.uq_fb = hv0.uq_fb
 idpmsm0.id_fb = hv0.id_fb
 idpmsm0.iq_fb = hv0.iq_fb
 idpmsm0.pwm_volt = hv0.pwm_volt
+idpmsm0.dc_volt = hv0.dc_volt
+idpmsm0.u_fb = hv0.u_fb
+idpmsm0.v_fb = hv0.v_fb
+# per pole back emf map on the psi test's coast, summed on the f3 (emf0)
+hv0.emf_run = idpmsm0.emf_run
+hv0.emf_sel = idpmsm0.emf_sel
+hv0.emf_pp = idpmsm0.emf_pp
+idpmsm0.emf_val = hv0.emf_val
 
 idpmsm0.pos_fb = fb_switch0.mot_abs_fb_no_offset
+idpmsm0.mot_state = fb_switch0.mot_state_fb
+idpmsm0.com_fb = fb_switch0.com_fb_no_offset
+idpmsm0.com_rev = conf0.com_fb_rev
+idpmsm0.com_polecount = conf0.com_fb_polecount
 idpmsm0.vel_fb = vel1.vel
+# runtime links are not flattened like the boot config: a = b, b = c -> a = c,
+# so idpmsm0.com_polecount reads conf0.polecount through conf0.com_fb_polecount
+relink
