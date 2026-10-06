@@ -17,6 +17,15 @@
 *   the d command once; after that `ready` stays 1 until the next disable.
 * - q: torque / (3/2 * pp * lmr * i_mr), limited so |i| stays within max_cur
 *   with d taking priority.
+* - Flux boost (optional, `k_boost` > 0): while the flux is below the
+*   ramped d command, d gets k_boost * (d - i_mr) on top, so i_mr rises in
+*   about tr / (1 + k_boost) instead of tr: faster torque after field
+*   weakening and a shorter magnetizing at enable. Only upward; going into
+*   field weakening is not sped up, so the acim_fw loop keeps its gain. The
+*   boost only takes current q does not need: |d| <= sqrt(max_cur^2 - q^2),
+*   and with `boost_max` > 0 never more than boost_max * id_n on top of d
+*   (0.3 keeps the enable peak near the current limit).
+*   k_boost 0 = off.
 * - t_max: torque the current limit allows at the present flux, capped by
 *   acim_fw's t_lim when that is nonzero. Link pid0.max_torque and
 *   pid0.neg_min_torque to it.
@@ -35,12 +44,19 @@ HAL_PIN(id_rate);    // *parameter*, d current ramp [A/s]
 HAL_PIN(max_cur);    // *parameter*, current limit [A peak]
 HAL_PIN(lmr);        // *parameter*, Lm^2/Lr [H]
 HAL_PIN(polecount);  // *parameter*, pole pairs
+HAL_PIN(k_boost);    // *parameter*, flux boost gain, 0 = off
+HAL_PIN(boost_max);  // *parameter*, largest boost as a fraction of id_n, 0 = only the current limit
 
 HAL_PIN(d_cmd);      // *output*, to hv0.d_cmd
 HAL_PIN(q_cmd);      // *output*, to hv0.q_cmd
 HAL_PIN(t_max);      // *output*, available torque [Nm]
 HAL_PIN(t_min);      // *output*, -t_max
 HAL_PIN(ready);      // *output*, 1 = magnetized, torque allowed
+HAL_PIN(boost);      // *output*, d current added by the flux boost [A]
+
+struct acim_foc_ctx_t {
+  float id;  // ramped d command, without the boost
+};
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct acim_foc_pin_ctx_t *pins = (struct acim_foc_pin_ctx_t *)pin_ptr;
@@ -54,11 +70,12 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+  struct acim_foc_ctx_t *ctx      = (struct acim_foc_ctx_t *)ctx_ptr;
   struct acim_foc_pin_ctx_t *pins = (struct acim_foc_pin_ctx_t *)pin_ptr;
 
   float max_cur = MAX(PIN(max_cur), 0.1);
   float id_tgt  = CLAMP(PIN(id_n) * CLAMP(PIN(scale), 0.0, 1.0), 0.0, max_cur);
-  float id      = PIN(d_cmd);
+  float id      = ctx->id;
   float ready   = PIN(ready);
 
   if(PIN(en) > 0.0) {
@@ -87,7 +104,19 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     t_max = 0.0;
   }
 
-  PIN(d_cmd) = id;
+  // flux boost: up to the current q leaves free
+  float boost = 0.0;
+  if(PIN(en) > 0.0 && PIN(k_boost) > 0.0 && id > PIN(i_mr)) {
+    float id_max = sqrtf(MAX(max_cur * max_cur - iq * iq, 0.0));
+    boost        = CLAMP(PIN(k_boost) * (id - PIN(i_mr)), 0.0, MAX(id_max - id, 0.0));
+    if(PIN(boost_max) > 0.0) {
+      boost = MIN(boost, PIN(boost_max) * MAX(PIN(id_n), 0.0));
+    }
+  }
+
+  ctx->id    = id;
+  PIN(boost) = boost;
+  PIN(d_cmd) = id + boost;
   PIN(q_cmd) = iq;
   PIN(t_max) = t_max;
   PIN(t_min) = -t_max;
@@ -104,6 +133,6 @@ hal_comp_t acim_foc_comp_struct = {
     .frt_start = 0,
     .rt_stop   = 0,
     .frt_stop  = 0,
-    .ctx_size  = 0,
+    .ctx_size  = sizeof(struct acim_foc_ctx_t),
     .pin_count = sizeof(struct acim_foc_pin_ctx_t) / sizeof(struct hal_pin_inst_t),
 };
