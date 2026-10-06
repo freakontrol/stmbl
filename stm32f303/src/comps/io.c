@@ -26,7 +26,9 @@ HAL_PIN(recon);
 HAL_PIN(recon_phase);
 
 // software overcurrent trip: iabs above oc_k * max_cur, at least oc_min and
-// at most ABS_MAX_CURRENT, stops the bridge in the same tick
+// at most ABS_MAX_CURRENT (the measurement range), stops the bridge in the
+// same tick. max_cur (conf0.max_ac_cur) sets the module limit, so this is the
+// main software trip; ABS_MAX_CURRENT only backs it up
 HAL_PIN(max_cur);
 HAL_PIN(oc_k);    // default 1.3
 HAL_PIN(oc_min);  // default 5 A
