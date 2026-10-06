@@ -40,8 +40,6 @@ HAL_PIN(drop_knee);  // dead time compensation curve knee [A], 0 = latched sign
 HAL_PIN(emf_run);  // f3 emf0 back emf map: 1 sum, 0 hold, -1 clear
 HAL_PIN(emf_sel);  // which emf0 result comes back in emf_val
 HAL_PIN(emf_pp);   // pole pairs, for emf0's per pole bins
-HAL_PIN(obs_mode); // f3 obs: 0 off, 1 shadow, 2 the f3 commutates from it, ignoring pos
-HAL_PIN(obs_bw);   // f3 obs loop bandwidth [rad/s]
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -68,8 +66,6 @@ HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
 HAL_PIN(emf_val);  // emf0 result number emf_sel, from the f3
-HAL_PIN(obs_err);  // f3 obs angle minus the commutation frame [rad], shadow check
-HAL_PIN(obs_vel);  // f3 obs speed [rad/s electrical]
 HAL_PIN(pwm_freq);  // f3 PWM and rt rate [Hz], 15000 from an f3 that doesn't report it
 HAL_PIN(link_to);  // f3 rt ticks in link timeout since the f3 booted; any rise is a dropout that took the gates off
 HAL_PIN(link_drops);  // f3 dropouts seen while enabled, out; each one faults HV_TIMEOUT_ERROR
@@ -261,7 +257,6 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(drop_k)           = 0;
   PIN(lq)               = 0;
   PIN(adv)              = 0;
-  PIN(obs_bw)           = 200;
   send_to_bootloader    = 0;
   hv_pause_left         = 0.0;
   ctx->link_to_last     = -1.0;
@@ -294,8 +289,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.emf_sel = PIN(emf_sel);
   ctx->config.pins.emf_pp  = PIN(emf_pp);
   ctx->config.pins.drop_knee = PIN(drop_knee);
-  ctx->config.pins.obs_mode  = PIN(obs_mode);
-  ctx->config.pins.obs_bw    = PIN(obs_bw);
+  ctx->config.pins.unused0   = 0.0;  // an older f3 reads its observer off here
+  ctx->config.pins.unused1   = 0.0;
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - LL_DMA_GetDataLength(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM);
 
@@ -344,8 +339,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               PIN(core_temp) = ctx->state.pins.core_temp;
               PIN(y)         = ctx->state.pins.y;
               PIN(emf_val)   = ctx->state.pins.emf_val;
-              PIN(obs_err)   = ctx->state.pins.obs_err;
-              PIN(obs_vel)   = ctx->state.pins.obs_vel;
               PIN(pwm_freq)  = ctx->state.pins.pwm_freq > 0.0 ? ctx->state.pins.pwm_freq : 15000.0;
               PIN(link_to)   = ctx->state.pins.link_to;
 

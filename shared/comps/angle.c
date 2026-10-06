@@ -47,8 +47,6 @@ HAL_PIN(vel_cmd);    // *input*, src 3, electrical speed [rad/s]
 
 HAL_PIN(pos);        // *output*, commutation angle [rad], to hv0.pos
 HAL_PIN(vel);        // *output*, synchronous electrical speed [rad/s], to hv0.vel
-HAL_PIN(v_lead);     // *parameter*, periods the voltage lands after the sample, 0 = none
-HAL_PIN(pos_v);      // *output*, pos + vel * v_lead * period, the voltage angle (not wrapped)
 
 struct angle_ctx_t {
   float slip_pos;  // src 1: field angle ahead of pos_m * polecount
@@ -98,7 +96,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->last_src = src;
   PIN(vel)   = vel;
   PIN(pos)   = pos;
-  PIN(pos_v) = pos + vel * PIN(v_lead) * period;
 }
 
 hal_comp_t angle_comp_struct = {

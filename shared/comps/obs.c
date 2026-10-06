@@ -27,7 +27,7 @@
 * plus `vel_ref * adv` (hv0.adv). obs rotates it into its own frame first, so
 * it can run as a shadow while angle0 follows the encoder (src 0 or 1), and
 * `pos_err` = pos - (pos_ref + vel_ref adv) shows how far it is from the
-* frame the f3 used, the encoder's angle in shadow. Run
+* frame hv0 used, the encoder's angle in shadow. Run
 * obs before angle0 (lower rt_prio): it then reads the angle the feedback was
 * taken with. A constant pos_err growing with speed is timing, not model, and
 * `adv` trims it. hv0 adds vel * adv again, so commutate from `pos_c`, which
@@ -44,7 +44,6 @@
 
 HAL_COMP(obs);
 
-HAL_PIN(en);         // *input*, 0 = off and reset (the f3 runs it only when asked)
 HAL_PIN(r);          // *parameter*, winding resistance [ohm]
 HAL_PIN(r_w);        // *parameter*, d loss growing with speed [ohm per rad/s electrical], r + r_w |vel|, 0 = none
 HAL_PIN(ld);         // *parameter*, d inductance [H] (induction motor: sigma*Ls)
@@ -55,7 +54,6 @@ HAL_PIN(kl);         // *parameter*, current derivative low pass, 0..0.99
 HAL_PIN(e_min);      // *parameter*, emf below which the angle is not trusted [V]
 HAL_PIN(max_vel);    // *parameter*, speed clamp [rad/s electrical]
 HAL_PIN(adv);        // *parameter*, feedback frame lead over pos_ref [s], hv0.adv
-HAL_PIN(u_delay);    // *parameter*, voltage lag behind the current frame [s], 0 with the f3's voltage angle (ls0.v_lead)
 
 HAL_PIN(id);         // *input*, hv0.id_fb
 HAL_PIN(iq);         // *input*, hv0.iq_fb
@@ -88,7 +86,6 @@ struct obs_ctx_t {
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct obs_pin_ctx_t *pins = (struct obs_pin_ctx_t *)pin_ptr;
 
-  PIN(en)        = 1.0;
   PIN(r)         = 0.5;
   PIN(ld)        = 0.003;
   PIN(lq)        = 0.0;
@@ -98,10 +95,6 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(e_min)     = 3.0;
   PIN(max_vel)   = 3000.0;
   PIN(adv)       = 0.0;
-  // The f3 computes ud/uq on its voltage angle, v_lead (1.5) periods ahead
-  // of the current sample, which is where the rotor is when that voltage
-  // acts. In the rotor frame they already pair with the sampled currents.
-  PIN(u_delay)   = 0.0;
 }
 
 static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -116,19 +109,6 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct obs_ctx_t *ctx     = (struct obs_ctx_t *)ctx_ptr;
   struct obs_pin_ctx_t *pins = (struct obs_pin_ctx_t *)pin_ptr;
-
-  if(PIN(en) <= 0.0) {
-    ctx->id_old = ctx->iq_old = 0.0;
-    ctx->did = ctx->diq = 0.0;
-    ctx->ok_time        = 0.0;
-    PIN(ok)             = 0.0;
-    PIN(pos)            = PIN(pos_ref);
-    PIN(pos_c)          = PIN(pos_ref);
-    PIN(vel)            = PIN(vel_ref);
-    PIN(err)            = 0.0;
-    PIN(pos_err)        = 0.0;
-    return;
-  }
 
   // induction motor iron loss shows as a resistance that grows with speed;
   // left out it puts a sign(vel) angle lag into the observer
@@ -146,9 +126,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   sincos_fast(delta, &sn, &cs);
   float id = PIN(id) * cs + PIN(iq) * sn;
   float iq = -PIN(id) * sn + PIN(iq) * cs;
-  // u_delay: a voltage frame that lags the rotor at the time it acts; 0 when
-  // the f3's v_lead already moved ud/uq to that angle
-  sincos_fast(mod(delta + vel * PIN(u_delay)), &sn, &cs);
   float ud = PIN(ud) * cs + PIN(uq) * sn;
   float uq = -PIN(ud) * sn + PIN(uq) * cs;
 

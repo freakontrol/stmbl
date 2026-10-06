@@ -4,8 +4,6 @@
 # From the motor values: i_f = id_n, align_time 3 * tr, w_hand where the
 # emf is 5 * obs0.e_min, hyst w_hand / 3 (sl_seq0.align, hand show them);
 # a value in the config wins. Set obs0.bw (about 5 * w_hand * polecount).
-# Optional, f3 commutates from its own observer once handed over:
-# hv0.obs_mode = sl_seq0.f3_mode
 # Optional, with a spindle encoder: sl_seq0.vel_enc = <encoder speed,
 # e.g. vel1.vel>, sl_seq0.enc_tol 1 (multiple of acim_flux0.slip_max);
 # then acim_flux0.tr_ks 1 trims tr from the slip error in steady holds.

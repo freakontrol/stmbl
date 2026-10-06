@@ -37,6 +37,7 @@ HAL_PIN(vel);
 // hv0's dead-time reference use it; hv0.adv on the f4 is then the encoder
 // to sample latency alone. v_lead in periods, default 1.5, 0 = old
 // behaviour (one angle for both).
+HAL_PIN(pos_v);
 HAL_PIN(conf_ok);  // every config word received once since boot
 HAL_PIN(v_lead);
 HAL_PIN(en);
@@ -59,9 +60,6 @@ HAL_PIN(emf_run);
 HAL_PIN(emf_sel);
 HAL_PIN(emf_pp);
 HAL_PIN(drop_knee);
-HAL_PIN(obs_en);   // obs0 runs, obs_mode 1 or 2
-HAL_PIN(obs_src);  // angle0.src, 2 when obs_mode is 2
-HAL_PIN(obs_bw);
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -87,8 +85,6 @@ HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
 HAL_PIN(emf_val);
-HAL_PIN(obs_err);
-HAL_PIN(obs_vel);
 
 // misc
 HAL_PIN(pwm_volt);
@@ -206,8 +202,6 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.emf_pp  = 0.0;
   config.pins.drop_knee = 0.0;
   PIN(v_lead) = 1.5;
-  config.pins.obs_mode  = 0.0;
-  config.pins.obs_bw    = 200.0;
   PIN(ramp)   = 1.0;
 
   LL_USART_SetRxTimeout(USART3, 16);  // 16 bits timeout
@@ -340,9 +334,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(emf_sel) = config.pins.emf_sel;
       PIN(emf_pp)  = config.pins.emf_pp;
       PIN(drop_knee) = config.pins.drop_knee;
-      PIN(obs_en)    = config.pins.obs_mode > 0.5 ? 1.0 : 0.0;
-      PIN(obs_src)   = config.pins.obs_mode > 1.5 ? 2.0 : 0.0;
-      PIN(obs_bw)    = config.pins.obs_bw;
       ctx->timeout = 0;
       PIN(crc_ok)
       ++;
@@ -365,6 +356,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   } else if(ctx->timeout <= LS_TIMEOUT_TICKS) {  // if no packet and no timeout, advance pos by velovity
     PIN(pos) = PIN(pos) + PIN(vel) * period;
   }
+  PIN(pos_v) = PIN(pos) + PIN(vel) * PIN(v_lead) * period;  // sincos_fast wraps
 
   // timeout counts the ticks since the packet: 0, 1, 2 are the ramp, a late
   // or missing packet lands on the target (also cleans up the float sum)
@@ -421,8 +413,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     state.pins.dc_volt   = PIN(dc_volt);
     state.pins.pwm_volt  = PIN(pwm_volt);
     state.pins.emf_val   = PIN(emf_val);
-    state.pins.obs_err   = PIN(obs_err);
-    state.pins.obs_vel   = PIN(obs_vel);
+    state.pins.unused0   = 0.0;
+    state.pins.unused1   = 0.0;
     state.pins.pwm_freq  = PWM_FREQ;
     state.pins.link_to   = PIN(timeout);
 
