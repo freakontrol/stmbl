@@ -187,8 +187,12 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       } else if(PIN(fail) == 2.0) {
         printf("<font color='red'>adv failed</font>: the speed never settled inside %i%% of %f rad/s\n", (int)(VEL_BAND * 100.0), PIN(test_vel));
       } else if(PIN(fail) == 4.0) {
-        printf("<font color='red'>adv failed</font>: it ran to %f s. ud at this speed is not\n", PIN(adv));
-        printf("an angle lag; raise idtune0.test_vel (%f rad/s) and rerun\n", PIN(test_vel));
+        if(PIN(adv) <= 0.0) {
+          printf("<font color='red'>adv failed</font>: the fit wants a negative advance (last move %f ms). ud at\n", PIN(adv_tau) * 1000.0);
+        } else {
+          printf("<font color='red'>adv failed</font>: it ran to the %f s limit. ud at\n", PIN(adv));
+        }
+        printf("this speed is not an angle lag; check conf0.lq and conf0.r, raise idtune0.test_vel (%f rad/s) and rerun\n", PIN(test_vel));
       } else {
         print_fit(ctx, pins);
         printf("<font color='red'>adv failed</font>: %i fits did not settle, last %f s,\n", ADV_PASSES, PIN(adv));
@@ -338,10 +342,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
             PIN(adv)     = CLAMP(PIN(adv) + tau, 0.0, ADV_MAX);
             ctx->sp      = 0;
             ctx->pass++;
-            if(PIN(adv) >= ADV_MAX || (PIN(adv) <= 0.0 && tau < 0.0)) {
-              PIN(fail) = 4.0;
-            } else if(ABS(tau) < ADV_TOL_FIT) {
+            // converged first: a fit that settles at the 0 floor is a result
+            if(ABS(tau) < ADV_TOL_FIT) {
               PIN(state) = 1.3;
+            } else if(PIN(adv) >= ADV_MAX || (PIN(adv) <= 0.0 && tau < 0.0)) {
+              PIN(fail) = 4.0;
             } else if(ctx->pass >= ADV_PASSES) {
               PIN(fail) = 3.0;
             }

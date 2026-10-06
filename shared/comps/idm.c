@@ -22,6 +22,7 @@ HAL_PIN(max_vel);
 HAL_PIN(max_acc);
 
 HAL_PIN(pos);
+HAL_PIN(pos_fb);      // pid0.pos_fb: the profile starts where the rotor is
 HAL_PIN(pos_cmd);
 HAL_PIN(vel_cmd);
 HAL_PIN(acc_cmd);
@@ -137,6 +138,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(acc_cmd) = 0.0;
       PIN(vel_cmd) = 0.0;
       PIN(amp)     = 0.0;
+      // follow the rotor while idle, so the profile starts without a step
+      PIN(pos)     = PIN(pos_fb);
+      PIN(pos_cmd) = mod(PIN(pos));
 
       if(PIN(en) > 0.0) {
         PIN(state)     = 1.0;
@@ -257,7 +261,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(friction) += period / PIN(fi) * PIN(fb_torque) * SIGN(PIN(vel_cmd) + PIN(vel_offset)) * period;
       PIN(offset) += period / PIN(li) * PIN(fb_torque) * period;
 
-      PIN(inertia)  = CLAMP(PIN(inertia), 0.000005, 50.0);
+      if(PIN(sys) > 0.0) {
+        PIN(inertia) = CLAMP(PIN(inertia), 0.0, 50.0);
+      } else {
+        PIN(inertia) = CLAMP(PIN(inertia), 0.000005, 50.0);
+      }
       PIN(damping)  = CLAMP(PIN(damping), 0.0, 100.0);
       PIN(friction) = CLAMP(PIN(friction), 0.0, 100.0);
       PIN(offset)   = CLAMP(PIN(offset), -100.0, 100.0);
