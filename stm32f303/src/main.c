@@ -295,14 +295,10 @@ int main(void) {
   hal_parse("load hv");
   hal_parse("load curpid");
   hal_parse("load emf");
-  hal_parse("load angle");
-  hal_parse("load obs");
 
   hal_parse("ls0.rt_prio = 0.6");
-  hal_parse("angle0.rt_prio = 0.7");
   hal_parse("io0.rt_prio = 1.0");
   hal_parse("dq0.rt_prio = 2.0");
-  hal_parse("obs0.rt_prio = 2.5");  // after dq0, before curpid0: last tick's voltage
   hal_parse("curpid0.rt_prio = 3.0");
   hal_parse("idq0.rt_prio = 4.0");
   hal_parse("hv0.rt_prio = 6.0");
@@ -318,10 +314,10 @@ int main(void) {
   hal_parse("io0.led = ls0.fault");
   hal_parse("curpid0.id_cmd = ls0.d_cmd");
   hal_parse("curpid0.iq_cmd = ls0.q_cmd");
-  hal_parse("idq0.pos = angle0.pos_v");  // the voltage angle, see ls.c v_lead
+  hal_parse("idq0.pos = ls0.pos_v");  // the voltage angle, see ls.c v_lead
   hal_parse("idq0.mode = ls0.phase_mode");
   hal_parse("idq0.ext_sc = 0");  // own sincos at pos_v; dq0 keeps the sample angle
-  hal_parse("dq0.pos = angle0.pos");
+  hal_parse("dq0.pos = ls0.pos");
   hal_parse("dq0.mode = ls0.phase_mode");
   hal_parse("io0.hv_en = ls0.en");
   hal_parse("io0.sbrake = ls0.sbrake");
@@ -362,7 +358,7 @@ int main(void) {
   hal_parse("curpid0.max_cur = ls0.max_cur");
   hal_parse("io0.max_cur = ls0.max_cur");
   hal_parse("curpid0.pwm_volt = ls0.pwm_volt");
-  hal_parse("curpid0.vel = angle0.vel");
+  hal_parse("curpid0.vel = ls0.vel");
   hal_parse("curpid0.en = ls0.en");
   hal_parse("curpid0.cmd_mode = ls0.cmd_mode");
   hal_parse("hv0.arr = ls0.arr");
@@ -381,7 +377,7 @@ int main(void) {
   hal_parse("emf0.u = io0.ur");
   hal_parse("emf0.v = io0.vr");
   hal_parse("emf0.w = io0.wr");
-  hal_parse("emf0.pos = angle0.pos");
+  hal_parse("emf0.pos = ls0.pos");
   hal_parse("emf0.si = dq0.si");
   hal_parse("emf0.co = dq0.co");
   hal_parse("emf0.en = ls0.en");
@@ -389,29 +385,6 @@ int main(void) {
   hal_parse("emf0.sel = ls0.emf_sel");
   hal_parse("emf0.pp = ls0.emf_pp");
   hal_parse("ls0.emf_val = emf0.val");
-
-  // flux observer. obs_mode 0: off, angle0 passes ls0.pos through. 1: shadow,
-  // ls0.obs_err = obs angle minus the frame. 2: commutate from obs0.
-  hal_parse("angle0.src = ls0.obs_src");
-  hal_parse("angle0.pos_fb = ls0.pos");
-  hal_parse("angle0.vel_fb = ls0.vel");
-  hal_parse("angle0.v_lead = ls0.v_lead");
-  hal_parse("angle0.pos_obs = obs0.pos_c");
-  hal_parse("angle0.vel_obs = obs0.vel");
-  hal_parse("obs0.en = ls0.obs_en");
-  hal_parse("obs0.r = ls0.r");
-  hal_parse("obs0.ld = ls0.l");
-  hal_parse("obs0.lq = ls0.lq");
-  hal_parse("obs0.bw = ls0.obs_bw");
-  hal_parse("obs0.max_vel = 10000");
-  hal_parse("obs0.id = dq0.d");
-  hal_parse("obs0.iq = dq0.q");
-  hal_parse("obs0.ud = curpid0.ud");
-  hal_parse("obs0.uq = curpid0.uq");
-  hal_parse("obs0.pos_ref = angle0.pos");
-  hal_parse("obs0.vel_ref = angle0.vel");
-  hal_parse("ls0.obs_err = obs0.pos_err");
-  hal_parse("ls0.obs_vel = obs0.vel");
 
   hal_parse("debug_level 0");
 

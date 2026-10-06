@@ -23,10 +23,6 @@
 *    `lock_time`. Back to 2 when obs drops ok or |obs0.vel_m| < w_hand - hyst,
 *    with f seeded from obs0.vel_m.
 *
-* `f3_mode` lets the f3's own observer (15 kHz, no packet delay) take the
-* commutation in state 3: hv0.obs_mode = sl_seq0.f3_mode. It runs free from
-* the start, so it is locked by the handover.
-*
 * `vel_ref` and `acc_ref` replace the command into pid: they follow f in I/f
 * and, from the handover, ramp from the observed speed to vel_cmd at `acc`,
 * so the handover is bumpless and pid gets acceleration feedforward.
@@ -86,7 +82,6 @@ HAL_PIN(d_cmd);       // *output*, to hv0.d_cmd
 HAL_PIN(q_cmd);       // *output*, to hv0.q_cmd
 HAL_PIN(vel_ref);     // *output*, speed command for pid [rad/s mech], to pid0.vel_ext_cmd
 HAL_PIN(acc_ref);     // *output*, its slope [rad/s^2], to pid0.acc_ext_cmd
-HAL_PIN(f3_mode);     // *output*, to hv0.obs_mode: f3 obs shadow while on, commutating in state 3
 HAL_PIN(vel_enc);     // *input*, encoder rotor speed [rad/s mech], for the guard
 HAL_PIN(enc_tol);     // *parameter*, allowed |speed - vel_enc| as a multiple of slip_max, 0 = no guard
 HAL_PIN(slip_max);    // *parameter*, slip limit [rad/s electrical], acim_flux0.slip_max
@@ -230,7 +225,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // state 3: from i_f to the drive's d, so an induction motor's d_in (id_n) is not added on top
   PIN(d_cmd)  = state == 3 ? PIN(d_in) + (PIN(i_f) - PIN(d_in)) * ctx->fade : (state > 0 ? PIN(i_f) : 0.0);
   PIN(q_cmd)  = state == 3 ? PIN(q_in) : 0.0;
-  PIN(f3_mode) = state == 3 ? 2.0 : (state > 0 ? 1.0 : 0.0);
 }
 
 hal_comp_t sl_seq_comp_struct = {
