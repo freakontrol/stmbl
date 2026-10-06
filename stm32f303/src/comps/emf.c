@@ -116,7 +116,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct emf_pin_ctx_t *pins = (struct emf_pin_ctx_t *)pin_ptr;
 
   // speed and whole electrical turns from the angle the f4 sends. It steps
-  // once per packet, every third tick; the filter smooths that out.
+  // once per packet, every PWM_TICKS_PER_PACKET ticks; the filter smooths
+  // that out.
   float raw     = PIN(pos) - ctx->last_pos;
   ctx->last_pos = PIN(pos);
   if(raw < -M_PI) {  // wrapped forwards

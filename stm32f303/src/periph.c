@@ -4,7 +4,7 @@
 // where LL has no helper.
 
 // Boot-time setup only, nothing here runs in the rt: size over speed, as the
-// inlined LL setters at the project's -O3 add ~1.5 KB of flash
+// inlined LL setters add flash at the project's -O2 (~1.5 KB at -O3)
 #pragma GCC optimize("Os")
 
 #include "periph.h"
@@ -52,8 +52,8 @@ void clock_init(void) {
   LL_RCC_LSI_Enable();
   while(!LL_RCC_LSI_IsReady()) {
   }
-  // f3_boot jumps here with SYSCLK on the PLL and the CubeF3 SystemInit no
-  // longer resets RCC. PLLON can't be cleared while the PLL is SYSCLK, so
+  // f3_boot jumps here with SYSCLK on the PLL and the CubeF3 SystemInit does
+  // not reset RCC. PLLON can't be cleared while the PLL is SYSCLK, so
   // move SYSCLK to HSI first or PLLRDY never drops.
   LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_HSI);
   while(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_HSI) {
@@ -167,7 +167,7 @@ void tim8_init(void) {
   LL_TIM_OC_SetCompareCH3(TIM8, 0);
 
   // dead time, BRK (COMP4, V) and BRK2 (COMP1 W, COMP2 U) active high, no
-  // automatic output. Filter 0xC: fDTS/16, N = 8, 0.89 us (0xF was 1.78 us).
+  // automatic output. Filter 0xC: fDTS/16, N = 8, 0.89 us (0xF: 1.78 us).
   // The IM06B50GC1 allows about 3 us from overcurrent to off, 1.43 us of it
   // inside the module after ITRIP. On X (C38 3.3 uF, sense caps) 0xC trips
   // 3-5 A earlier than 0xF at the same hv0.dac from switching ringing, so the

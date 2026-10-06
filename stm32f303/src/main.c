@@ -176,7 +176,7 @@ int main(void) {
   for(uint32_t *src = &_siccmram, *dst = &_sccmram; dst < &_eccmram;) {
     *dst++ = *src++;
   }
-  // and the rt code that no longer fits in CCM into SRAM
+  // and the rt code that does not fit in CCM into SRAM
   extern uint32_t _siramfunc, _sramfunc, _eramfunc;
   for(uint32_t *src = &_siramfunc, *dst = &_sramfunc; dst < &_eramfunc;) {
     *dst++ = *src++;

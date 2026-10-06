@@ -16,8 +16,8 @@ load angle
 link conf
 hv0.rt_prio = 10
 rev0.rt_prio = 4
-# after rev0: at 3 pid0.pos_ext_cmd read rev0.out a tick late while vel0's
-# feedforward was current, a pos_error of acc * 200 us / pos_bw
+# after rev0: before it, pid0.pos_ext_cmd would read rev0.out a tick late
+# while vel0's feedforward is current, a pos_error of acc * 200 us / pos_bw
 reslimit0.rt_prio = 4.5
 fb_switch0.rt_prio = 5
 vel0.rt_prio = 6

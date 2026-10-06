@@ -49,7 +49,7 @@ static int app_ok(void) {
 int main(void) {
   extern void *g_pfnVectors;
   SCB->VTOR = (uint32_t)&g_pfnVectors;
-  clock_init();  // the ROM bootloader and the app were always entered at 168 MHz
+  clock_init();  // the ROM bootloader and the app are entered at 168 MHz
 
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA | LL_AHB1_GRP1_PERIPH_CRC);
   // PA13 input with pull up

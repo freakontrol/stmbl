@@ -39,8 +39,8 @@
 extern void bridge_off(void);
 
 // A fault handler that returned would fault again at once, and TIM8_UP
-// (same priority) never runs, so the bridge kept the last compares until
-// the IWDG fired. Turn it off here, record the fault and wait for the
+// (same priority) never runs, so the bridge would keep the last compares
+// until the IWDG fires. Turn it off here, record the fault and wait for the
 // watchdog (the nrt no longer kicks it).
 static void fault_stop(uint32_t handler) {
   bridge_off();

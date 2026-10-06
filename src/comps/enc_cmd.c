@@ -136,10 +136,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // quad
   LL_TIM_DisableCounter(ctx->tim);
   // X4 on TI1/TI2, both direct, non-inverted, no prescaler, input_filter
-  // (0..15) as the IC1F/IC2F code. The StdPeriph setup had TI1 on "both
-  // edges", which RM0090 forbids in encoder mode, and its unshifted
-  // "prescaler 1" had turned CC1S into TRC; neither reached the counting
-  // path, so the count is the same.
+  // (0..15) as the IC1F/IC2F code.
   uint32_t filter = (uint32_t)MAX(MIN(PIN(input_filter), 15), 0) << (TIM_CCMR1_IC1F_Pos + 16U);  // the LL_TIM_IC_FILTER_* encoding
   LL_TIM_ENCODER_Init(ctx->tim, &(LL_TIM_ENCODER_InitTypeDef){
                                     .EncoderMode    = LL_TIM_ENCODERMODE_X4_TI12,

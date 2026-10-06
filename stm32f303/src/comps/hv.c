@@ -193,7 +193,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //what is left for the line to line voltage once both ends are reserved.
   //ls.c scales pwm_volt by it, so curpid's ceiling matches what this clamp
-  //will actually pass rather than a fixed 95%.
+  //will actually pass.
   PIN(duty_max) = (float)MAX(ctx->pwm_res - min_on - min_off, 0) * res_inv;
 
   // a phase spread wider than min_on/min_off leave room for cannot be
@@ -208,12 +208,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     w              = center + (int32_t)((float)(w - center) * k);
   }
 
-  // Common-mode shift by the deficit, not by the whole limit. A phase sitting
-  // 20 units inside min_on used to drag all three up by the full min_on (216
-  // units, 4.5% of the link): the line voltages survive a common-mode move,
-  // but the neutral jumped by that much every time a phase crossed the
-  // boundary, and with it the common-mode current through the motor's
-  // capacitance. Moving by just what the offending phase lacks puts it exactly
+  // Common-mode shift by the deficit, not by the whole limit. Shifting by the
+  // whole limit, a phase sitting 20 units inside min_on would drag all three
+  // up by the full min_on (216 units, 4.5% of the link): the line voltages
+  // survive a common-mode move, but the neutral would jump by that much every
+  // time a phase crossed the boundary, and with it the common-mode current
+  // through the motor's capacitance. Moving by just what the offending phase lacks puts it exactly
   // on the limit, and the spread scaling above guarantees the far phase still
   // clears the other end.
   //

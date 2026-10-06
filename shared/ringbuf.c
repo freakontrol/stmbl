@@ -51,7 +51,7 @@ int rb_write(struct ringbuf *rb, const void *data, int len) {
 }
 
 // Looks for the '\n' without taking anything, so the writer can keep filling
-// the free slots meanwhile; the old version took bytes and gave them back.
+// the free slots meanwhile.
 int rb_getline(struct ringbuf *rb, char *ptr, int len) {
   unsigned r     = rb->rd;
   unsigned avail = rb_len(rb);

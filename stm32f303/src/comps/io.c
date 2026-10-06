@@ -289,7 +289,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   LL_DMA_ClearFlag_TC1(DMA1);
   LL_DMA_ClearFlag_TC5(DMA2);
 
-  // ranks 1-3 of each pair are current samples, rank 4 the voltage (adc.c)
+  // ranks 1-3 of each pair are current samples, rank 4 the voltage (periph.c)
   uint32_t a12 = adc_12_buf[0] + adc_12_buf[1] + adc_12_buf[2];
   uint32_t a34 = adc_34_buf[0] + adc_34_buf[1] + adc_34_buf[2];
 
@@ -333,9 +333,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     // sits in the half after. So the sample is good only if the half after
     // outlasts the window and the half before outlasts the dead time.
     //
-    // Until 2026-09-15 min_off was 5 us against a 417 ns dead time, so the
-    // low side had 4.6 us at maximum duty. That day min_off went to 3 us
-    // (1e8c578) and the dead time to 2.0 us (c8ebe87), which leaves a phase
+    // The default min_off of 3 us against the 2.0 us dead time leaves a phase
     // at maximum duty with its low side on for 1 us inside the sample window
     // (ADC_CUR_WINDOW_TICKS), and while its current flows into the bridge the
     // shunt carries nothing during the dead time, so the phase reads low and the loop

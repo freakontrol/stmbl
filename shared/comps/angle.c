@@ -12,7 +12,7 @@
 * ## Sources (`src`)
 * - 0 feedback: `pos = pos_fb`, `vel = vel_fb`. A pure pass-through, used by
 *   the PMSM templates (pos_fb = vel2.pos_out or pmsm_ttc0.pos_out, vel_fb =
-*   vel2.vel), so it sends exactly what they linked to hv0 before.
+*   vel2.vel).
 * - 1 feedback plus slip: `pos = pos_m * polecount + integral of slip`,
 *   `vel = vel_m * polecount + slip`. Indirect field orientation for an
 *   induction motor on an encoder: pos_m is the mechanical rotor angle,

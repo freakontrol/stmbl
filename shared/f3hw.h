@@ -43,7 +43,7 @@ _Static_assert(PWM_FREQ >= 10000 && PWM_FREQ <= 20000, "PWM_FREQ out of the 10 t
 _Static_assert(PWM_RES * 11 / 10 < 65536, "hv0 ARR clamp overflows TIM8");
 
 // ADC regular sequence per ADC pair: ADC_CUR_SAMPLES current samples, then
-// one slow voltage (adc.c)
+// one slow voltage (periph.c)
 #define ADC_CUR_SAMPLES 3
 #define ADC_SEQ_LEN (ADC_CUR_SAMPLES + 1)
 
