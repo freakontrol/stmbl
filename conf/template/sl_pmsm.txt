@@ -1,9 +1,11 @@
 # PMSM without the encoder in the loop: link pid, link pmsm, link sl_pmsm.
 # The encoder stays for fb_ready and for obs0.chk_err (observer vs encoder).
-# Set in the config: sl_seq0.i_f, sl_seq0.w_hand, sl_seq0.acc, obs0.bw.
+# Set in the config: sl_seq0.i_f, sl_seq0.acc, obs0.bw. w_hand 0 = where
+# the emf is 5 * obs0.e_min (from conf0.psi), hyst w_hand / 3.
 # Optional, f3 commutates from its own observer once handed over:
 # hv0.obs_mode = sl_seq0.f3_mode
 link sensorless
+sl_seq0.psi = conf0.psi
 sl_seq0.d_in = fb_switch0.id
 sl_seq0.q_in = pmsm_ttc0.cur
 obs0.slip = 0

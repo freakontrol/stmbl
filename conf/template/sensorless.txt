@@ -20,6 +20,7 @@ sl_seq0.vel_cmd = vel0.vel
 sl_seq0.polecount = conf0.polecount
 sl_seq0.obs_ok = obs0.ok
 sl_seq0.obs_vel = obs0.vel_m
+sl_seq0.e_min = obs0.e_min
 pid0.en = sl_seq0.pid_en
 pid0.pos_en = 0
 pid0.vel_fb = obs0.vel_m

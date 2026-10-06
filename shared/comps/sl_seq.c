@@ -44,6 +44,16 @@
 * slip model's error, a check on acim_flux0.tr without the MRAS. enc_tol 0
 * = off.
 *
+* Defaults from the motor (each 0 = derived, a value set in the config wins):
+* - `align_time` 0 = 3 * `tr` (acim_flux0.tr: the flux has built), 0.3 s
+*   without tr (PMSM: the rotor has turned onto d).
+* - `w_hand` 0 = the speed where the emf is 5 * `e_min` (obs0.e_min, the
+*   observer's own trust level): 5 * e_min / (polecount * flux), flux =
+*   `psi` (conf0.psi, PMSM) or `lmr` * i_f (acim_flux0.lmr, induction
+*   motor after align). 50 rad/s without either.
+* - `hyst` 0 = w_hand / 3.
+* `align` and `hand` show the values in use.
+*
 * Speeds are mechanical rad/s. `vel_e` is f * polecount for angle0.vel_cmd,
 * `src` goes to angle0.src.
 */
@@ -54,10 +64,10 @@ HAL_PIN(en);          // *input*, fault0.en_pid
 HAL_PIN(vel_cmd);     // *input*, speed command [rad/s mech], vel0.vel
 HAL_PIN(polecount);   // *parameter*, pole pairs
 HAL_PIN(i_f);         // *parameter*, align and I/f current on d [A peak]
-HAL_PIN(align_time);  // *parameter*, [s]
+HAL_PIN(align_time);  // *parameter*, [s], 0 = 3 * tr
 HAL_PIN(acc);         // *parameter*, I/f acceleration [rad/s^2 mech]
-HAL_PIN(w_hand);      // *parameter*, handover speed [rad/s mech]
-HAL_PIN(hyst);        // *parameter*, fall back below w_hand - hyst [rad/s mech]
+HAL_PIN(w_hand);      // *parameter*, handover speed [rad/s mech], 0 = from e_min and the flux
+HAL_PIN(hyst);        // *parameter*, fall back below w_hand - hyst [rad/s mech], 0 = w_hand / 3
 HAL_PIN(lock_time);   // *parameter*, obs free running before handover [s]
 HAL_PIN(fade_time);   // *parameter*, i_f fades out over this after the handover [s]
 
@@ -83,6 +93,12 @@ HAL_PIN(slip_max);    // *parameter*, slip limit [rad/s electrical], acim_flux0.
 HAL_PIN(enc_time);    // *parameter*, observer error longer than this falls back [s]
 HAL_PIN(enc_err);     // *output*, 1 = observer disagreed with the encoder, held until en 0
 HAL_PIN(slip_err);    // *output*, obs0.vel_m - vel_enc in state 3, 1 Hz low pass [rad/s mech]
+HAL_PIN(tr);          // *input*, rotor time constant [s], acim_flux0.tr, for align_time 0
+HAL_PIN(psi);         // *input*, magnet flux [V s], conf0.psi, for w_hand 0 (PMSM)
+HAL_PIN(lmr);         // *input*, magnetizing inductance [H], acim_flux0.lmr, for w_hand 0 (induction motor)
+HAL_PIN(e_min);       // *input*, obs0.e_min [V], for w_hand 0
+HAL_PIN(align);       // *output*, align time in use [s]
+HAL_PIN(hand);        // *output*, handover speed in use [rad/s mech]
 
 struct sl_seq_ctx_t {
   float time;
@@ -97,10 +113,11 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(polecount)  = 4.0;
   PIN(i_f)        = 3.0;
-  PIN(align_time) = 0.3;
+  PIN(align_time) = 0.0;
   PIN(acc)        = 100.0;
-  PIN(w_hand)     = 50.0;
-  PIN(hyst)       = 10.0;
+  PIN(w_hand)     = 0.0;
+  PIN(hyst)       = 0.0;
+  PIN(e_min)      = 3.0;
   PIN(lock_time)  = 0.1;
   PIN(fade_time)  = 0.1;
   PIN(enc_time)   = 0.05;
@@ -114,7 +131,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   int state    = (int)PIN(state);
   float f      = PIN(f);
-  float w_hand = MAX(PIN(w_hand), 1.0);
+  float pp     = MAX(PIN(polecount), 1.0);
+  float flux   = PIN(psi) > 0.0 ? PIN(psi) : MAX(PIN(lmr), 0.0) * ABS(PIN(i_f));
+  float w_hand = PIN(w_hand) > 0.0 ? PIN(w_hand) : (flux > 0.0 ? 5.0 * MAX(PIN(e_min), 0.1) / (pp * flux) : 50.0);
+  w_hand       = MAX(w_hand, 1.0);
+  float hyst   = PIN(hyst) > 0.0 ? PIN(hyst) : w_hand / 3.0;
+  float align  = PIN(align_time) > 0.0 ? PIN(align_time) : (PIN(tr) > 0.0 ? 3.0 * PIN(tr) : 0.3);
+  PIN(align)   = align;
+  PIN(hand)    = w_hand;
   float ov     = PIN(obs_vel);
   float tol    = PIN(enc_tol) > 0.0 ? PIN(enc_tol) * MAX(PIN(slip_max), 1.0) / MAX(PIN(polecount), 1.0) : 0.0;
   float ve     = PIN(vel_enc);
@@ -140,7 +164,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     case 1:
       f = 0.0;
       ctx->time += period;
-      if(ctx->time >= PIN(align_time)) {
+      if(ctx->time >= align) {
         state          = 2;
         ctx->free_time = 0.0;
       }
@@ -156,7 +180,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       } else {
         ctx->free_time = 0.0;
       }
-      if(PIN(obs_ok) > 0.0 && ABS(f) >= w_hand && ABS(ov) >= w_hand - PIN(hyst) &&
+      if(PIN(obs_ok) > 0.0 && ABS(f) >= w_hand && ABS(ov) >= w_hand - hyst &&
          ctx->free_time >= PIN(lock_time)) {
         state     = 3;
         ctx->fade = 1.0;
@@ -178,7 +202,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         ctx->free_time = 0.0;
         ctx->enc_time  = 0.0;
         PIN(enc_err)   = 1.0;
-      } else if(PIN(obs_ok) <= 0.0 || ABS(ov) < w_hand - MAX(PIN(hyst), 0.0)) {
+      } else if(PIN(obs_ok) <= 0.0 || ABS(ov) < w_hand - hyst) {
         state          = 2;
         ctx->free_time = 0.0;
       }
