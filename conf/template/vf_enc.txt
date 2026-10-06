@@ -1,0 +1,34 @@
+# induction motor, V/f with encoder slip control (vf0.enc 1): the field
+# runs at the rotor speed plus a slip from a speed PI, so the speed
+# holds to the encoder and the rotor cannot pull out. link vf_enc
+# instead of vf, then the feedback template (e.g. link fanuc_fb0) and
+# the motor's values. speed: vf0.vel_cmd [rad/s mech]. Set in the config
+# as for vf: vf0.u_n, vel_n, slip_n, cur_n, i_stall. vf0.slip_max 0 = 2
+# * slip_n; the defaults enc_kp 0.25, enc_ki 5 are tuned on the spindle.
+# The encoder sign must match the field: check vel0.vel against vf0.vel
+# with vf0.enc 0 before the first run (conf0.mot_fb_rev).
+link vf
+load fb_switch
+load vel
+fb_switch0.rt_prio = 5
+vel0.rt_prio = 6
+fb_switch0.mot_rev = conf0.mot_fb_rev
+fb_switch0.com_rev = conf0.com_fb_rev
+fb_switch0.joint_rev = conf0.joint_fb_rev
+fb_switch0.polecount = conf0.polecount
+fb_switch0.en = fault0.en_fb
+fb_switch0.mot_polecount = conf0.mot_fb_polecount
+fb_switch0.com_polecount = conf0.com_fb_polecount
+fb_switch0.mot_offset = conf0.mot_fb_offset
+fb_switch0.joint_offset = conf0.joint_fb_offset
+fb_switch0.com_offset = conf0.com_fb_offset
+fb_switch0.phase_time = conf0.phase_time
+fb_switch0.phase_cur = conf0.phase_cur
+vel0.j = conf0.j
+vel0.pos_in = fb_switch0.vel_fb
+vel0.en = fault0.en_fb
+vel0.torque = vf0.torque
+fault0.fb_ready = fb_switch0.state
+fault0.vel_fb = vel0.vel
+vf0.vel_fb = vel0.vel
+vf0.enc = 1
