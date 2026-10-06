@@ -45,7 +45,7 @@
 
 #define ABS_MAX_TEMP 110.0
 #define ABS_MAX_VOLT 400.0
-#define ABS_MAX_CURRENT 30.0
+#define ABS_MAX_CURRENT 35.0  // shunt measurement range (3 mOhm, +-35 A), not a module rating
 
 //io board
 //#define USB_CONNECT_PIN GPIO_PIN_15
