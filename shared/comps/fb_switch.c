@@ -24,6 +24,7 @@ HAL_PIN(mot_abs_pos);
 HAL_PIN(mot_polecount);
 HAL_PIN(mot_offset);
 HAL_PIN(mot_state);  // 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
+HAL_PIN(mot_state_fb);  // mot_state out: links to an input read 0, link here instead
 HAL_PIN(mot_rev);
 HAL_PIN(mot_fb_no_offset);
 HAL_PIN(mot_abs_fb_no_offset);
@@ -119,6 +120,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(com_fb_no_offset)     = com_pos;
   PIN(mot_fb_no_offset)     = mot_pos;
   PIN(mot_abs_fb_no_offset) = mot_abs_pos;
+  PIN(mot_state_fb)         = PIN(mot_state);
   PIN(joint_fb_no_offset)   = joint_pos;
 
   PIN(id) = 0.0;
