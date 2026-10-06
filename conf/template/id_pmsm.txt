@@ -4,7 +4,7 @@ idpmsm0.rt_prio = 4
 
 idpmsm0.en = fault0.en_out
 fault0.pos_error = 0
-fault0.sat_error = 0
+fault0.sat = 0
 pid0.en = 0
 hv0.en = idpmsm0.en_out
 hv0.cur_bw = idpmsm0.cur_bw
@@ -24,6 +24,4 @@ idpmsm0.iq_fb = hv0.iq_fb
 idpmsm0.pwm_volt = hv0.pwm_volt
 
 idpmsm0.pos_fb = fb_switch0.mot_abs_fb_no_offset
-idpmsm0.vel_fb = vel1.vel
-
 idpmsm0.vel_fb = vel1.vel
