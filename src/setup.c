@@ -54,7 +54,7 @@ static const uint32_t adc_reg_rank[16] = {
     LL_ADC_REG_RANK_9, LL_ADC_REG_RANK_10, LL_ADC_REG_RANK_11, LL_ADC_REG_RANK_12,
     LL_ADC_REG_RANK_13, LL_ADC_REG_RANK_14, LL_ADC_REG_RANK_15, LL_ADC_REG_RANK_16};
 
-// rank is 1 based, like the old ADC_RegularChannelConfig()
+// rank is 1 based
 static void adc_regular_channel_config(ADC_TypeDef *adc, uint32_t chan, int rank, uint32_t sample_time) {
   LL_ADC_REG_SetSequencerRanks(adc, adc_reg_rank[rank - 1], chan);
   LL_ADC_SetChannelSamplingTime(adc, chan, sample_time);

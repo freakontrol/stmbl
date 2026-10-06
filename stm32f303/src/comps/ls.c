@@ -18,7 +18,7 @@ HAL_PIN(q_cmd);
 // The f4 sends d/q every PWM_TICKS_PER_PACKET ticks (3 at 15 kHz); stepped straight in, the command carries
 // a 5 kHz staircase into the current loop. ramp = 1 spreads each step over
 // the LS_RAMP_TICKS ticks to the next packet, a linear ramp that lags the
-// step by half an f4 period. 0 = step as before.
+// step by half an f4 period. 0 = step.
 HAL_PIN(ramp);
 #define LS_RAMP_TICKS PWM_TICKS_PER_PACKET
 // link loss after two missed packets (0.4 ms): 5 ticks at 15 kHz
@@ -35,8 +35,8 @@ HAL_PIN(vel);
 // compares are preloaded, so it is applied over the next period, 1.5
 // periods after the current sample that dq0 transforms at pos. idq0 and
 // hv0's dead-time reference use it; hv0.adv on the f4 is then the encoder
-// to sample latency alone. v_lead in periods, default 1.5, 0 = old
-// behaviour (one angle for both).
+// to sample latency alone. v_lead in periods, default 1.5, 0 = one
+// angle for both.
 HAL_PIN(pos_v);
 HAL_PIN(conf_ok);  // every config word received once since boot
 HAL_PIN(v_lead);
@@ -357,8 +357,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     // Re-arm rx now rather than on the idle flag. At 10 and 20 kHz this tick
     // can come less than the 16 bit idle time (5.3 us) after the last byte;
-    // waiting for the flag then left dma_pos at 32 for the next tick, which
-    // took the packet a second time and started the reply early enough to
+    // waiting for the flag would leave dma_pos at 32 for the next tick, which
+    // would take the packet a second time and start the reply early enough to
     // run into the f4's next rx re-arm.
     rearm        = 1;
     ctx->rx_done = 1;
@@ -481,9 +481,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   // The ceiling curpid may ask for. hv.c reserves min_on at one end of the
   // period and min_off at the other, so the usable link is duty_max of it (0.91
-  // at the 3 us defaults, where the old fixed 0.95 promised 4% more than the
-  // clamp would pass, and the loop wound up against the clamp instead of its
-  // own limit). Falls back to 0.95 when the pin is not wired.
+  // at the 3 us defaults; a fixed 0.95 would promise 4% more than the clamp
+  // passes, and the loop would wind up against the clamp instead of its own
+  // limit). Falls back to 0.95 when the pin is not wired.
   float duty = PIN(duty_max) > 0.0 ? PIN(duty_max) : 0.95;
 
   // TODO: sin = 0.5

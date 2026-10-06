@@ -214,8 +214,8 @@ struct idacim_ctx_t {
   float s_tv;                      // ramp window: air gap power / field speed, summed [Nm / (1.5 pp)]
   float v_a, t_a, v_b, t_b;        // the ramp window's first and last speed and time
   float j_slip[2], j_alpha[2];                      // up and down ramps: mean slip [rad/s el], acceleration [rad/s^2 mech]
-  float j_tv[2];
-  float sw_x[SW_N];     // flux sweep: slip x tr per level                                    // up and down ramps: mean air gap torque / (1.5 pp) from the stator voltages
+  float j_tv[2];                   // up and down ramps: mean air gap torque / (1.5 pp) from the stator voltages
+  float sw_x[SW_N];     // flux sweep: slip x tr per level
 };
 
 #define SW_MEASURE 0.5     // rotating test: averaging window per level [s]
@@ -825,7 +825,7 @@ static void rot_report(struct idacim_ctx_t *ctx, struct idacim_pin_ctx_t *pins) 
   int knee_ok = PIN(rot_enc) > 0.0 && fa > 0.0 && sat <= KNEE_SAT_MAX && dip <= 0.5 && ABS(fa - lmr) < 0.05 * lmr;
   float sat_f = sat, dip_f = dip, fa_f = fa;
   if(!knee_ok) {
-    // as before: a straight line through the lowest point at or over 0.4
+    // fallback: a straight line through the lowest point at or over 0.4
     // id_n (lower ones sit in the dip), no knee
     int j0 = 0;
     while(j0 < n - 1 && PINA(sw_i, j0) < 0.4 * id_n) {
@@ -1276,12 +1276,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       break;
 
     case 13: {  // leakage l, by injection at two frequencies
-      // The time constant test that was here read l = tau * r. On an induction
+      // A time constant test (l = tau * r) does not work here: on an induction
       // motor a voltage step's current has two poles, about 2 ms and 100-250 ms,
       // and the area method returns the slow one's Ls / r: the full stator
-      // inductance, some twenty times the leakage the current loop wants,
-      // printed as a conf0.l to append. So inject instead, as idpmsm does, but
-      // on d only (a cage rotor is round) and at two frequencies:
+      // inductance, some twenty times the leakage the current loop wants. So
+      // inject instead, as idpmsm does, but on d only (a cage rotor is round)
+      // and at two frequencies:
       //
       //   |Z|^2 = R^2 + w^2 l^2   at both  =>  l^2 = (|Zb|^2 - |Za|^2) / (wb^2 - wa^2)
       //
@@ -1450,8 +1450,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       // the end of the edge.
       //
       // c is this edge's own, fitted with them (rot_nrt). Taken from an
-      // earlier visit to the level, as it once was, one bad sample or a cage
-      // warming between visits put an error in c that grows as t in lam and
+      // earlier visit to the level, one bad sample or a cage warming between
+      // visits put an error in c that grows as t in lam and
       // t^2 in its integral, and edges spread 100-300% on the spindle (2 Oct);
       // read off the edge's last quarter, a few mV of it still spread them
       // 30% (5 Oct). The integration takes out c0, the previous edge's offset

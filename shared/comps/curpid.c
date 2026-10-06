@@ -112,9 +112,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(PIN(cmd_mode) == VOLT_MODE) {
     // Two limits, the lower one wins. The voltage one is a plain clamp of
     // the command. The current one integrates the feedback's overshoot in per
-    // unit, so kci [1/s] means the same on a 2 A and a 27 A motor: it used to
-    // integrate A^2, which on a spindle swung the voltage between 0 and full
-    // every tick, and it undid the voltage clamp whenever current was low.
+    // unit, so kci [1/s] means the same on a 2 A and a 27 A motor (an
+    // integral in A^2 swings the voltage between 0 and full every tick on a
+    // spindle).
     absvolt          = idc * idc + iqc * iqc;  // clamp cmd
     float volt_scale = sqrtf(CLAMP(max_volt * max_volt / MAX(absvolt, max_volt * max_volt * 0.01), 0.0, 1.0));
 
@@ -162,10 +162,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   uq += ctx->iq_error_sum;
 
   // One voltage vector, limited as a vector with d first: per-axis clamps
-  // let |u| reach sqrt(2) pwm_volt, which hv0 then scaled down in the phase
-  // domain behind the loop's back (the predictor, the integrators and
-  // ud_fb/uq_fb all saw the unlimited vector). d keeps what it needs for
-  // the flux, q gets the rest of the circle. Back-calculation: an integrator
+  // would let |u| reach sqrt(2) pwm_volt, which hv0 would then scale down in
+  // the phase domain behind the loop's back (the predictor, the integrators
+  // and ud_fb/uq_fb would all see the unlimited vector). d keeps what it
+  // needs for the flux, q gets the rest of the circle. Back-calculation: an integrator
   // takes whatever the limit cut from its axis, so it holds at the limit
   // instead of winding up.
   float ud_lim = LIMIT(ud, max_volt);

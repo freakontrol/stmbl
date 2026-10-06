@@ -26,7 +26,7 @@
 
 // Flash sector erase and byte program on registers (RM0090 3.6; LL has no
 // flash API on F4). 2.7-3.6 V supply, so erase runs at PSIZE x32. The CPU
-// stalls on flash reads while an operation runs, as it did with HAL.
+// stalls on flash reads while an operation runs.
 #define FLASH_TIMEOUT_MS 50000U  // as HAL's FLASH_TIMEOUT_VALUE
 #define FLASH_ERR_FLAGS (FLASH_SR_OPERR | FLASH_SR_WRPERR | FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR)
 

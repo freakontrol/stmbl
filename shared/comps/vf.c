@@ -95,11 +95,11 @@ HAL_PIN(ud);         // *input*, hv0.ud_fb
 HAL_PIN(uq);         // *input*, hv0.uq_fb
 HAL_PIN(dc_volt);    // *input*, hv0.dc_volt
 HAL_PIN(pwm_volt);   // *input*, hv0.pwm_volt [V peak], 0 = no voltage cap
-HAL_PIN(duty);
+HAL_PIN(duty);       // *parameter*, voltage cap as a fraction of pwm_volt
 HAL_PIN(enc);        // *parameter*, 1 = slip frequency control on vel_fb, 0 = open loop
 HAL_PIN(enc_kp);     // *parameter*, slip per speed error [1]
 HAL_PIN(enc_ki);     // *parameter*, slip integral gain [1/s]
-HAL_PIN(slip_max);   // *parameter*, slip clamp [rad/s mech], 0 = 2 * slip_n       // *parameter*, voltage cap as a fraction of pwm_volt
+HAL_PIN(slip_max);   // *parameter*, slip clamp [rad/s mech], 0 = 2 * slip_n
 
 HAL_PIN(vel);        // *output*, stator frequency, less slip [rad/s mech]
 HAL_PIN(vel_e);      // *output*, synchronous electrical speed [rad/s], to angle0.vel_cmd

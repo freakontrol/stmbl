@@ -10,7 +10,7 @@
 #include "common.h"
 
 // TIM9 is on APB2 (84 MHz, prescaler 2), so it counts at 2 x 84 MHz
-// (RM0090 6.2, Figure 21 note 2); it was assumed to be 186 MHz
+// (RM0090 6.2, Figure 21 note 2)
 #define TIM9_CLK 168000000
 
 HAL_COMP(io);

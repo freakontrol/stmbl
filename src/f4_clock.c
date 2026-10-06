@@ -1,7 +1,6 @@
-// F4 clock setup on LL, shared by the app and the bootloader. Replaces the
-// StdPeriph era system_stm32f4xx.c: SystemInit() only resets the clock tree
-// (the app is entered from the bootloader with the PLL already running),
-// clock_init() brings it to 168 MHz.
+// F4 clock setup on LL, shared by the app and the bootloader. SystemInit()
+// only resets the clock tree (the app is entered from the bootloader with the
+// PLL already running), clock_init() brings it to 168 MHz.
 
 #include "stm32f4xx_conf.h"
 #include "f4_clock.h"
@@ -37,7 +36,7 @@ void SystemInit(void) {
 // HSE 8 MHz * 336 / 8 / 2 = 168 MHz SYSCLK/HCLK, APB1 42 MHz, APB2 84 MHz,
 // 48 MHz for USB from PLLQ, flash at 5 wait states with prefetch and both
 // caches, regulator scale 1. If the HSE does not start the core stays on
-// the 16 MHz HSI, as before (every baud rate and timer then runs slow).
+// the 16 MHz HSI (every baud rate and timer then runs slow).
 void clock_init(void) {
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
   LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);

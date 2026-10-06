@@ -94,9 +94,8 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // quad
   LL_TIM_DisableCounter(FB0_ENC_TIM);
   // X4 on TI1/TI2, B inverted. Input filter on A and B: fCK_INT with N = 8,
-  // about 95 ns at 84 MHz (RM0090 18.4.7). The old TIM_ICInit ran before the
-  // TIM4 clock was on, so its 0xF (fDTS/32, N = 8: 3 us, which would cap the
-  // line rate near 160 kHz) never landed, and it only addressed channel 2.
+  // about 95 ns at 84 MHz (RM0090 18.4.7). Not 0xF (fDTS/32, N = 8: 3 us),
+  // which would cap the line rate near 160 kHz.
   LL_TIM_ENCODER_Init(FB0_ENC_TIM, &(LL_TIM_ENCODER_InitTypeDef){
                                        .EncoderMode    = LL_TIM_ENCODERMODE_X4_TI12,
                                        .IC1Polarity    = LL_TIM_IC_POLARITY_RISING,

@@ -1,7 +1,7 @@
 #ifndef __STM32F4xx_CONF_H
 #define __STM32F4xx_CONF_H
 
-// STM32CubeF4 LL drivers (replaces the Standard Peripheral Library)
+// STM32CubeF4 LL drivers
 #include "stm32f4xx.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_system.h"

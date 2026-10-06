@@ -12,13 +12,13 @@
  * The comparators see the raw shunt node (2.9 mV/A, about 3.6 counts/A in
  * theory); the measured slope and offset depend on the TIM8 break filter,
  * because the shorter filters trip on switching ringing on top of the
- * current. Measured with filter 0xC (the main_rework default), highest trip of the
+ * current. Measured with filter 0xC (the default, periph.c), highest trip of the
  * 60/180/300 deg angles:
  *
  *   X, IKCM30F60GD, 1 Oct 2026     dac0 115, k 6.7   (dac 215..255, 15..21 A)
  *   spindle, IM06B50GC1, 6 Oct     dac0 128, k 6.48  (dac 200..340, 11.3..32.3 A
  *                                  measured id, 0.12 s d pulses)
- *   Y, IKCM30F60GD, filter 0xF     dac0 140, k 3.5   (old filter only)
+ *   Y, IKCM30F60GD, filter 0xF     dac0 140, k 3.5   (filter 0xF only)
  *
  * The defaults are X's. Fit dac0 and k per board from a few trips (id_dac
  * finds the dac for one current directly) and save them in the config.

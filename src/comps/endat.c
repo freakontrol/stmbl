@@ -243,8 +243,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   // RM0090 28.3.8, master bidirectional receive: the clock runs as long as
   // SPE is set, so after RXNE n-1 wait one SPI clock and clear SPE; the last
-  // byte then completes and no further one is clocked. It used to run on
-  // until the end of this function, clocking the encoder and leaving a stale
+  // byte then completes and no further one is clocked. Left running to the
+  // end of this function, it would clock the encoder on and leave a stale
   // byte and OVR for the next frame.
   df.data   = 0;
   int nbytes = MIN(sizeof(df.data), PIN(bytes));

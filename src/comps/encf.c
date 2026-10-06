@@ -242,8 +242,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(dma)       = count;
 
   // TIM4 counts at 84 MHz (APB1 42 MHz x2): 1 bit = 82.03 ticks at 1.024 Mbit/s.
-  // 82 MHz here put the default freq 1.2% from the CRC-clean edge (bench
-  // sweep on X: clean for freq 962k-1036k, centre ~999k).
+  // 82 MHz here would put the default freq 1.2% from the CRC-clean edge
+  // (bench sweep on X: clean for freq 962k-1036k, centre ~999k).
   PIN(bit_ticks)      = 84000000 / PIN(freq);
   const float per_bit = 1.0 / PIN(bit_ticks);
 
@@ -275,7 +275,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
   if(bits_sum > 50) {
     //check crc, MSB first: http://freeby.mesanet.com/fabsread.pas
-    //bit k of crc is the old crc[k]; feedback taps are bits 0, 2 and 4.
+    //bit k of crc is shift register stage k; feedback taps are bits 0, 2 and 4.
     //Four bits per step: bits 76..65, then 64..33 and 32..1 as words.
     uint32_t crc = 0;
     for(int j = 9; j >= 1; j -= 4) {

@@ -88,10 +88,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // of turns that puts fb_in + rev nearest the source's position abs_rev +
   // abs_pos, so fb_in may lag the source by a tick or two (in the sserial
   // template it comes through fb_switch and idx_home, which run after
-  // linrev). Taken every tick instead, rev flipped by a turn while fb_in
-  // and abs_pos differed by about half a turn (abs_pos = encf0.pos with
+  // linrev). Taken every tick instead, rev would flip by a turn while fb_in
+  // and abs_pos differ by about half a turn (abs_pos = encf0.pos with
   // pos_offset near 32768 against fb_in = encf0.abs_pos after index
-  // homing), and with abs_neg it was wrong outright. abs_rev must step
+  // homing), and with abs_neg it would be wrong outright. abs_rev must step
   // where abs_pos wraps at +-pi (encf does). Link abs_state: left at its
   // default 3, the take happens on the first tick, before the source may
   // have a valid count. rev_clear (index homing) zeroes rev for good.
