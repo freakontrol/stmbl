@@ -4,7 +4,7 @@
 # the emf is 5 * obs0.e_min (from conf0.psi), hyst w_hand / 3.
 link sensorless
 sl_seq0.psi = conf0.psi
-sl_seq0.d_in = fb_switch0.id
+sl_seq0.d_in = pmsm_ttc0.id
 sl_seq0.q_in = pmsm_ttc0.cur
 obs0.slip = 0
 obs0.pos_chk = pmsm_ttc0.pos_out
