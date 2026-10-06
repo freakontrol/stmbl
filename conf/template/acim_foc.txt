@@ -3,6 +3,13 @@
 # acim_flux0.tr, acim_flux0.lmr (idacim), acim_foc0.id_n,
 # conf0.l = sigma*Ls (leakage), conf0.lq 0, conf0.psi 0.
 # field weakening: acim_fw0.duty = hv0.duty (optional)
+# optional, all off by default; values that fit any motor:
+# acim_foc0.k_boost 2, acim_foc0.boost_max 0.3 (flux boost)
+# acim_flux0.tr_flux_min 0.95, tr_acc_max 0.3 (tr MRAS gates;
+# tr_ki is per motor, spindle 1e-4; tr_iq_min about 0.03 x id_n
+# to adapt at no load)
+# acim_flux0.lmr_sat from idacim; i_knee, tr_sat from a tr map
+# acim_flux0.lmr_ki 0.5: lmr trim, for checking lmr_sat
 load acim_fw
 load acim_flux
 load acim_foc
@@ -12,16 +19,26 @@ acim_foc0.rt_prio = 8.7
 acim_fw0.en = fault0.en_out
 acim_fw0.vel = angle0.vel
 acim_fw0.polecount = conf0.polecount
+acim_fw0.pwm_volt = hv0.pwm_volt
+acim_fw0.id_n = acim_foc0.id_n
+# acim_fw0.ls = conf0.l + lmr (stator inductance); 0 = no feedforward
 acim_flux0.en = fault0.en_out
 acim_flux0.id = hv0.id_fb
 acim_flux0.iq = hv0.iq_fb
 acim_flux0.polecount = conf0.polecount
+acim_flux0.ud = hv0.ud_fb
+acim_flux0.uq = hv0.uq_fb
+acim_flux0.vel = angle0.vel
+acim_flux0.l = conf0.l
+acim_flux0.r = conf0.r
+acim_flux0.max_acc = conf0.max_acc
 acim_foc0.en = fault0.en_out
 acim_foc0.torque = pid0.torque_cmd
 acim_foc0.scale = acim_fw0.scale
 acim_foc0.t_lim = acim_fw0.t_lim
 acim_foc0.i_mr = acim_flux0.i_mr
-acim_foc0.lmr = acim_flux0.lmr
+acim_foc0.lmr = acim_flux0.lmr_act
+acim_flux0.i_n = acim_foc0.id_n
 acim_foc0.max_cur = conf0.max_ac_cur
 acim_foc0.polecount = conf0.polecount
 pid0.max_torque = acim_foc0.t_max
@@ -29,6 +46,7 @@ pid0.neg_min_torque = acim_foc0.t_max
 pid0.max_vel = conf0.max_vel
 angle0.src = 1
 angle0.polecount = conf0.polecount
+angle0.pos_m = fb_switch0.vel_fb
 angle0.vel_m = vel1.vel
 angle0.slip = acim_flux0.slip
 hv0.d_cmd = acim_foc0.d_cmd
