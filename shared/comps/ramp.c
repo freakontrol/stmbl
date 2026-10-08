@@ -48,13 +48,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float vel_error = vel_ext_cmd - PIN(vel_cmd);
   float abs_vel_error = ABS(vel_ext_cmd) - ABS(PIN(vel_cmd));
   float max_acc   = PIN(max_acc) * PIN(scale);
-  float max_dec   = PIN(max_dec) * PIN(scale);
+  float max_dec   = (PIN(max_dec) > 0.0 ? PIN(max_dec) : PIN(max_acc)) * PIN(scale);
 
   if(PIN(en_timer) >= PIN(en_delay) * 0.9) {
     PIN(vel_cmd) += LIMIT(vel_error, (abs_vel_error > 0.f ? max_acc : max_dec) * period);
   }
 
-  if(ABS(vel_ext_cmd - PIN(vel_cmd)) < PIN(max_vel) * PIN(at_speed_th) && PIN(vel_cmd) > 0.01) {
+  if(ABS(vel_ext_cmd - PIN(vel_cmd)) < PIN(max_vel) * PIN(at_speed_th) && ABS(PIN(vel_cmd)) > 0.01) {
     PIN(at_speed) = 1;
   } else {
     PIN(at_speed) = 0;

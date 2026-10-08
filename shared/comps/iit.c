@@ -43,6 +43,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   float cur_n = PIN(max_cur) / MAX(PIN(cur_boost), 1.0);
   float max_e = PIN(max_cur) * PIN(max_cur) * MAX(PIN(max_time), 0.1);
+  if(max_e <= 0.0) {  // max_cur 0: no model, keep temp a number so limits still compare
+    ctx->e    = 0.0;
+    PIN(temp) = PIN(amb_temp);
+    return;
+  }
 
   float temp = (float)ctx->e / max_e * (PIN(max_temp) - PIN(amb_temp)) + PIN(amb_temp);
 

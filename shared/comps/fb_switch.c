@@ -80,6 +80,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(phase_time)          = 1.0;
   PIN(phase_gain)          = 100.0;
   PIN(offset_first_enable) = 1.0;
+  PIN(mot_joint_ratio)     = 1.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -127,7 +128,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   if(PIN(joint_state) == 1.0 || PIN(joint_state) == 3.0) {
     PIN(pos_fb)      = mod(joint_pos + ctx->cmd_joint_offset);
-    PIN(plot_fb_pos) = PIN(joint_fb);
+    PIN(plot_fb_pos) = PIN(pos_fb);
   } else if(PIN(mot_state) == 1.0 || PIN(mot_state) == 3.0) {
     PIN(pos_fb)      = mod(mot_pos + ctx->cmd_mot_offset);
     PIN(plot_fb_pos) = PIN(pos_fb);
@@ -199,7 +200,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         if(PIN(joint_state) != 3.0) {
           PIN(com_fb) = mod(mot_pos * PIN(polecount) / PIN(mot_polecount) + ctx->com_offset);  // tracking
         } else {
-          PIN(com_fb) = mod((joint_abs_pos + joint_offset) * PIN(polecount));
+          PIN(com_fb) = mod((joint_abs_pos + joint_offset) * PIN(polecount) / PIN(mot_joint_ratio));
         }
         break;
 

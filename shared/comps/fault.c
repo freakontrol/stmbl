@@ -519,9 +519,9 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     }
   }
 
-  uint32_t fault_print = ctx->fault_print;
+  // read and clear in one step: rt can write a new fault between a load and a store
+  uint32_t fault_print = __atomic_exchange_n(&ctx->fault_print, NO_ERROR, __ATOMIC_RELAXED);
   if(fault_print != NO_ERROR) {
-    ctx->fault_print = NO_ERROR;
     printf("ERROR: Fault %lu: %s\n", fault_print, fault_print < sizeof(fault_string) / sizeof(fault_string[0]) ? fault_string[fault_print] : "unknown");
   }
 
