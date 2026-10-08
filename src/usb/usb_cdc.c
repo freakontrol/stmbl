@@ -24,10 +24,34 @@ static uint32_t tx_busy_len;  // bytes of the running IN transfer, 0 if none
 
 static uint8_t line_coding[7] = {0x00, 0xC2, 0x01, 0x00, 0x00, 0x00, 0x08};  // 115200 8N1
 
+// Whether a program has the port open on the host: DTR from
+// SET_CONTROL_LINE_STATE, or the first byte received from a host that never
+// sets DTR. Nothing is queued or sent before that. Linux creates a fresh
+// ttyACM, with echo on, every time the board re-enumerates, and the program
+// only switches it to raw after opening it: data the board had queued (term0
+// scope frames, boot text) came in during that window, the tty echoed it
+// back, and it ended up in front of the first command, which then never ran.
+// Sending also waits CDC_OPEN_HOLD_MS after the open for the same reason.
+#define CDC_OPEN_HOLD_MS 100
+extern uint32_t HAL_GetTick(void);
+static volatile uint8_t host_open;
+static volatile uint32_t host_open_ms;
+
+static void host_opened(void) {
+  if(!host_open) {
+    host_open_ms = HAL_GetTick();
+    host_open    = 1;
+  }
+}
+
+static int host_ready(void) {
+  return host_open && HAL_GetTick() - host_open_ms >= CDC_OPEN_HOLD_MS;
+}
+
 // Start the next IN transfer: the contiguous part of the ring from tx_out.
 // Runs in the USB interrupt only (SOF and transfer complete).
 static void tx_kick(void) {
-  if(tx_busy_len || usb_dev.dev_state != USBD_STATE_CONFIGURED) {
+  if(tx_busy_len || usb_dev.dev_state != USBD_STATE_CONFIGURED || !host_ready()) {
     return;
   }
   uint32_t in  = tx_in;
@@ -49,6 +73,7 @@ void cdc_sof(void) {
 
 static int8_t cdc_itf_init(void) {
   tx_busy_len = 0;
+  host_open   = 0;
   tx_out      = tx_in;  // drop what was queued while not configured
   USBD_CDC_SetRxBuffer(&usb_dev, rx_packet);
   return USBD_OK;
@@ -67,6 +92,14 @@ static int8_t cdc_itf_control(uint8_t cmd, uint8_t *pbuf, uint16_t length) {
     case CDC_GET_LINE_CODING:
       memcpy(pbuf, line_coding, MIN(length, sizeof(line_coding)));
       break;
+    case CDC_SET_CONTROL_LINE_STATE:
+      // no data stage: pbuf is the setup request, wValue bit 0 is DTR
+      if(((USBD_SetupReqTypedef *)pbuf)->wValue & 1U) {
+        host_opened();
+      } else {
+        host_open = 0;
+      }
+      break;
     default:
       break;
   }
@@ -74,6 +107,7 @@ static int8_t cdc_itf_control(uint8_t cmd, uint8_t *pbuf, uint16_t length) {
 }
 
 static int8_t cdc_itf_receive(uint8_t *buf, uint32_t *len) {
+  host_opened();
   rb_write(&usb_rx_buf, buf, *len);
   USBD_CDC_SetRxBuffer(&usb_dev, rx_packet);
   USBD_CDC_ReceivePacket(&usb_dev);
@@ -135,7 +169,7 @@ static void cdc_tx_put(const uint8_t *data, uint32_t len) {
 // Scope packets go whole or not at all: a partial packet desyncs the host, a
 // missing one is just a gap.
 int cdc_tx(void *data, uint32_t len) {
-  if(!cdc_is_connected() || cdc_tx_room() < len) {
+  if(!cdc_is_connected() || !host_open || cdc_tx_room() < len) {
     return 0;
   }
   cdc_tx_put((const uint8_t *)data, len);
@@ -147,7 +181,7 @@ int cdc_tx(void *data, uint32_t len) {
 // fit rather than overwriting what has not been sent. Without a host it is
 // dropped right away.
 int cdc_tx_text(const char *data, int len) {
-  if(!cdc_is_connected()) {
+  if(!cdc_is_connected() || !host_open) {
     return len;  // no host, nothing will drain the ring: drop instead of spinning
   }
   int sent = 0;
@@ -166,11 +200,12 @@ int cdc_tx_text(const char *data, int len) {
 }
 
 // usb_rx_buf is filled from the USB interrupt (cdc_itf_receive -> rb_write)
-// and drained here, and ringbuf.c has no locking: rb_putc's len++ against
-// rb_getc's len-- and rb_undo's pos/len rewrite can each lose an update. On
-// the bench that merged two commands into "fault0.faultidpmsm0.state" and
-// swallowed an enable. Hold the interrupt off for the few dozen bytes this
-// touches; anything arriving meanwhile waits in the endpoint.
+// and drained here. The old ringbuf.c shared one len between both sides and
+// lost updates (on the bench: two commands merged into
+// "fault0.faultidpmsm0.state", a swallowed enable). ringbuf.c is single
+// producer / single consumer safe now; the interrupt stays held off for the
+// few dozen bytes this touches anyway, anything arriving meanwhile waits in
+// the endpoint.
 int cdc_getline(char *ptr, int len) {
   NVIC_DisableIRQ(OTG_FS_IRQn);
   int ret = rb_getline(&usb_rx_buf, ptr, len);
