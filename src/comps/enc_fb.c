@@ -58,7 +58,8 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct enc_fb_ctx_t *ctx      = (struct enc_fb_ctx_t *)ctx_ptr;
   struct enc_fb_pin_ctx_t *pins = (struct enc_fb_pin_ctx_t *)pin_ptr;
-  GPIO_InitTypeDef GPIO_InitStructure;
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
+  LL_GPIO_StructInit(&GPIO_InitStructure);
 
   /***************** port 1, quadrature , sin/cos or resolver *********************/
   ctx->e_res = (int)PIN(res);
@@ -66,39 +67,48 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     ctx->e_res = 1;
   }
   // enable clocks
-  RCC_APB1PeriphClockCmd(FB0_ENC_TIM_RCC, ENABLE);
+  LL_APB1_GRP1_EnableClock(FB0_ENC_TIM_RCC);
 
   // pin mode: af
-  GPIO_InitStructure.GPIO_Pin   = FB0_A_PIN;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(FB0_A_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin   = FB0_A_PIN;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStructure.Alternate = FB0_ENC_TIM_AF;
+  LL_GPIO_Init(FB0_A_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_B_PIN;
-  GPIO_Init(FB0_B_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_B_PIN;
+  GPIO_InitStructure.Alternate = FB0_ENC_TIM_AF;
+  LL_GPIO_Init(FB0_B_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_Z_PIN;
-  GPIO_Init(FB0_Z_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_Z_PIN;
+  GPIO_InitStructure.Alternate = FB0_ENC_TIM_AF;
+  LL_GPIO_Init(FB0_Z_PORT, &GPIO_InitStructure);
 
   // pin af -> tim
-  GPIO_PinAFConfig(FB0_A_PORT, FB0_A_PIN_SOURCE, FB0_ENC_TIM_AF);
-  GPIO_PinAFConfig(FB0_B_PORT, FB0_B_PIN_SOURCE, FB0_ENC_TIM_AF);
-  GPIO_PinAFConfig(FB0_Z_PORT, FB0_Z_PIN_SOURCE, FB0_ENC_TIM_AF);
 
   // enc res / turn
-  TIM_SetAutoreload(FB0_ENC_TIM, ctx->e_res - 1);
+  LL_TIM_SetAutoReload(FB0_ENC_TIM, ctx->e_res - 1);
 
   // quad
-  TIM_Cmd(FB0_ENC_TIM, DISABLE);
-  TIM_EncoderInterfaceConfig(FB0_ENC_TIM, TIM_EncoderMode_TI12, TIM_ICPolarity_Rising, TIM_ICPolarity_Falling);
-  // Input filter on A and B: IC1F = IC2F = 0011, fCK_INT with N = 8, about
-  // 95 ns at 84 MHz (RM0090 18.4.7). The old TIM_ICInit ran before the TIM4
-  // clock was on, so its 0xF (fDTS/32, N = 8: 3 us, which would cap the line
-  // rate near 160 kHz) never landed, and it only addressed channel 2.
-  FB0_ENC_TIM->CCMR1 = (FB0_ENC_TIM->CCMR1 & ~(TIM_CCMR1_IC1F | TIM_CCMR1_IC2F)) | (3 << 4) | (3 << 12);
-  TIM_Cmd(FB0_ENC_TIM, ENABLE);
+  LL_TIM_DisableCounter(FB0_ENC_TIM);
+  // X4 on TI1/TI2, B inverted. Input filter on A and B: fCK_INT with N = 8,
+  // about 95 ns at 84 MHz (RM0090 18.4.7). The old TIM_ICInit ran before the
+  // TIM4 clock was on, so its 0xF (fDTS/32, N = 8: 3 us, which would cap the
+  // line rate near 160 kHz) never landed, and it only addressed channel 2.
+  LL_TIM_ENCODER_Init(FB0_ENC_TIM, &(LL_TIM_ENCODER_InitTypeDef){
+                                       .EncoderMode    = LL_TIM_ENCODERMODE_X4_TI12,
+                                       .IC1Polarity    = LL_TIM_IC_POLARITY_RISING,
+                                       .IC1ActiveInput = LL_TIM_ACTIVEINPUT_DIRECTTI,
+                                       .IC1Prescaler   = LL_TIM_ICPSC_DIV1,
+                                       .IC1Filter      = LL_TIM_IC_FILTER_FDIV1_N8,
+                                       .IC2Polarity    = LL_TIM_IC_POLARITY_FALLING,
+                                       .IC2ActiveInput = LL_TIM_ACTIVEINPUT_DIRECTTI,
+                                       .IC2Prescaler   = LL_TIM_ICPSC_DIV1,
+                                       .IC2Filter      = LL_TIM_IC_FILTER_FDIV1_N8,
+                                   });
+  LL_TIM_EnableCounter(FB0_ENC_TIM);
   FB0_ENC_TIM->CCMR2 |= TIM_CCMR2_CC3S_0;  //CC3 channel is configured as input, IC3 is mapped on CH3
   FB0_ENC_TIM->CCER |= TIM_CCER_CC3E;      //Capture enabled
 }
@@ -108,16 +118,16 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 //   struct enc_fb_ctx_t *ctx      = (struct enc_fb_ctx_t *)ctx_ptr;
 //   struct enc_fb_pin_ctx_t *pins = (struct enc_fb_pin_ctx_t *)pin_ptr;
 
-//   float p  = mod(TIM_GetCounter(FB0_ENC_TIM) * 2.0f * M_PI / (float)ctx->e_res);
+//   float p  = mod(LL_TIM_GetCounter(FB0_ENC_TIM) * 2.0f * M_PI / (float)ctx->e_res);
 //   PIN(pos) = p;
 //   //TODO: this gets triggered by wire saving abs encoders. add timeout?
-//   if(RISING_EDGE(!GPIO_ReadInputDataBit(FB0_Z_PORT, FB0_Z_PIN))) {
+//   if(RISING_EDGE(!LL_GPIO_IsInputPinSet(FB0_Z_PORT, FB0_Z_PIN))) {
 //     // TODO: fix
 //     ctx->absoffset = -p;
 //     PIN(state)     = 3.0;
 
 //   }
-//   PIN(index)  = GPIO_ReadInputDataBit(FB0_Z_PORT, FB0_Z_PIN);
+//   PIN(index)  = LL_GPIO_IsInputPinSet(FB0_Z_PORT, FB0_Z_PIN);
 //   PIN(abs_pos) = mod(p + ctx->absoffset);
 // }
 
@@ -126,9 +136,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct enc_fb_pin_ctx_t *pins = (struct enc_fb_pin_ctx_t *)pin_ptr;
 
   // timer value and timer pins, sampled together at the start of the rt
-  // interrupt, about 4 us after the last sin/cos sample. Read here they were
-  // about 50 us later (spindle bench, 128 lines): qdiff reached 2 from
-  // 220 rad/s and went uncorrected. Latched, no qdiff 2 up to 838 rad/s.
+  // interrupt, a few us after the last sin/cos sample. Read here, after
+  // adc0's rt, they were 10-20 us later, and at 8000 rpm with 128 lines a
+  // quadrant lasts about 15 us, so qdiff could reach 2 and go uncorrected.
   int32_t tim     = fb0_cnt_latch;
   uint32_t scgpio = fb0_idr_latch;
 
@@ -205,7 +215,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     }
   }
   PIN(abs_pos) = minus(p, ctx->absoffset);
-  PIN(index)   = GPIO_ReadInputDataBit(FB0_Z_PORT, FB0_Z_PIN);
+  PIN(index)   = LL_GPIO_IsInputPinSet(FB0_Z_PORT, FB0_Z_PIN);
 
   if(PIN(amp) > PIN(min_amp) || ABS(PIN(vel)) > 0.15) {
     PIN(error) = 0.0;
@@ -218,7 +228,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   if(ctx->e_res != r) {
     ctx->e_res = r;
-    TIM_SetAutoreload(FB0_ENC_TIM, ctx->e_res - 1);
+    LL_TIM_SetAutoReload(FB0_ENC_TIM, ctx->e_res - 1);
   }
 }
 

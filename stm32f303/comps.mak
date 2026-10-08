@@ -2,7 +2,6 @@ HV_SRC_COMPS = stm32f303/src/comps/hv.c
 HV_SRC_COMPS += stm32f303/src/comps/io.c
 HV_SRC_COMPS += stm32f303/src/comps/ls.c
 HV_SRC_COMPS += stm32f303/src/comps/emf.c
-#HV_SRC_COMPS += stm32f303/src/comps/enc.c
 
 HV_SHARED_COMPS = shared/comps/sim.c
 HV_SHARED_COMPS += shared/comps/term.c

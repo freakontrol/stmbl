@@ -49,24 +49,28 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->abspos = 0;
   ctx->lastq  = 0;
 
-  TIM_OCInitTypeDef TIM_OCInitStructure;
-  GPIO_InitTypeDef GPIO_InitStructure;
+  LL_TIM_OC_InitTypeDef TIM_OCInitStructure;
+  LL_TIM_OC_StructInit(&TIM_OCInitStructure);
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
+  LL_GPIO_StructInit(&GPIO_InitStructure);
 
 #ifdef V4
-  TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+  LL_TIM_InitTypeDef TIM_TimeBaseStructure;
+  LL_TIM_StructInit(&TIM_TimeBaseStructure);
 
   //timer init for v4, v3 uses slave timer
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
-  TIM_TimeBaseStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
-  TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
-  TIM_TimeBaseStructure.TIM_Period            = ADC_TRIGGER_FREQ / FRT_FREQ - 1;  // 20kHz
-  TIM_TimeBaseStructure.TIM_Prescaler         = 0;
-  TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
-  TIM_TimeBaseInit(TIM4, &TIM_TimeBaseStructure);
-  TIM_SelectSlaveMode(TIM4, TIM_SlaveMode_External1);  // Rising edges of the selected trigger (TRGI) clock the counter
-  TIM_ITRxExternalClockConfig(TIM4, TIM_TS_ITR2);      // clk = TIM_MASTER (TIM3) trigger out, ITR2 on TIM4 (RM0090 Table 98)
-  TIM_ARRPreloadConfig(TIM4, ENABLE);
-  TIM_Cmd(TIM4, ENABLE);
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM4);
+  TIM_TimeBaseStructure.ClockDivision     = LL_TIM_CLOCKDIVISION_DIV1;
+  TIM_TimeBaseStructure.CounterMode       = LL_TIM_COUNTERMODE_UP;
+  TIM_TimeBaseStructure.Autoreload            = ADC_TRIGGER_FREQ / FRT_FREQ - 1;  // 20kHz
+  TIM_TimeBaseStructure.Prescaler         = 0;
+  TIM_TimeBaseStructure.RepetitionCounter = 0;
+  LL_TIM_Init(TIM4, &TIM_TimeBaseStructure);
+  // Rising edges of the selected trigger (TRGI) clock the counter, clk = TIM_MASTER(TIM2) trigger out
+  LL_TIM_SetTriggerInput(TIM4, LL_TIM_TS_ITR2);
+  LL_TIM_SetClockSource(TIM4, LL_TIM_CLOCKSOURCE_EXT_MODE1);
+  LL_TIM_EnableARRPreload(TIM4);
+  LL_TIM_EnableCounter(TIM4);
 #endif
 
 
@@ -82,36 +86,38 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //arr = ADC_TRIGGER_FREQ/2/res_freq
 
   // resolver reference signal OC
-  TIM_OCInitStructure.TIM_OCMode       = TIM_OCMode_Toggle;
-  TIM_OCInitStructure.TIM_OutputState  = TIM_OutputState_Enable;
-  TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Disable;
-  TIM_OCInitStructure.TIM_Pulse        = 0;
-  TIM_OCInitStructure.TIM_OCPolarity   = TIM_OCPolarity_High;
-  TIM_OCInitStructure.TIM_OCNPolarity  = TIM_OCNPolarity_High;
-  TIM_OCInitStructure.TIM_OCIdleState  = TIM_OCIdleState_Set;
-  TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCIdleState_Reset;
+  TIM_OCInitStructure.OCMode       = LL_TIM_OCMODE_TOGGLE;
+  TIM_OCInitStructure.OCState      = LL_TIM_OCSTATE_ENABLE;
+  TIM_OCInitStructure.OCNState     = LL_TIM_OCSTATE_DISABLE;
+  TIM_OCInitStructure.CompareValue = 0;
+  TIM_OCInitStructure.OCPolarity   = LL_TIM_OCPOLARITY_HIGH;
+  TIM_OCInitStructure.OCNPolarity  = LL_TIM_OCPOLARITY_HIGH;
+  TIM_OCInitStructure.OCIdleState  = LL_TIM_OCIDLESTATE_HIGH;
+  TIM_OCInitStructure.OCNIdleState = LL_TIM_OCIDLESTATE_LOW;
   //ref is always OC3
-  TIM_OC3Init(FB0_RES_REF_TIM, &TIM_OCInitStructure);
-  TIM_OC3PreloadConfig(FB0_RES_REF_TIM, TIM_OCPreload_Enable);
-  TIM_CtrlPWMOutputs(FB0_RES_REF_TIM, ENABLE);
+  LL_TIM_OC_Init(FB0_RES_REF_TIM, LL_TIM_CHANNEL_CH3, &TIM_OCInitStructure);
+  LL_TIM_OC_EnablePreload(FB0_RES_REF_TIM, LL_TIM_CHANNEL_CH3);
+  if(IS_TIM_BREAK_INSTANCE(FB0_RES_REF_TIM)) {
+    LL_TIM_EnableAllOutputs(FB0_RES_REF_TIM);
+  }
 
   //resolver ref signal generation
-  GPIO_InitStructure.GPIO_Pin   = FB0_RES_REF_PIN;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_RES_REF_PORT, &GPIO_InitStructure);
-  GPIO_PinAFConfig(FB0_RES_REF_PORT, FB0_RES_REF_PIN_SOURCE, FB0_RES_REF_TIM_AF);
+  GPIO_InitStructure.Pin   = FB0_RES_REF_PIN;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  GPIO_InitStructure.Alternate = FB0_RES_REF_TIM_AF;
+  LL_GPIO_Init(FB0_RES_REF_PORT, &GPIO_InitStructure);
 
   //txen
-  GPIO_InitStructure.GPIO_Pin   = FB0_Z_TXEN_PIN;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_Z_TXEN_PORT, &GPIO_InitStructure);
-  GPIO_SetBits(FB0_Z_TXEN_PORT, FB0_Z_TXEN_PIN);
+  GPIO_InitStructure.Pin   = FB0_Z_TXEN_PIN;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB0_Z_TXEN_PORT, &GPIO_InitStructure);
+  LL_GPIO_SetOutputPin(FB0_Z_TXEN_PORT, FB0_Z_TXEN_PIN);
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {

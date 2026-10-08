@@ -21,9 +21,8 @@ INCDIRS += shared
 
 SOURCES += src/main.c
 SOURCES += src/stm32f4xx_it.c
-SOURCES += src/system_stm32f4xx.c #TODO: update this, system file from cmsis
+SOURCES += src/f4_clock.c
 SOURCES += src/setup.c
-SOURCES += src/usb_cdc.c
 SOURCES += src/config.c
 # SOURCES += src/hal_conf.c
 SOURCES += src/hal_tbl.c
@@ -60,58 +59,56 @@ SOURCES += src/conf_templates.c
 
 SOURCES += shared/ringbuf.c
 
-USB_VCP_DIR = lib/STM32_USB_Device_VCP-1.2.0
-
+# STM32 USB Device Library (Cube middleware) on HAL PCD
 CPPFLAGS += -DUSBD_PRODUCT_STRING='"STMBL Virtual ComPort"'
-CPPFLAGS += -DCDC_IN_FRAME_INTERVAL=1
 CPPFLAGS += -DAPP_RX_DATA_SIZE=4096
+INCDIRS += src/usb
+SOURCES += src/usb/usb_cdc.c
+SOURCES += src/usb/usbd_conf.c
+SOURCES += src/usb/usbd_desc.c
 
-INCDIRS += $(USB_VCP_DIR)/inc
-SOURCES += $(USB_VCP_DIR)/src/usbd_desc.c
+USB_DEVICE_DIR = lib/STM32_USB_Device_Library-2.11.4
+INCDIRS += $(USB_DEVICE_DIR)/Core/Inc
+INCDIRS += $(USB_DEVICE_DIR)/Class/CDC/Inc
+SOURCES += $(USB_DEVICE_DIR)/Core/Src/usbd_core.c
+SOURCES += $(USB_DEVICE_DIR)/Core/Src/usbd_ctlreq.c
+SOURCES += $(USB_DEVICE_DIR)/Core/Src/usbd_ioreq.c
+SOURCES += $(USB_DEVICE_DIR)/Class/CDC/Src/usbd_cdc.c
 
-USB_DEVICE_DIR = lib/STM32_USB_Device_Library-1.2.0
+# STM32CubeF4 LL drivers, HAL only under the USB device library (PCD)
+CPPFLAGS += -DUSE_FULL_LL_DRIVER
 
-INCDIRS += $(USB_DEVICE_DIR)/Class/cdc/inc
-SOURCES += $(USB_DEVICE_DIR)/Class/cdc/src/usbd_cdc_core.c
+LL_DRV_DIR = lib/STM32F4xx_HAL_Driver
 
-INCDIRS += $(USB_DEVICE_DIR)/Core/inc
-SOURCES += $(USB_DEVICE_DIR)/Core/src/usbd_core.c
-SOURCES += $(USB_DEVICE_DIR)/Core/src/usbd_ioreq.c
-SOURCES += $(USB_DEVICE_DIR)/Core/src/usbd_req.c
-
-USB_DRIVER_DIR = lib/STM32_USB_OTG_Driver-2.2.0
-
-INCDIRS += $(USB_DRIVER_DIR)/inc
-SOURCES += $(USB_DRIVER_DIR)/src/usb_core.c
-SOURCES += $(USB_DRIVER_DIR)/src/usb_dcd.c
-SOURCES += $(USB_DRIVER_DIR)/src/usb_dcd_int.c
-
-# Standard peripheral library
-CPPFLAGS += -DUSE_STDPERIPH_DRIVER
-#CPPFLAGS += -DUSE_FULL_ASSERT
-
-PERIPH_DRV_DIR = lib/STM32F4xx_StdPeriph_Driver-V1.6.0
-
-INCDIRS += $(PERIPH_DRV_DIR)/inc
+INCDIRS += $(LL_DRV_DIR)/inc
 INCDIRS += lib/CMSIS/Include
 INCDIRS += lib/CMSIS/Device/ST/STM32F4xx/Include
 
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_adc.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_crc.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_dma.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_flash.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_gpio.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_pwr.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_rcc.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_tim.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_usart.c
-SOURCES += $(PERIPH_DRV_DIR)/src/stm32f4xx_spi.c
-SOURCES += $(PERIPH_DRV_DIR)/src/misc.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_adc.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_crc.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_dma.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_exti.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_gpio.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_pwr.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_rcc.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_tim.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_usart.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_spi.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_utils.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_ll_usb.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal_cortex.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal_rcc.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal_rcc_ex.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal_gpio.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal_pcd.c
+SOURCES += $(LL_DRV_DIR)/src/stm32f4xx_hal_pcd_ex.c
 
-SOURCES += lib/CMSIS/Device/ST/STM32F4xx/Source/startup_stm32f40_41xxx.s
+SOURCES += lib/CMSIS/Device/ST/STM32F4xx/Source/startup_stm32f405xx.s
 
-CPPFLAGS += -DSTM32F40_41xxx
+CPPFLAGS += -DSTM32F405xx
 CPPFLAGS += -DHSE_VALUE=8000000
+CPPFLAGS += -DHSE_STARTUP_TIMEOUT=0x05000
 LDSCRIPT = stm32_flash.ld
 
 #============================================================================
@@ -174,10 +171,11 @@ CXXFLAGS += -Wall
 #
 LDFLAGS += $(OPT)
 LDFLAGS += -lm
+LDFLAGS += -specs=nosys.specs
 LDFLAGS += -Wl,-Map=$(TARGET).map,--cref
 LDFLAGS += -Wl,--gc-sections
 
-# LDFLAGS += -specs=nano.specs -u _printf_float -u _scanf_float
+LDFLAGS += -specs=nano.specs -u _printf_float -u _scanf_float
 LDFLAGS += -T$(LDSCRIPT)
 
 #============================================================================
@@ -293,14 +291,6 @@ f3_btburn:
 hv_firmware.o: force_look
 	$(MAKE) -f stm32f303/Makefile all
 
-#build f103 firmware for V3 hardware
-f1: force_look
-	$(MAKE) -f stm32f103/Makefile
-
-#flash f103 firmware for V3 hardware using stlink
-f1_flash: boot
-	$(MAKE) -f stm32f103/Makefile flash
-
 f3_all_btburn: f3.bin
 	@$(DFU-UTIL) -d 0483:df11 -a 0 -s 0x08000000:leave -D f3.bin
 all_btburn: tools/bootloader.py f4.bin
@@ -336,7 +326,7 @@ stmbl.dfu: tools/dfu-convert.py $(TARGET).bin
 binall: f4.dfu f3.dfu stmbl.dfu
 
 format:
-	find src/ f3_boot/ bootloader/ stm32f103/ stm32f303/ shared/ inc/ tools/ -iname '*.h' -o -iname '*.c' | xargs clang-format -i
+	find src/ f3_boot/ bootloader/ stm32f303/ shared/ inc/ tools/ -iname '*.h' -o -iname '*.c' | xargs clang-format -i
 
 docs:
 	$(MAKE) -f docs/Makefile
@@ -355,7 +345,6 @@ clean:
 	rm -rf src/hal_tbl.c
 	@$(MAKE) -f bootloader/Makefile clean
 	@$(MAKE) -f f3_boot/Makefile clean
-	@$(MAKE) -f stm32f103/Makefile clean
 	@$(MAKE) -f stm32f303/Makefile clean
 	@$(MAKE) -f docs/Makefile clean
 

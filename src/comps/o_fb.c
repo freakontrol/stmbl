@@ -16,26 +16,28 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct o_fb_ctx_t * ctx = (struct o_fb_ctx_t *)ctx_ptr;
   // struct o_fb_pin_ctx_t * pins = (struct o_fb_pin_ctx_t *)pin_ptr;
 
-  GPIO_InitTypeDef GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
 
-  GPIO_InitStructure.GPIO_Pin = FB0_A_EN_PIN;
-  GPIO_Init(FB0_A_EN_PORT, &GPIO_InitStructure);
+  LL_GPIO_StructInit(&GPIO_InitStructure);
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
 
-  GPIO_InitStructure.GPIO_Pin = FB0_B_EN_PIN;
-  GPIO_Init(FB0_B_EN_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_A_EN_PIN;
+  LL_GPIO_Init(FB0_A_EN_PORT, &GPIO_InitStructure);
 
-  GPIO_SetBits(FB0_A_EN_PORT, FB0_A_EN_PIN);
-  GPIO_SetBits(FB0_B_EN_PORT, FB0_B_EN_PIN);
+  GPIO_InitStructure.Pin = FB0_B_EN_PIN;
+  LL_GPIO_Init(FB0_B_EN_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_A_PIN;
-  GPIO_Init(FB0_A_PORT, &GPIO_InitStructure);
+  LL_GPIO_SetOutputPin(FB0_A_EN_PORT, FB0_A_EN_PIN);
+  LL_GPIO_SetOutputPin(FB0_B_EN_PORT, FB0_B_EN_PIN);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_B_PIN;
-  GPIO_Init(FB0_B_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_A_PIN;
+  LL_GPIO_Init(FB0_A_PORT, &GPIO_InitStructure);
+
+  GPIO_InitStructure.Pin = FB0_B_PIN;
+  LL_GPIO_Init(FB0_B_PORT, &GPIO_InitStructure);
 }
 
 
@@ -44,15 +46,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct o_fb_pin_ctx_t *pins = (struct o_fb_pin_ctx_t *)pin_ptr;
 
   if(PIN(a) > 0) {
-    GPIO_SetBits(FB0_A_PORT, FB0_A_PIN);
+    LL_GPIO_SetOutputPin(FB0_A_PORT, FB0_A_PIN);
   } else {
-    GPIO_ResetBits(FB0_A_PORT, FB0_A_PIN);
+    LL_GPIO_ResetOutputPin(FB0_A_PORT, FB0_A_PIN);
   }
 
   if(PIN(b) > 0) {
-    GPIO_SetBits(FB0_B_PORT, FB0_B_PIN);
+    LL_GPIO_SetOutputPin(FB0_B_PORT, FB0_B_PIN);
   } else {
-    GPIO_ResetBits(FB0_B_PORT, FB0_B_PIN);
+    LL_GPIO_ResetOutputPin(FB0_B_PORT, FB0_B_PIN);
   }
 }
 

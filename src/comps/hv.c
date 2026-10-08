@@ -132,93 +132,87 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct hv_pin_ctx_t *pins = (struct hv_pin_ctx_t *)pin_ptr;
 
   //setup uart to f1. uses DMA to transfer to_hv struct.
-  GPIO_InitTypeDef GPIO_InitStruct;
-  USART_InitTypeDef USART_InitStruct;
-  DMA_InitTypeDef DMA_InitStructure;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_USART_InitTypeDef USART_InitStruct;
+  LL_DMA_InitTypeDef DMA_InitStructure;
 
-  UART_DRV_CLOCK_COMMAND(UART_DRV_RCC, ENABLE);
+  UART_DRV_CLOCK_COMMAND(UART_DRV_RCC);
 
   //USART TX
-  GPIO_PinAFConfig(UART_DRV_TX_PORT, UART_DRV_TX_PIN_SOURCE, UART_DRV_TX_AF_SOURCE);
-  GPIO_InitStruct.GPIO_Pin   = UART_DRV_TX_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(UART_DRV_TX_PORT, &GPIO_InitStruct);
+  LL_GPIO_StructInit(&GPIO_InitStruct);
+  GPIO_InitStruct.Pin        = UART_DRV_TX_PIN;
+  GPIO_InitStruct.Mode       = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed      = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull       = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate  = UART_DRV_TX_AF_SOURCE;
+  LL_GPIO_Init(UART_DRV_TX_PORT, &GPIO_InitStruct);
 
   //USART RX
-  GPIO_PinAFConfig(UART_DRV_RX_PORT, UART_DRV_RX_PIN_SOURCE, UART_DRV_RX_AF_SOURCE);
-  GPIO_InitStruct.GPIO_Pin = UART_DRV_RX_PIN;
-  GPIO_Init(UART_DRV_RX_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin       = UART_DRV_RX_PIN;
+  GPIO_InitStruct.Alternate = UART_DRV_RX_AF_SOURCE;
+  LL_GPIO_Init(UART_DRV_RX_PORT, &GPIO_InitStruct);
 
-  USART_OverSampling8Cmd(UART_DRV, ENABLE);
-  USART_InitStruct.USART_BaudRate            = DATABAUD;
-  USART_InitStruct.USART_WordLength          = USART_WordLength_8b;
-  USART_InitStruct.USART_StopBits            = USART_StopBits_1;
-  USART_InitStruct.USART_Parity              = USART_Parity_No;
-  USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-  USART_InitStruct.USART_Mode                = USART_Mode_Rx | USART_Mode_Tx;
-  USART_Init(UART_DRV, &USART_InitStruct);
+  LL_USART_StructInit(&USART_InitStruct);
+  USART_InitStruct.BaudRate            = DATABAUD;
+  USART_InitStruct.DataWidth           = LL_USART_DATAWIDTH_8B;
+  USART_InitStruct.StopBits            = LL_USART_STOPBITS_1;
+  USART_InitStruct.Parity              = LL_USART_PARITY_NONE;
+  USART_InitStruct.HardwareFlowControl = LL_USART_HWCONTROL_NONE;
+  USART_InitStruct.TransferDirection   = LL_USART_DIRECTION_TX_RX;
+  USART_InitStruct.OverSampling        = LL_USART_OVERSAMPLING_8;
+  LL_USART_Init(UART_DRV, &USART_InitStruct);
 
   /* Enable the USART */
-  USART_Cmd(UART_DRV, ENABLE);
+  LL_USART_Enable(UART_DRV);
 
   // DMA-Disable
   dma_stream_stop(UART_DRV_TX_DMA);
-  DMA_DeInit(UART_DRV_TX_DMA);
+  LL_DMA_DeInit(UART_DRV_DMA, UART_DRV_TX_DMA_STREAM);
 
   // DMA2-Config
-  DMA_InitStructure.DMA_Channel            = UART_DRV_TX_DMA_CHAN;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) & (UART_DRV->DR);
-  DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t) & (ctx->to_hv.packet_to_hv);
-  DMA_InitStructure.DMA_DIR                = DMA_DIR_MemoryToPeripheral;
-  DMA_InitStructure.DMA_BufferSize         = MAX(sizeof(packet_to_hv_t), sizeof(packet_bootloader_t));
-  DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_Mode               = DMA_Mode_Normal;
-  DMA_InitStructure.DMA_Priority           = DMA_Priority_High;
-  DMA_InitStructure.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructure.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructure.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructure.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_Init(UART_DRV_TX_DMA, &DMA_InitStructure);
+  LL_DMA_StructInit(&DMA_InitStructure);
+  DMA_InitStructure.Channel                = UART_DRV_TX_DMA_CHAN;
+  DMA_InitStructure.PeriphOrM2MSrcAddress  = (uint32_t) & (UART_DRV->DR);
+  DMA_InitStructure.MemoryOrM2MDstAddress  = (uint32_t) & (ctx->to_hv.packet_to_hv);
+  DMA_InitStructure.Direction              = LL_DMA_DIRECTION_MEMORY_TO_PERIPH;
+  DMA_InitStructure.NbData                 = MAX(sizeof(packet_to_hv_t), sizeof(packet_bootloader_t));
+  DMA_InitStructure.PeriphOrM2MSrcIncMode  = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructure.MemoryOrM2MDstIncMode  = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructure.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
+  DMA_InitStructure.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_BYTE;
+  DMA_InitStructure.Mode                   = LL_DMA_MODE_NORMAL;
+  DMA_InitStructure.Priority               = LL_DMA_PRIORITY_HIGH;
+  DMA_InitStructure.FIFOMode               = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructure.FIFOThreshold          = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructure.MemBurst               = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructure.PeriphBurst            = LL_DMA_PBURST_SINGLE;
+  LL_DMA_Init(UART_DRV_DMA, UART_DRV_TX_DMA_STREAM, &DMA_InitStructure);
 
   //DMA_Cmd(UART_DRV_TX_DMA, ENABLE);
 
-  USART_DMACmd(UART_DRV, USART_DMAReq_Tx, ENABLE);
+  LL_USART_EnableDMAReq_TX(UART_DRV);
 
 
   // DMA-Disable
   dma_stream_stop(UART_DRV_RX_DMA);
-  DMA_DeInit(UART_DRV_RX_DMA);
+  LL_DMA_DeInit(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM);
 
   // DMA2-Config
-  DMA_InitStructure.DMA_Channel            = UART_DRV_RX_DMA_CHAN;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) & (UART_DRV->DR);
-  DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t) & (ctx->from_hv.packet_from_hv);
-  DMA_InitStructure.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructure.DMA_BufferSize         = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t));
-  DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_Mode               = DMA_Mode_Normal;
-  DMA_InitStructure.DMA_Priority           = DMA_Priority_Medium;
-  DMA_InitStructure.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructure.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructure.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructure.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_Init(UART_DRV_RX_DMA, &DMA_InitStructure);
+  DMA_InitStructure.Channel               = UART_DRV_RX_DMA_CHAN;
+  DMA_InitStructure.PeriphOrM2MSrcAddress = (uint32_t) & (UART_DRV->DR);
+  DMA_InitStructure.MemoryOrM2MDstAddress = (uint32_t) & (ctx->from_hv.packet_from_hv);
+  DMA_InitStructure.Direction             = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  DMA_InitStructure.NbData                = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t));
+  DMA_InitStructure.Priority              = LL_DMA_PRIORITY_MEDIUM;
+  LL_DMA_Init(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM, &DMA_InitStructure);
 
 
-  USART_DMACmd(UART_DRV, USART_DMAReq_Rx, ENABLE);
+  LL_USART_EnableDMAReq_RX(UART_DRV);
   dma_stream_stop(UART_DRV_RX_DMA);
-  DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
+  LL_DMA_EnableStream(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM);
 
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CRC);
   ctx->timeout          = 0;
   PIN(dac)              = 2500;
   PIN(drop_k)           = 0;
@@ -257,7 +251,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.obs_mode  = PIN(obs_mode);
   ctx->config.pins.obs_bw    = PIN(obs_bw);
 
-  uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - DMA_GetCurrDataCounter(UART_DRV_RX_DMA);
+  uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - LL_DMA_GetDataLength(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM);
 
   PIN(value) = 0.0;
 
@@ -266,8 +260,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     if(dma_count >= sizeof(stmbl_talk_header_t) + ctx->from_hv.packet_from_hv.header.len * 4) {
       PIN(value) = 0.75;
 
-      CRC_ResetDR();
-      uint32_t crc = CRC_CalcBlockCRC((uint32_t *)&(ctx->from_hv.packet_from_hv.header.slave_addr), sizeof(stmbl_talk_header_t) / 4 + ctx->from_hv.packet_from_hv.header.len - 1);
+      CRC->CR = CRC_CR_RESET;
+      uint32_t crc = crc_calc_block((uint32_t *)&(ctx->from_hv.packet_from_hv.header.slave_addr), sizeof(stmbl_talk_header_t) / 4 + ctx->from_hv.packet_from_hv.header.len - 1);
       if(ctx->from_hv.packet_from_hv.header.crc == crc) {
         switch(flash_state) {
           case SLAVE_IN_APP:
@@ -547,13 +541,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->send_state++;
 
   if(tx_size) {
-    CRC_ResetDR();
-    ctx->to_hv.packet_to_hv.header.crc = CRC_CalcBlockCRC((uint32_t *)&(ctx->to_hv.packet_to_hv.header.slave_addr), tx_size / 4 - 1);
+    CRC->CR = CRC_CR_RESET;
+    ctx->to_hv.packet_to_hv.header.crc = crc_calc_block((uint32_t *)&(ctx->to_hv.packet_to_hv.header.slave_addr), tx_size / 4 - 1);
 
     //start DMA TX transfer
     dma_stream_stop(UART_DRV_TX_DMA);
-    UART_DRV_TX_DMA->NDTR = tx_size;
-    DMA_Cmd(UART_DRV_TX_DMA, ENABLE);
+    LL_DMA_SetDataLength(UART_DRV_DMA, UART_DRV_TX_DMA_STREAM, tx_size);
+    LL_DMA_EnableStream(UART_DRV_DMA, UART_DRV_TX_DMA_STREAM);
 
     // clear uart faults
     PIN(uart_sr) = UART_DRV->SR;
@@ -563,8 +557,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     //(sized for the larger bootloader packet), so set NDTR again rather than
     //rely on the reload (RM0090 10.3.17 step 5)
     dma_stream_stop(UART_DRV_RX_DMA);
-    UART_DRV_RX_DMA->NDTR = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t));
-    DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
+    LL_DMA_SetDataLength(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM, MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)));
+    LL_DMA_EnableStream(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM);
   }
 
 

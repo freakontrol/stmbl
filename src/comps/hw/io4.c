@@ -99,100 +99,100 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct io_ctx_t * ctx = (struct io_ctx_t *)ctx_ptr;
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
 
-  GPIO_InitTypeDef GPIO_InitStructure;
-  ADC_InitTypeDef ADC_InitStructure;
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
+  LL_GPIO_StructInit(&GPIO_InitStructure);
 
   //**** ADC3 for analog input and fb temperature
   //TODO: ADC calibration?
-  GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AIN;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOC, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin   = LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_0 | GPIO_Pin_1;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin   = LL_GPIO_PIN_0 | LL_GPIO_PIN_1;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_INPUT;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   // out1, out2 pwm tim9
-  GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_5 | GPIO_Pin_6;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
-  GPIO_PinAFConfig(GPIOE, GPIO_PinSource5, GPIO_AF_TIM9);
-  GPIO_PinAFConfig(GPIOE, GPIO_PinSource6, GPIO_AF_TIM9);
+  GPIO_InitStructure.Pin   = LL_GPIO_PIN_5 | LL_GPIO_PIN_6;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStructure.Alternate = LL_GPIO_AF_3;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   if(PIN(swd_remap) > 0) {
-    GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_13 | GPIO_Pin_14;
-    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN;
-    GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_InitStructure.Pin   = LL_GPIO_PIN_13 | LL_GPIO_PIN_14;
+    GPIO_InitStructure.Mode  = LL_GPIO_MODE_INPUT;
+    GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+    GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    LL_GPIO_Init(GPIOA, &GPIO_InitStructure);
   }
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC3, ENABLE);
-  ADC_InitStructure.ADC_DataAlign            = ADC_DataAlign_Right;  //data converted will be shifted to right
-  ADC_InitStructure.ADC_Resolution           = ADC_Resolution_12b;   //Input voltage is converted into a 12bit number giving a maximum value of 4096
-  ADC_InitStructure.ADC_ContinuousConvMode   = DISABLE;              //the conversion is continuous, the input data is converted more than once
-  ADC_InitStructure.ADC_ExternalTrigConv     = TIM_MASTER_ADC;       //trigger on rising edge of TIM_MASTER oc
-  ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_Rising;
-  ADC_InitStructure.ADC_NbrOfConversion      = 1;       //ADC_ANZ;//I think this one is clear :p
-  ADC_InitStructure.ADC_ScanConvMode         = ENABLE;  //The scan is configured in one channel
-  ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
-  ADC_Init(ADC3, &ADC_InitStructure);
-  ADC_InjectedSequencerLengthConfig(ADC3, 4);
-  ADC_InjectedChannelConfig(ADC3, ADC_Channel_10, 1, ADC_SampleTime_144Cycles);
-  ADC_InjectedChannelConfig(ADC3, ADC_Channel_11, 2, ADC_SampleTime_144Cycles);
-  ADC_InjectedChannelConfig(ADC3, ADC_Channel_12, 3, ADC_SampleTime_144Cycles);
-  ADC_InjectedChannelConfig(ADC3, ADC_Channel_13, 4, ADC_SampleTime_144Cycles);
-  ADC_Cmd(ADC3, ENABLE);
-  ADC_SoftwareStartInjectedConv(ADC3);
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC3);
+  LL_ADC_SetResolution(ADC3, LL_ADC_RESOLUTION_12B);       //Input voltage is converted into a 12bit number giving a maximum value of 4096
+  LL_ADC_SetDataAlignment(ADC3, LL_ADC_DATA_ALIGN_RIGHT);  //data converted will be shifted to right
+  LL_ADC_SetSequencersScanMode(ADC3, LL_ADC_SEQ_SCAN_ENABLE);
+  LL_ADC_REG_SetContinuousMode(ADC3, LL_ADC_REG_CONV_SINGLE);
+  LL_ADC_REG_SetSequencerLength(ADC3, LL_ADC_REG_SEQ_SCAN_DISABLE);  // 1 regular conversion, not used
+  // injected group, software triggered
+  LL_ADC_INJ_SetSequencerLength(ADC3, LL_ADC_INJ_SEQ_SCAN_ENABLE_4RANKS);
+  LL_ADC_INJ_SetSequencerRanks(ADC3, LL_ADC_INJ_RANK_1, LL_ADC_CHANNEL_10);
+  LL_ADC_INJ_SetSequencerRanks(ADC3, LL_ADC_INJ_RANK_2, LL_ADC_CHANNEL_11);
+  LL_ADC_INJ_SetSequencerRanks(ADC3, LL_ADC_INJ_RANK_3, LL_ADC_CHANNEL_12);
+  LL_ADC_INJ_SetSequencerRanks(ADC3, LL_ADC_INJ_RANK_4, LL_ADC_CHANNEL_13);
+  LL_ADC_SetChannelSamplingTime(ADC3, LL_ADC_CHANNEL_10, LL_ADC_SAMPLINGTIME_144CYCLES);
+  LL_ADC_SetChannelSamplingTime(ADC3, LL_ADC_CHANNEL_11, LL_ADC_SAMPLINGTIME_144CYCLES);
+  LL_ADC_SetChannelSamplingTime(ADC3, LL_ADC_CHANNEL_12, LL_ADC_SAMPLINGTIME_144CYCLES);
+  LL_ADC_SetChannelSamplingTime(ADC3, LL_ADC_CHANNEL_13, LL_ADC_SAMPLINGTIME_144CYCLES);
+  LL_ADC_Enable(ADC3);
+  LL_ADC_INJ_StartConversionSWStart(ADC3);
   //**** ADC3 end
 
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
 
   //fan
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_3;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   //red
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_3;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //yellow
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_4;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //green
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_5;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //in1 led
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_0;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   //in0 led
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_1;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   //out0
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_4;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   // //out1
-  // GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
-  // GPIO_Init(GPIOE, &GPIO_InitStructure);
+  // GPIO_InitStructure.Pin = LL_GPIO_PIN_5;
+  // LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   // //out2
-  // GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
-  // GPIO_Init(GPIOE, &GPIO_InitStructure);
+  // GPIO_InitStructure.Pin = LL_GPIO_PIN_6;
+  // LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   RCC->APB2ENR |= RCC_APB2ENR_TIM9EN;
 
@@ -206,56 +206,56 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   TIM9->CR1 |= TIM_CR1_CEN;    // counter enable
 
   //fb0 green
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_8;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //fb0 yellow
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_9;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //fb1 green
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_7;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   //fb1 yellow
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_8;
+  LL_GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   //cmd
-  // GPIO_InitStructure.GPIO_Pin   = CMD_C_EN_PIN;
-  // GPIO_Init(CMD_C_EN_PORT, &GPIO_InitStructure);
+  // GPIO_InitStructure.Pin   = CMD_C_EN_PIN;
+  // LL_GPIO_Init(CMD_C_EN_PORT, &GPIO_InitStructure);
   //
-  // GPIO_InitStructure.GPIO_Pin   = CMD_D_EN_PIN;
-  // GPIO_Init(CMD_D_EN_PORT, &GPIO_InitStructure);
+  // GPIO_InitStructure.Pin   = CMD_D_EN_PIN;
+  // LL_GPIO_Init(CMD_D_EN_PORT, &GPIO_InitStructure);
 
   //cmd yellow
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_6;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //cmd green
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_7;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
 
   //fb 5v enable
-  GPIO_SetBits(GPIOC, GPIO_Pin_13);
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13;
-  GPIO_Init(GPIOC, &GPIO_InitStructure);
+  LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_13);
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_13;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStructure);
 
   if(PIN(cmd_remap) > 0) {
     // CMD EN
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    GPIO_InitStructure.GPIO_Pin   = CMD_A_EN_PIN;
-    GPIO_Init(CMD_A_EN_PORT, &GPIO_InitStructure);
-    GPIO_InitStructure.GPIO_Pin = CMD_B_EN_PIN;
-    GPIO_Init(CMD_B_EN_PORT, &GPIO_InitStructure);
-    GPIO_InitStructure.GPIO_Pin = CMD_C_EN_PIN;
-    GPIO_Init(CMD_C_EN_PORT, &GPIO_InitStructure);
+    GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+    GPIO_InitStructure.Pin   = CMD_A_EN_PIN;
+    LL_GPIO_Init(CMD_A_EN_PORT, &GPIO_InitStructure);
+    GPIO_InitStructure.Pin = CMD_B_EN_PIN;
+    LL_GPIO_Init(CMD_B_EN_PORT, &GPIO_InitStructure);
+    GPIO_InitStructure.Pin = CMD_C_EN_PIN;
+    LL_GPIO_Init(CMD_C_EN_PORT, &GPIO_InitStructure);
 
-    GPIO_SetBits(CMD_A_EN_PORT, CMD_A_EN_PIN);
-    GPIO_SetBits(CMD_B_EN_PORT, CMD_B_EN_PIN);
-    GPIO_SetBits(CMD_C_EN_PORT, CMD_C_EN_PIN);
+    LL_GPIO_SetOutputPin(CMD_A_EN_PORT, CMD_A_EN_PIN);
+    LL_GPIO_SetOutputPin(CMD_B_EN_PORT, CMD_B_EN_PIN);
+    LL_GPIO_SetOutputPin(CMD_C_EN_PORT, CMD_C_EN_PIN);
   }
 }
 
@@ -284,38 +284,38 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //TODO: unit conversion
   //TODO: check if adc sample complete?
-  float in0 = V2(ADC2V(ADC_GetInjectedConversionValue(ADC3, ADC_InjectedChannel_1)), 3.3, 1000.0, 10000.0, 1000.0);
-  float in1 = V2(ADC2V(ADC_GetInjectedConversionValue(ADC3, ADC_InjectedChannel_2)), 3.3, 1000.0, 10000.0, 1000.0);
+  float in0 = V2(ADC2V(LL_ADC_INJ_ReadConversionData12(ADC3, LL_ADC_INJ_RANK_1)), 3.3, 1000.0, 10000.0, 1000.0);
+  float in1 = V2(ADC2V(LL_ADC_INJ_ReadConversionData12(ADC3, LL_ADC_INJ_RANK_2)), 3.3, 1000.0, 10000.0, 1000.0);
   PIN(in0)  = in0;
   PIN(in1)  = in1;
 
   if(in0 > PIN(th0) + 0.1) {
     PIN(ind0)  = 1.0;
     PIN(ind0n) = 0.0;
-    GPIO_SetBits(GPIOE, GPIO_Pin_1);
+    LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_1);
   } else if(in0 < PIN(th0) - 0.1) {
     PIN(ind0)  = 0.0;
     PIN(ind0n) = 1.0;
-    GPIO_ResetBits(GPIOE, GPIO_Pin_1);
+    LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_1);
   }
 
   if(in1 > PIN(th1) + 0.1) {
     PIN(ind1)  = 1.0;
     PIN(ind1n) = 0.0;
-    GPIO_SetBits(GPIOE, GPIO_Pin_0);
+    LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_0);
   } else if(in1 < PIN(th1) - 0.1) {
     PIN(ind1)  = 0.0;
     PIN(ind1n) = 1.0;
-    GPIO_ResetBits(GPIOE, GPIO_Pin_0);
+    LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_0);
   }
 
 
-  in0      = V3(ADC2V(ADC_GetInjectedConversionValue(ADC3, ADC_InjectedChannel_3)), 10000.0, 1000.0);
-  in1      = V3(ADC2V(ADC_GetInjectedConversionValue(ADC3, ADC_InjectedChannel_4)), 10000.0, 1000.0);
+  in0      = V3(ADC2V(LL_ADC_INJ_ReadConversionData12(ADC3, LL_ADC_INJ_RANK_3)), 10000.0, 1000.0);
+  in1      = V3(ADC2V(LL_ADC_INJ_ReadConversionData12(ADC3, LL_ADC_INJ_RANK_4)), 10000.0, 1000.0);
   PIN(fb0) = in0;
   PIN(fb1) = in1;
 
-  ADC_SoftwareStartInjectedConv(ADC3);
+  LL_ADC_INJ_StartConversionSWStart(ADC3);
 
   if(in0 > PIN(fbth0) + 0.1) {
     PIN(fbd0)  = 1.0;
@@ -334,8 +334,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   if(PIN(swd_remap) > 0) {
-    PIN(DIO) = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_13);
-    PIN(CK)  = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_14);
+    PIN(DIO) = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_13);
+    PIN(CK)  = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_14);
   }
 
   switch((state_t)PIN(state)) {
@@ -377,34 +377,34 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   if(red > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_3);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_3);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_3);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_3);
 
   if(yellow > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_4);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_4);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_4);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_4);
 
   if(green > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_5);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_5);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_5);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_5);
 
   if(PIN(out0) > 0)
-    GPIO_SetBits(GPIOE, GPIO_Pin_4);
+    LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_4);
   else
-    GPIO_ResetBits(GPIOE, GPIO_Pin_4);
+    LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_4);
 
   // if(PIN(out1) > 0)
-  //   GPIO_SetBits(GPIOE, GPIO_Pin_5);
+  //   LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_5);
   // else
-  //   GPIO_ResetBits(GPIOE, GPIO_Pin_5);
+  //   LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_5);
 
   // if(PIN(out2) > 0)
-  //   GPIO_SetBits(GPIOE, GPIO_Pin_6);
+  //   LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_6);
   // else
-  //   GPIO_ResetBits(GPIOE, GPIO_Pin_6);
+  //   LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_6);
 
   TIM9->ARR  = TIM9_CLK / 300 / MAX(PIN(out_freq), 10);
   TIM9->CCR1 = CLAMP(PIN(out1), 0, 1) * TIM9->ARR;
@@ -415,109 +415,109 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(out_ccr1) = TIM9->CCR1;
 
   if(PIN(fb0g) > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_8);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_8);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_8);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_8);
 
   if(PIN(fb0y) > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_9);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_9);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_9);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_9);
 
   if(PIN(fb1g) > 0)
-    GPIO_SetBits(GPIOE, GPIO_Pin_7);
+    LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_7);
   else
-    GPIO_ResetBits(GPIOE, GPIO_Pin_7);
+    LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_7);
 
   if(PIN(fb1y) > 0)
-    GPIO_SetBits(GPIOE, GPIO_Pin_8);
+    LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_8);
   else
-    GPIO_ResetBits(GPIOE, GPIO_Pin_8);
+    LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_8);
 
   // if(PIN(cmdc_en) > 0){
-  //    GPIO_SetBits(CMD_C_EN_PORT, CMD_C_EN_PIN);
-  //    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  //    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  //    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  //    GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  //    GPIO_InitStructure.GPIO_Pin = CMD_C_PIN;
-  //    GPIO_Init(CMD_C_PORT, &GPIO_InitStructure);
+  //    LL_GPIO_SetOutputPin(CMD_C_EN_PORT, CMD_C_EN_PIN);
+  //    GPIO_InitStructure.Mode  = LL_GPIO_MODE_OUTPUT;
+  //    GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  //    GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  //    GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  //    GPIO_InitStructure.Pin = CMD_C_PIN;
+  //    LL_GPIO_Init(CMD_C_PORT, &GPIO_InitStructure);
   //    if(PIN(cmdc) > 0){
-  //       GPIO_SetBits(CMD_C_PORT, CMD_C_PIN);
+  //       LL_GPIO_SetOutputPin(CMD_C_PORT, CMD_C_PIN);
   //    }
   //    else{
-  //       GPIO_ResetBits(CMD_C_PORT, CMD_C_PIN);
+  //       LL_GPIO_ResetOutputPin(CMD_C_PORT, CMD_C_PIN);
   //    }
   // }
   // else{
-  //    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN;
-  //    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  //    GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  //    GPIO_InitStructure.GPIO_Pin = CMD_C_PIN;
-  //    GPIO_Init(CMD_C_PORT, &GPIO_InitStructure);
-  //    GPIO_ResetBits(CMD_C_EN_PORT, CMD_C_EN_PIN);
+  //    GPIO_InitStructure.Mode  = LL_GPIO_MODE_INPUT;
+  //    GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  //    GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  //    GPIO_InitStructure.Pin = CMD_C_PIN;
+  //    LL_GPIO_Init(CMD_C_PORT, &GPIO_InitStructure);
+  //    LL_GPIO_ResetOutputPin(CMD_C_EN_PORT, CMD_C_EN_PIN);
   //    PIN(cmdc) = (CMD_C_PORT->IDR & CMD_C_PIN) > 0;
   // }
   //
   // if(PIN(cmdd_en) > 0){
-  //    GPIO_SetBits(CMD_D_EN_PORT, CMD_D_EN_PIN);
-  //    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  //    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  //    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  //    GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  //    GPIO_InitStructure.GPIO_Pin = CMD_C_PIN;
-  //    GPIO_Init(CMD_D_PORT, &GPIO_InitStructure);
+  //    LL_GPIO_SetOutputPin(CMD_D_EN_PORT, CMD_D_EN_PIN);
+  //    GPIO_InitStructure.Mode  = LL_GPIO_MODE_OUTPUT;
+  //    GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  //    GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  //    GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  //    GPIO_InitStructure.Pin = CMD_C_PIN;
+  //    LL_GPIO_Init(CMD_D_PORT, &GPIO_InitStructure);
   //    if(PIN(cmdd) > 0){
-  //       GPIO_SetBits(CMD_D_PORT, CMD_D_PIN);
+  //       LL_GPIO_SetOutputPin(CMD_D_PORT, CMD_D_PIN);
   //    }
   //    else{
-  //       GPIO_ResetBits(CMD_D_PORT, CMD_D_PIN);
+  //       LL_GPIO_ResetOutputPin(CMD_D_PORT, CMD_D_PIN);
   //    }
   // }
   // else{
-  //    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN;
-  //    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  //    GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  //    GPIO_InitStructure.GPIO_Pin = CMD_D_PIN;
-  //    GPIO_Init(CMD_D_PORT, &GPIO_InitStructure);
-  //    GPIO_ResetBits(CMD_D_EN_PORT, CMD_D_EN_PIN);
+  //    GPIO_InitStructure.Mode  = LL_GPIO_MODE_INPUT;
+  //    GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  //    GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
+  //    GPIO_InitStructure.Pin = CMD_D_PIN;
+  //    LL_GPIO_Init(CMD_D_PORT, &GPIO_InitStructure);
+  //    LL_GPIO_ResetOutputPin(CMD_D_EN_PORT, CMD_D_EN_PIN);
   //    PIN(cmdd) = (CMD_D_PORT->IDR & CMD_D_PIN) > 0;
   // }
 
   if(PIN(cmdy) > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_6);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_6);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_6);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_6);
 
   if(PIN(cmdg) > 0)
-    GPIO_SetBits(GPIOD, GPIO_Pin_7);
+    LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_7);
   else
-    GPIO_ResetBits(GPIOD, GPIO_Pin_7);
+    LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_7);
 
   if(PIN(fan) > 0)
-    GPIO_SetBits(GPIOE, GPIO_Pin_3);
+    LL_GPIO_SetOutputPin(GPIOE, LL_GPIO_PIN_3);
   else
-    GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+    LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_3);
 
   if(PIN(fbsd) > 0)
-    GPIO_ResetBits(GPIOC, GPIO_Pin_13);
+    LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_13);
   else
-    GPIO_SetBits(GPIOC, GPIO_Pin_13);
+    LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_13);
 
-  PIN(CRX) = GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_0);
-  PIN(CTX) = GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_1);
-  PIN(C12) = GPIO_ReadInputDataBit(CMD_A_PORT, CMD_A_PIN);
-  PIN(C36) = GPIO_ReadInputDataBit(CMD_B_PORT, CMD_B_PIN);
-  PIN(C54) = GPIO_ReadInputDataBit(CMD_C_PORT, CMD_C_PIN);
-  PIN(C78) = GPIO_ReadInputDataBit(CMD_D_PORT, CMD_D_PIN);
+  PIN(CRX) = LL_GPIO_IsInputPinSet(GPIOD, LL_GPIO_PIN_0);
+  PIN(CTX) = LL_GPIO_IsInputPinSet(GPIOD, LL_GPIO_PIN_1);
+  PIN(C12) = LL_GPIO_IsInputPinSet(CMD_A_PORT, CMD_A_PIN);
+  PIN(C36) = LL_GPIO_IsInputPinSet(CMD_B_PORT, CMD_B_PIN);
+  PIN(C54) = LL_GPIO_IsInputPinSet(CMD_C_PORT, CMD_C_PIN);
+  PIN(C78) = LL_GPIO_IsInputPinSet(CMD_D_PORT, CMD_D_PIN);
 
-  PIN(fb0a) = GPIO_ReadInputDataBit(FB0_A_PORT, FB0_A_PIN);
-  PIN(fb0b) = GPIO_ReadInputDataBit(FB0_B_PORT, FB0_B_PIN);
-  PIN(fb0z) = GPIO_ReadInputDataBit(FB0_Z_PORT, FB0_Z_PIN);
+  PIN(fb0a) = LL_GPIO_IsInputPinSet(FB0_A_PORT, FB0_A_PIN);
+  PIN(fb0b) = LL_GPIO_IsInputPinSet(FB0_B_PORT, FB0_B_PIN);
+  PIN(fb0z) = LL_GPIO_IsInputPinSet(FB0_Z_PORT, FB0_Z_PIN);
 
-  PIN(fb1a) = GPIO_ReadInputDataBit(FB1_A_PORT, FB1_A_PIN);
-  PIN(fb1b) = GPIO_ReadInputDataBit(FB1_B_PORT, FB1_B_PIN);
-  PIN(fb1z) = GPIO_ReadInputDataBit(FB1_Z_PORT, FB1_Z_PIN);
+  PIN(fb1a) = LL_GPIO_IsInputPinSet(FB1_A_PORT, FB1_A_PIN);
+  PIN(fb1b) = LL_GPIO_IsInputPinSet(FB1_B_PORT, FB1_B_PIN);
+  PIN(fb1z) = LL_GPIO_IsInputPinSet(FB1_Z_PORT, FB1_Z_PIN);
 }
 
 hal_comp_t io_comp_struct = {

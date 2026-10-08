@@ -116,50 +116,52 @@ static uint32_t have_tot;
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct encf_ctx_t *ctx = (struct encf_ctx_t *)ctx_ptr;
   struct encf_pin_ctx_t *pins = (struct encf_pin_ctx_t *)pin_ptr;
-  GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
 
   //TX enable
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_15;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   //TIM CH1 A
-  GPIO_InitStruct.GPIO_Pin   = FB0_A_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(FB0_A_PORT, &GPIO_InitStruct);
-  GPIO_PinAFConfig(FB0_A_PORT, FB0_A_PIN_SOURCE, FB0_ENC_TIM_AF);
+  GPIO_InitStruct.Pin   = FB0_A_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = FB0_ENC_TIM_AF;
+  LL_GPIO_Init(FB0_A_PORT, &GPIO_InitStruct);
 
   //TIM rx dma
   //fb0 rx auf 12: tim4_ch1 dma1_0_2
   //fb1 rx auf 12: tim1_ch1 dma2_3_6
-  DMA_InitTypeDef DMA_InitStruct;
-  DMA_InitStruct.DMA_Channel            = DMA_Channel_2;
-  DMA_InitStruct.DMA_PeripheralBaseAddr = (uint32_t)&FB0_ENC_TIM->CCR1;
-  DMA_InitStruct.DMA_Memory0BaseAddr    = (uint32_t)&tim_data;
-  DMA_InitStruct.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  DMA_InitStruct.DMA_BufferSize         = ARRAY_SIZE(tim_data);
-  DMA_InitStruct.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStruct.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-  DMA_InitStruct.DMA_MemoryDataSize     = DMA_PeripheralDataSize_HalfWord;
-  DMA_InitStruct.DMA_Mode               = DMA_Mode_Normal;
-  DMA_InitStruct.DMA_Priority           = DMA_Priority_VeryHigh;
-  DMA_InitStruct.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStruct.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStruct.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStruct.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  LL_DMA_InitTypeDef DMA_InitStruct;
+  LL_DMA_StructInit(&DMA_InitStruct);
+  DMA_InitStruct.Channel                = LL_DMA_CHANNEL_2;
+  DMA_InitStruct.PeriphOrM2MSrcAddress  = (uint32_t)&FB0_ENC_TIM->CCR1;
+  DMA_InitStruct.MemoryOrM2MDstAddress  = (uint32_t)&tim_data;
+  DMA_InitStruct.Direction              = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  DMA_InitStruct.NbData                 = ARRAY_SIZE(tim_data);
+  DMA_InitStruct.PeriphOrM2MSrcIncMode  = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStruct.MemoryOrM2MDstIncMode  = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStruct.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_HALFWORD;
+  DMA_InitStruct.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_HALFWORD;
+  DMA_InitStruct.Mode                   = LL_DMA_MODE_NORMAL;
+  DMA_InitStruct.Priority               = LL_DMA_PRIORITY_VERYHIGH;
+  DMA_InitStruct.FIFOMode               = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStruct.FIFOThreshold          = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStruct.MemBurst               = LL_DMA_MBURST_SINGLE;
+  DMA_InitStruct.PeriphBurst            = LL_DMA_PBURST_SINGLE;
   dma_stream_stop(DMA1_Stream0);
-  DMA_DeInit(DMA1_Stream0);
-  DMA_Init(DMA1_Stream0, &DMA_InitStruct);
+  LL_DMA_DeInit(DMA1, LL_DMA_STREAM_0);
+  LL_DMA_Init(DMA1, LL_DMA_STREAM_0, &DMA_InitStruct);
 
   //timer setup
-  RCC_APB1PeriphClockCmd(FB0_ENC_TIM_RCC, ENABLE);
+  LL_APB1_GRP1_EnableClock(FB0_ENC_TIM_RCC);
   FB0_ENC_TIM->CR1 &= ~TIM_CR1_CEN;
   FB0_ENC_TIM->CCMR1 = TIM_CCMR1_CC1S_0;                                // cc1 input ti1
   FB0_ENC_TIM->CCER  = TIM_CCER_CC1E | TIM_CCER_CC1P | TIM_CCER_CC1NP;  // cc1 en, rising edge, falling edge
@@ -167,28 +169,29 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_ENC_TIM->DIER  = TIM_DIER_CC1DE;  // enable cc1 dma reeuest
 
   //SPI is used to generate request
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3, ENABLE);
-  SPI_InitTypeDef SPI_InitTypeDefStruct;
-  SPI_InitTypeDefStruct.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32;
-  SPI_InitTypeDefStruct.SPI_Direction         = SPI_Direction_2Lines_FullDuplex;
-  SPI_InitTypeDefStruct.SPI_Mode              = SPI_Mode_Master;
-  SPI_InitTypeDefStruct.SPI_DataSize          = SPI_DataSize_16b;
-  SPI_InitTypeDefStruct.SPI_NSS               = SPI_NSS_Soft;
-  SPI_InitTypeDefStruct.SPI_FirstBit          = SPI_FirstBit_MSB;
-  SPI_InitTypeDefStruct.SPI_CPOL              = SPI_CPOL_High;
-  SPI_InitTypeDefStruct.SPI_CPHA              = SPI_CPHA_2Edge;
-  SPI_Init(SPI3, &SPI_InitTypeDefStruct);
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_SPI3);
+  LL_SPI_InitTypeDef SPI_InitTypeDefStruct;
+  LL_SPI_StructInit(&SPI_InitTypeDefStruct);
+  SPI_InitTypeDefStruct.BaudRate          = LL_SPI_BAUDRATEPRESCALER_DIV32;
+  SPI_InitTypeDefStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
+  SPI_InitTypeDefStruct.Mode              = LL_SPI_MODE_MASTER;
+  SPI_InitTypeDefStruct.DataWidth         = LL_SPI_DATAWIDTH_16BIT;
+  SPI_InitTypeDefStruct.NSS               = LL_SPI_NSS_SOFT;
+  SPI_InitTypeDefStruct.BitOrder          = LL_SPI_MSB_FIRST;
+  SPI_InitTypeDefStruct.ClockPolarity     = LL_SPI_POLARITY_HIGH;
+  SPI_InitTypeDefStruct.ClockPhase        = LL_SPI_PHASE_2EDGE;
+  LL_SPI_Init(SPI3, &SPI_InitTypeDefStruct);
 
-  GPIO_PinAFConfig(GPIOC, GPIO_PinSource12, GPIO_AF_SPI3);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_12;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOC, &GPIO_InitStruct);
-  SPI_Cmd(SPI3, ENABLE);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_12;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_6;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  LL_SPI_Enable(SPI3);
 
-  GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
+  LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_15);  //tx enable
 
   PIN(pos_offset) = 0;
   PIN(req_len)    = 2046;
@@ -235,7 +238,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct encf_ctx_t *ctx      = (struct encf_ctx_t *)ctx_ptr;
   struct encf_pin_ctx_t *pins = (struct encf_pin_ctx_t *)pin_ptr;
 
-  uint32_t count = ARRAY_SIZE(tim_data) - DMA1_Stream0->NDTR;
+  uint32_t count = ARRAY_SIZE(tim_data) - LL_DMA_GetDataLength(DMA1, LL_DMA_STREAM_0);
   PIN(dma)       = count;
 
   // TIM4 counts at 84 MHz (APB1 42 MHz x2): 1 bit = 82.03 ticks at 1.024 Mbit/s.
@@ -393,7 +396,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   SPI3->DR = PIN(req_len);
   //start DMA
   dma_stream_stop(DMA1_Stream0);
-  DMA_Cmd(DMA1_Stream0, ENABLE);
+  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_0);
 }
 
 static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {

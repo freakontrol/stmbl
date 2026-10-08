@@ -128,81 +128,84 @@ struct dmm_ctx_t {
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct dmm_ctx_t *ctx = (struct dmm_ctx_t *)ctx_ptr;
   // struct dmm_pin_ctx_t * pins = (struct dmm_pin_ctx_t *)pin_ptr;
-  GPIO_InitTypeDef GPIO_InitStruct;
-  USART_InitTypeDef USART_InitStruct;
-  DMA_InitTypeDef DMA_InitStructure;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
+  LL_USART_InitTypeDef USART_InitStruct;
+  LL_USART_StructInit(&USART_InitStruct);
+  LL_DMA_InitTypeDef DMA_InitStructure;
+  LL_DMA_StructInit(&DMA_InitStructure);
 
   //TX enable
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_15;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART6, ENABLE);
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_USART6);
 
   //USART TX
-  GPIO_PinAFConfig(GPIOC, GPIO_PinSource6, GPIO_AF_USART6);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_6;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_6;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_8;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   //USART RX
-  // GPIO_PinAFConfig(GPIOB, GPIO_PinSource11, GPIO_AF_USART6);
-  // GPIO_InitStruct.GPIO_Pin = GPIO_Pin_11;
-  // GPIO_Init(GPIOB, &GPIO_InitStruct);
+  // gpio_set_af(GPIOB, 11, LL_GPIO_AF_8);
+  // GPIO_InitStruct.Pin = LL_GPIO_PIN_11;
+  // gpio_init(GPIOB, &GPIO_InitStruct);
 
-  USART_InitStruct.USART_BaudRate            = 1875000;
-  USART_InitStruct.USART_WordLength          = USART_WordLength_8b;
-  USART_InitStruct.USART_StopBits            = USART_StopBits_1;
-  USART_InitStruct.USART_Parity              = USART_Parity_No;
-  USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-  USART_InitStruct.USART_Mode                = USART_Mode_Rx | USART_Mode_Tx;
-  USART_Init(USART6, &USART_InitStruct);
+  USART_InitStruct.BaudRate            = 1875000;
+  USART_InitStruct.DataWidth          = LL_USART_DATAWIDTH_8B;
+  USART_InitStruct.StopBits            = LL_USART_STOPBITS_1;
+  USART_InitStruct.Parity              = LL_USART_PARITY_NONE;
+  USART_InitStruct.HardwareFlowControl = LL_USART_HWCONTROL_NONE;
+  USART_InitStruct.TransferDirection                = LL_USART_DIRECTION_TX_RX;
+  LL_USART_Init(USART6, &USART_InitStruct);
 
   /* Enable the USART */
-  USART_Cmd(USART6, ENABLE);
-  USART_HalfDuplexCmd(USART6, ENABLE);
+  LL_USART_Enable(USART6);
+  SET_BIT(USART6->CR3, USART_CR3_HDSEL);  // half duplex
 
   // DMA-Disable
   dma_stream_stop(DMA2_Stream1);
-  DMA_DeInit(DMA2_Stream1);
+  LL_DMA_DeInit(DMA2, LL_DMA_STREAM_1);
 
   // DMA2-Config
-  DMA_InitStructure.DMA_Channel            = DMA_Channel_5;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) & (USART6->DR);
-  DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t)&ctx->rxbuf;
-  DMA_InitStructure.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructure.DMA_BufferSize         = ARRAY_SIZE(ctx->rxbuf);
-  DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_Mode               = DMA_Mode_Circular;
-  DMA_InitStructure.DMA_Priority           = DMA_Priority_High;
-  DMA_InitStructure.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructure.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructure.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructure.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_Init(DMA2_Stream1, &DMA_InitStructure);
-  GPIO_ResetBits(GPIOD, GPIO_Pin_15);  //tx disable
-  USART_DMACmd(USART6, USART_DMAReq_Rx, ENABLE);
-  DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF1);
-  DMA_Cmd(DMA2_Stream1, ENABLE);
+  DMA_InitStructure.Channel            = LL_DMA_CHANNEL_5;
+  DMA_InitStructure.PeriphOrM2MSrcAddress = (uint32_t) & (USART6->DR);
+  DMA_InitStructure.MemoryOrM2MDstAddress    = (uint32_t)&ctx->rxbuf;
+  DMA_InitStructure.Direction                = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  DMA_InitStructure.NbData         = ARRAY_SIZE(ctx->rxbuf);
+  DMA_InitStructure.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructure.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructure.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
+  DMA_InitStructure.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_BYTE;
+  DMA_InitStructure.Mode               = LL_DMA_MODE_CIRCULAR;
+  DMA_InitStructure.Priority           = LL_DMA_PRIORITY_HIGH;
+  DMA_InitStructure.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructure.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructure.MemBurst        = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructure.PeriphBurst    = LL_DMA_PBURST_SINGLE;
+  LL_DMA_Init(DMA2, LL_DMA_STREAM_1, &DMA_InitStructure);
+  LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_15);  //tx disable
+  LL_USART_EnableDMAReq_RX(USART6);
+  LL_DMA_ClearFlag_TC1(DMA2);
+  LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_1);
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct dmm_ctx_t *ctx      = (struct dmm_ctx_t *)ctx_ptr;
   struct dmm_pin_ctx_t *pins = (struct dmm_pin_ctx_t *)pin_ptr;
-  PIN(dma)                   = DMA2_Stream1->NDTR;
+  PIN(dma)                   = LL_DMA_GetDataLength(DMA2, LL_DMA_STREAM_1);
   ;
 
   //next received byte will be written to bufferpos
-  uint32_t bufferpos = ARRAY_SIZE(ctx->rxbuf) - DMA2_Stream1->NDTR;
+  uint32_t bufferpos = ARRAY_SIZE(ctx->rxbuf) - LL_DMA_GetDataLength(DMA2, LL_DMA_STREAM_1);
 
   uint8_t crc    = 0;
   uint16_t angle = 0;

@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?fileVersion 4.0.0?><cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
+	<storageModule moduleId="org.eclipse.cdt.core.settings">
+		<cconfiguration id="cdt.managedbuild.toolchain.gnu.cross.base.1001">
+			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="cdt.managedbuild.toolchain.gnu.cross.base.1001" moduleId="org.eclipse.cdt.core.settings" name="f4_app">
+				<externalSettings/>
+				<extensions>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+				</extensions>
+			</storageModule>
+			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+				<configuration artifactExtension="elf" artifactName="stmbl" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" description="make -f Makefile" id="cdt.managedbuild.toolchain.gnu.cross.base.1001" name="f4_app" parent="org.eclipse.cdt.build.core.emptycfg">
+					<folderInfo id="cdt.managedbuild.toolchain.gnu.cross.base.1001.10010" name="/" resourcePath="">
+						<toolChain id="cdt.managedbuild.toolchain.gnu.cross.base.10011" name="Cross GCC" superClass="cdt.managedbuild.toolchain.gnu.cross.base">
+							<option id="cdt.managedbuild.option.gnu.cross.prefix.1001" name="Prefix" superClass="cdt.managedbuild.option.gnu.cross.prefix" value="arm-none-eabi-" valueType="string"/>
+							<option id="cdt.managedbuild.option.gnu.cross.path.1001" name="Path" superClass="cdt.managedbuild.option.gnu.cross.path" value="" valueType="string"/>
+							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.GNU_ELF" id="cdt.managedbuild.targetPlatform.gnu.cross.1001" isAbstract="false" osList="all" superClass="cdt.managedbuild.targetPlatform.gnu.cross"/>
+							<builder arguments="-f Makefile -j16 TOOLCHAIN=arm-none-eabi- DOCS=0" autoBuildTarget="all" buildPath="${workspace_loc:/stmbl}" cleanBuildTarget="clean" command="make" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="cdt.managedbuild.builder.gnu.cross.1001" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" parallelBuildOn="false" superClass="cdt.managedbuild.builder.gnu.cross"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.compiler.1001" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.include.paths.1001" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc/comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc/comps/hw}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc/shared_comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src/usb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32_USB_Device_Library-2.11.4/Core/Inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32_USB_Device_Library-2.11.4/Class/CDC/Inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F4xx_HAL_Driver/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F4xx/Include}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.preprocessor.def.symbols.1001" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="USBD_PRODUCT_STRING=&quot;STMBL Virtual ComPort&quot;"/>
+									<listOptionValue builtIn="false" value="APP_RX_DATA_SIZE=4096"/>
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="STM32F405xx"/>
+									<listOptionValue builtIn="false" value="HSE_VALUE=8000000"/>
+									<listOptionValue builtIn="false" value="HSE_STARTUP_TIMEOUT=0x05000"/>
+									<listOptionValue builtIn="false" value="V4"/>
+								</option>
+								<option id="gnu.c.compiler.option.misc.other.1001" name="Other flags" superClass="gnu.c.compiler.option.misc.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1001" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1001" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.include.paths.1001" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc/comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc/comps/hw}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc/shared_comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src/usb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32_USB_Device_Library-2.11.4/Core/Inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32_USB_Device_Library-2.11.4/Class/CDC/Inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F4xx_HAL_Driver/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F4xx/Include}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.preprocessor.def.1001" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="USBD_PRODUCT_STRING=&quot;STMBL Virtual ComPort&quot;"/>
+									<listOptionValue builtIn="false" value="APP_RX_DATA_SIZE=4096"/>
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="STM32F405xx"/>
+									<listOptionValue builtIn="false" value="HSE_VALUE=8000000"/>
+									<listOptionValue builtIn="false" value="HSE_STARTUP_TIMEOUT=0x05000"/>
+									<listOptionValue builtIn="false" value="V4"/>
+								</option>
+								<option id="gnu.cpp.compiler.option.other.other.1001" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1001" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1001" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker">
+								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1417676198" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
+									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+								</inputType>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.linker.1001" name="Cross G++ Linker" superClass="cdt.managedbuild.tool.gnu.cross.cpp.linker"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.archiver.1001" name="Cross GCC Archiver" superClass="cdt.managedbuild.tool.gnu.cross.archiver"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.assembler.1001" name="Cross GCC Assembler" superClass="cdt.managedbuild.tool.gnu.cross.assembler">
+								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1659337461" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+							</tool>
+						</toolChain>
+					</folderInfo>
+					<sourceEntries>
+						<entry excluding="conf|docs|graphviz|hw|img|mechanics|tests|tools|obj_app|obj_boot|obj_hvf3|obj_f3_boot|bootloader/src|f3_boot/src|lib/CMSIS/Device/ST/STM32F3xx/Source/Templates|lib/CMSIS/Device/ST/STM32F4xx/Source|lib/STM32F3xx_HAL_Driver/Src|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_dac.c|shared/comps/curpid.c|shared/comps/wobl.c|shared/comps/uf.c|shared/comps/pmsm.c|shared/comps/iit_old.c|shared/comps/idq.c|shared/comps/dq.c|shared/comps/dc.c|shared/comps/auto_ac.c|shared/comps/ac.c|stm32f303/src|lib/CMSIS/Include/cmsis_armcc.h|lib/CMSIS/Include/cmsis_armclang.h|lib/CMSIS/Include/cmsis_armclang_ltm.h|lib/CMSIS/Include/cmsis_iccarm.h|lib/CMSIS/Include/cmsis_version.h|lib/STM32F3xx_HAL_Driver/Inc/stm32_assert_template.h|lib/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_conf_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32_assert_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32f4xx_hal_conf_template.h" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+					</sourceEntries>
+				</configuration>
+			</storageModule>
+			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+		</cconfiguration>
+		<cconfiguration id="cdt.managedbuild.toolchain.gnu.cross.base.1002">
+			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="cdt.managedbuild.toolchain.gnu.cross.base.1002" moduleId="org.eclipse.cdt.core.settings" name="f4_boot">
+				<externalSettings/>
+				<extensions>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+				</extensions>
+			</storageModule>
+			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+				<configuration artifactExtension="elf" artifactName="blboot" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" description="make -f bootloader/Makefile" id="cdt.managedbuild.toolchain.gnu.cross.base.1002" name="f4_boot" parent="org.eclipse.cdt.build.core.emptycfg">
+					<folderInfo id="cdt.managedbuild.toolchain.gnu.cross.base.1002.10020" name="/" resourcePath="">
+						<toolChain id="cdt.managedbuild.toolchain.gnu.cross.base.10021" name="Cross GCC" superClass="cdt.managedbuild.toolchain.gnu.cross.base">
+							<option id="cdt.managedbuild.option.gnu.cross.prefix.1002" name="Prefix" superClass="cdt.managedbuild.option.gnu.cross.prefix" value="arm-none-eabi-" valueType="string"/>
+							<option id="cdt.managedbuild.option.gnu.cross.path.1002" name="Path" superClass="cdt.managedbuild.option.gnu.cross.path" value="" valueType="string"/>
+							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.GNU_ELF" id="cdt.managedbuild.targetPlatform.gnu.cross.1002" isAbstract="false" osList="all" superClass="cdt.managedbuild.targetPlatform.gnu.cross"/>
+							<builder arguments="-f bootloader/Makefile -j16 TOOLCHAIN=arm-none-eabi- DOCS=0" autoBuildTarget="all" buildPath="${workspace_loc:/stmbl}" cleanBuildTarget="clean" command="make" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="cdt.managedbuild.builder.gnu.cross.1002" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" parallelBuildOn="false" superClass="cdt.managedbuild.builder.gnu.cross"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.compiler.1002" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.include.paths.1002" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bootloader/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F4xx_HAL_Driver/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F4xx/Include}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.preprocessor.def.symbols.1002" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="STM32F405xx"/>
+									<listOptionValue builtIn="false" value="HSE_VALUE=8000000"/>
+									<listOptionValue builtIn="false" value="HSE_STARTUP_TIMEOUT=0x05000"/>
+								</option>
+								<option id="gnu.c.compiler.option.misc.other.1002" name="Other flags" superClass="gnu.c.compiler.option.misc.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1002" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1002" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.include.paths.1002" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bootloader/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F4xx_HAL_Driver/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F4xx/Include}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.preprocessor.def.1002" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="STM32F405xx"/>
+									<listOptionValue builtIn="false" value="HSE_VALUE=8000000"/>
+									<listOptionValue builtIn="false" value="HSE_STARTUP_TIMEOUT=0x05000"/>
+								</option>
+								<option id="gnu.cpp.compiler.option.other.other.1002" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1002" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1002" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker">
+								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.487988953" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
+									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+								</inputType>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.linker.1002" name="Cross G++ Linker" superClass="cdt.managedbuild.tool.gnu.cross.cpp.linker"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.archiver.1002" name="Cross GCC Archiver" superClass="cdt.managedbuild.tool.gnu.cross.archiver"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.assembler.1002" name="Cross GCC Assembler" superClass="cdt.managedbuild.tool.gnu.cross.assembler">
+								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.2144402407" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+							</tool>
+						</toolChain>
+					</folderInfo>
+					<sourceEntries>
+						<entry excluding="conf|docs|graphviz|hw|img|mechanics|tests|tools|obj_app|obj_boot|obj_hvf3|obj_f3_boot|f3_boot/src|lib/CMSIS/Device/ST/STM32F3xx/Source/Templates|lib/CMSIS/Device/ST/STM32F4xx/Source/system_stm32f4xx.c|lib/STM32F3xx_HAL_Driver/Src|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_utils.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_usb.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_usart.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_tim.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_spi.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_pwr.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_gpio.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_exti.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_dma.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_dac.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_crc.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_ll_adc.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_rcc_ex.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_rcc.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_pcd_ex.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_pcd.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_gpio.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_flash_ex.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_flash.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal_cortex.c|lib/STM32F4xx_HAL_Driver/src/stm32f4xx_hal.c|lib/STM32_USB_Device_Library-2.11.4/Class/CDC/Src|lib/STM32_USB_Device_Library-2.11.4/Core/Src|shared|src/version.c|src/syscalls.c|src/stm32f4xx_it.c|src/setup.c|src/main.c|src/config.c|src/conf_templates.c|src/hal_tbl.c|src/comps|src/usb|stm32f303/src|lib/CMSIS/Include/cmsis_armcc.h|lib/CMSIS/Include/cmsis_armclang.h|lib/CMSIS/Include/cmsis_armclang_ltm.h|lib/CMSIS/Include/cmsis_iccarm.h|lib/CMSIS/Include/cmsis_version.h|lib/STM32F3xx_HAL_Driver/Inc/stm32_assert_template.h|lib/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_conf_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32_assert_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32f4xx_hal_conf_template.h" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+					</sourceEntries>
+				</configuration>
+			</storageModule>
+			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+		</cconfiguration>
+		<cconfiguration id="cdt.managedbuild.toolchain.gnu.cross.base.1003">
+			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="cdt.managedbuild.toolchain.gnu.cross.base.1003" moduleId="org.eclipse.cdt.core.settings" name="hvf3">
+				<externalSettings/>
+				<extensions>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+				</extensions>
+			</storageModule>
+			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+				<configuration artifactExtension="elf" artifactName="hvf3" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" description="make -f stm32f303/Makefile" id="cdt.managedbuild.toolchain.gnu.cross.base.1003" name="hvf3" parent="org.eclipse.cdt.build.core.emptycfg">
+					<folderInfo id="cdt.managedbuild.toolchain.gnu.cross.base.1003.10030" name="/" resourcePath="">
+						<toolChain id="cdt.managedbuild.toolchain.gnu.cross.base.10031" name="Cross GCC" superClass="cdt.managedbuild.toolchain.gnu.cross.base">
+							<option id="cdt.managedbuild.option.gnu.cross.prefix.1003" name="Prefix" superClass="cdt.managedbuild.option.gnu.cross.prefix" value="arm-none-eabi-" valueType="string"/>
+							<option id="cdt.managedbuild.option.gnu.cross.path.1003" name="Path" superClass="cdt.managedbuild.option.gnu.cross.path" value="" valueType="string"/>
+							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.GNU_ELF" id="cdt.managedbuild.targetPlatform.gnu.cross.1003" isAbstract="false" osList="all" superClass="cdt.managedbuild.targetPlatform.gnu.cross"/>
+							<builder arguments="-f stm32f303/Makefile -j16 TOOLCHAIN=arm-none-eabi- DOCS=0" autoBuildTarget="all" buildPath="${workspace_loc:/stmbl}" cleanBuildTarget="clean" command="make" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="cdt.managedbuild.builder.gnu.cross.1003" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" parallelBuildOn="false" superClass="cdt.managedbuild.builder.gnu.cross"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.compiler.1003" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.include.paths.1003" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/stm32f303/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/stm32f303/inc/comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/stm32f303/inc/shared_comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F3xx/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F3xx_HAL_Driver/Inc}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.preprocessor.def.symbols.1003" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="STM32F303xC"/>
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="HAL_MAX_CTX=1024"/>
+									<listOptionValue builtIn="false" value="HAL_WATCHDOG"/>
+									<listOptionValue builtIn="false" value="TERM_BUF_SIZE=8"/>
+								</option>
+								<option id="gnu.c.compiler.option.misc.other.1003" name="Other flags" superClass="gnu.c.compiler.option.misc.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1003" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1003" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.include.paths.1003" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/stm32f303/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/stm32f303/inc/comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/stm32f303/inc/shared_comps}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F3xx/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F3xx_HAL_Driver/Inc}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.preprocessor.def.1003" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="STM32F303xC"/>
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="HAL_MAX_CTX=1024"/>
+									<listOptionValue builtIn="false" value="HAL_WATCHDOG"/>
+									<listOptionValue builtIn="false" value="TERM_BUF_SIZE=8"/>
+								</option>
+								<option id="gnu.cpp.compiler.option.other.other.1003" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1003" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1003" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker">
+								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1771428969" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
+									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+								</inputType>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.linker.1003" name="Cross G++ Linker" superClass="cdt.managedbuild.tool.gnu.cross.cpp.linker"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.archiver.1003" name="Cross GCC Archiver" superClass="cdt.managedbuild.tool.gnu.cross.archiver"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.assembler.1003" name="Cross GCC Assembler" superClass="cdt.managedbuild.tool.gnu.cross.assembler">
+								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1275374686" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+							</tool>
+						</toolChain>
+					</folderInfo>
+					<sourceEntries>
+						<entry excluding="conf|docs|graphviz|hw|img|mechanics|tests|tools|obj_app|obj_boot|obj_hvf3|obj_f3_boot|bootloader/src|f3_boot/src|lib/CMSIS/Device/ST/STM32F4xx/Source|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_utils.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_usb.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_tim.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_spi.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_rtc.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_pwr.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_opamp.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_i2c.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_hrtim.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_fmc.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_exti.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_dma.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_dac.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_crc.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_comp.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_adc.c|lib/STM32F4xx_HAL_Driver/src|lib/STM32_USB_Device_Library-2.11.4/Class/CDC/Src|lib/STM32_USB_Device_Library-2.11.4/Core/Src|shared/yaskawa_crc16.c|shared/endat.c|shared/crc.c|shared/config.c|shared/comps/idpmsm.c|shared/comps/ocdac.c|shared/comps/iddac.c|shared/comps/linrev.c|shared/comps/fb_switch.c|shared/comps/zv_ip.c|shared/comps/ypid.c|shared/comps/wobl.c|shared/comps/veltopos.c|shared/comps/veltime.c|shared/comps/velbuf.c|shared/comps/vel_int.c|shared/comps/vel.c|shared/comps/uvw.c|shared/comps/uf2.c|shared/comps/uf.c|shared/comps/th.c|shared/comps/stp.c|shared/comps/spid.c|shared/comps/sensorless.c|shared/comps/scale.c|shared/comps/rlpsij.c|shared/comps/rl.c|shared/comps/rev.c|shared/comps/reslimit.c|shared/comps/ramp.c|shared/comps/psi.c|shared/comps/pos_filter.c|shared/comps/pmsm_ttc.c|shared/comps/pmsm_limits.c|shared/comps/pmsm.c|shared/comps/pid.c|shared/comps/pe.c|shared/comps/or.c|shared/comps/not.c|shared/comps/mux.c|shared/comps/mpid.c|shared/comps/move.c|shared/comps/motsim.c|shared/comps/mad.c|shared/comps/jog.c|shared/comps/ipm.c|shared/comps/iit_old.c|shared/comps/iit.c|shared/comps/idx_home.c|shared/comps/idtune.c|shared/comps/ids.c|shared/comps/idm.c|shared/comps/iddc.c|shared/comps/idacim.c|shared/comps/home.c|shared/comps/hal_test.c|shared/comps/gain.c|shared/comps/fmove.c|shared/comps/field.c|shared/comps/fault.c|shared/comps/fanuc.c|shared/comps/en.c|shared/comps/debounce.c|shared/comps/dc_ttc.c|shared/comps/dc_limits.c|shared/comps/dc.c|shared/comps/avg.c|shared/comps/auto_ac.c|shared/comps/and.c|shared/comps/acim_ttc.c|shared/comps/ac.c|src|lib/CMSIS/Include/cmsis_armcc.h|lib/CMSIS/Include/cmsis_armclang.h|lib/CMSIS/Include/cmsis_armclang_ltm.h|lib/CMSIS/Include/cmsis_iccarm.h|lib/CMSIS/Include/cmsis_version.h|lib/STM32F3xx_HAL_Driver/Inc/stm32_assert_template.h|lib/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_conf_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32_assert_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32f4xx_hal_conf_template.h" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+					</sourceEntries>
+				</configuration>
+			</storageModule>
+			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+		</cconfiguration>
+		<cconfiguration id="cdt.managedbuild.toolchain.gnu.cross.base.1004">
+			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="cdt.managedbuild.toolchain.gnu.cross.base.1004" moduleId="org.eclipse.cdt.core.settings" name="f3_boot">
+				<externalSettings/>
+				<extensions>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+				</extensions>
+			</storageModule>
+			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+				<configuration artifactExtension="elf" artifactName="f3_boot" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" description="make -f f3_boot/Makefile" id="cdt.managedbuild.toolchain.gnu.cross.base.1004" name="f3_boot" parent="org.eclipse.cdt.build.core.emptycfg">
+					<folderInfo id="cdt.managedbuild.toolchain.gnu.cross.base.1004.10040" name="/" resourcePath="">
+						<toolChain id="cdt.managedbuild.toolchain.gnu.cross.base.10041" name="Cross GCC" superClass="cdt.managedbuild.toolchain.gnu.cross.base">
+							<option id="cdt.managedbuild.option.gnu.cross.prefix.1004" name="Prefix" superClass="cdt.managedbuild.option.gnu.cross.prefix" value="arm-none-eabi-" valueType="string"/>
+							<option id="cdt.managedbuild.option.gnu.cross.path.1004" name="Path" superClass="cdt.managedbuild.option.gnu.cross.path" value="" valueType="string"/>
+							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.GNU_ELF" id="cdt.managedbuild.targetPlatform.gnu.cross.1004" isAbstract="false" osList="all" superClass="cdt.managedbuild.targetPlatform.gnu.cross"/>
+							<builder arguments="-f f3_boot/Makefile -j16 TOOLCHAIN=arm-none-eabi- DOCS=0" autoBuildTarget="all" buildPath="${workspace_loc:/stmbl}" cleanBuildTarget="clean" command="make" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="cdt.managedbuild.builder.gnu.cross.1004" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" parallelBuildOn="false" superClass="cdt.managedbuild.builder.gnu.cross"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.compiler.1004" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.include.paths.1004" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/f3_boot/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F3xx/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F3xx_HAL_Driver/Inc}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.preprocessor.def.symbols.1004" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="STM32F303xC"/>
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="HAL_MAX_CTX=1024"/>
+								</option>
+								<option id="gnu.c.compiler.option.misc.other.1004" name="Other flags" superClass="gnu.c.compiler.option.misc.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1004" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1004" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.include.paths.1004" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/f3_boot/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/shared}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/CMSIS/Device/ST/STM32F3xx/Include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/lib/STM32F3xx_HAL_Driver/Inc}&quot;"/>
+								</option>
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.cpp.compiler.option.preprocessor.def.1004" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="STM32F303xC"/>
+									<listOptionValue builtIn="false" value="USE_FULL_LL_DRIVER"/>
+									<listOptionValue builtIn="false" value="HAL_MAX_CTX=1024"/>
+								</option>
+								<option id="gnu.cpp.compiler.option.other.other.1004" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1004" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1004" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker">
+								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1443627348" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
+									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+								</inputType>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.linker.1004" name="Cross G++ Linker" superClass="cdt.managedbuild.tool.gnu.cross.cpp.linker"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.archiver.1004" name="Cross GCC Archiver" superClass="cdt.managedbuild.tool.gnu.cross.archiver"/>
+							<tool id="cdt.managedbuild.tool.gnu.cross.assembler.1004" name="Cross GCC Assembler" superClass="cdt.managedbuild.tool.gnu.cross.assembler">
+								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.686435227" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+							</tool>
+						</toolChain>
+					</folderInfo>
+					<sourceEntries>
+						<entry excluding="conf|docs|graphviz|hw|img|mechanics|tests|tools|obj_app|obj_boot|obj_hvf3|obj_f3_boot|bootloader/src|lib/CMSIS/Device/ST/STM32F4xx/Source|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_utils.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_usb.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_tim.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_spi.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_rtc.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_pwr.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_opamp.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_i2c.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_hrtim.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_fmc.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_exti.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_dma.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_dac.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_crc.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_comp.c|lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_adc.c|lib/STM32F4xx_HAL_Driver/src|lib/STM32_USB_Device_Library-2.11.4/Class/CDC/Src|lib/STM32_USB_Device_Library-2.11.4/Core/Src|shared|src|stm32f303/src|lib/CMSIS/Include/cmsis_armcc.h|lib/CMSIS/Include/cmsis_armclang.h|lib/CMSIS/Include/cmsis_armclang_ltm.h|lib/CMSIS/Include/cmsis_iccarm.h|lib/CMSIS/Include/cmsis_version.h|lib/STM32F3xx_HAL_Driver/Inc/stm32_assert_template.h|lib/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_conf_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32_assert_template.h|lib/STM32F4xx_HAL_Driver/inc/stm32f4xx_hal_conf_template.h" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+					</sourceEntries>
+				</configuration>
+			</storageModule>
+			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+		</cconfiguration>
+	</storageModule>
+	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+		<project id="stmbl.null.211625262" name="stmbl"/>
+	</storageModule>
+	<storageModule moduleId="scannerConfiguration">
+		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+	</storageModule>
+	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="f4_app">
+			<resource resourceType="PROJECT" workspacePath="/stmbl"/>
+		</configuration>
+		<configuration configurationName="f4_boot">
+			<resource resourceType="PROJECT" workspacePath="/stmbl"/>
+		</configuration>
+		<configuration configurationName="hvf3">
+			<resource resourceType="PROJECT" workspacePath="/stmbl"/>
+		</configuration>
+		<configuration configurationName="f3_boot">
+			<resource resourceType="PROJECT" workspacePath="/stmbl"/>
+		</configuration>
+	</storageModule>
+	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+</cproject>

@@ -4,9 +4,13 @@
 #include "math.h"
 #include "defines.h"
 #include "angle.h"
-#include "stm32f3xx_hal.h"
+#include "periph.h"
 #include "f3hw.h"
 #include "common.h"
+
+// BIF and B2IF read or cleared together in the rt. LL only has one helper
+// per flag, and two SR accesses would cost CCM the rt path does not have.
+#define TIM8_BRK_FLAGS (TIM_SR_BIF | TIM_SR_B2IF)
 
 HAL_COMP(io);
 
@@ -117,8 +121,8 @@ struct io_ctx_t {
   int32_t lo_v;
   int32_t lo_w;
   float hv_temp_min;    // coolest live hv_temp since power up, the decay target
-  uint32_t hv_temp_ms;  // HAL_GetTick() at the last nrt pass
-  uint32_t sbrake_ms;   // HAL_GetTick() at the last nrt pass not braking
+  uint32_t hv_temp_ms;  // tick_ms() at the last nrt pass
+  uint32_t sbrake_ms;   // tick_ms() at the last nrt pass not braking
 };
 
 #define ARES 4096.0  // analog resolution, 12 bit
@@ -188,24 +192,25 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(brk_present) = 0.0;
   PIN(brk)         = 0.0;
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
   //LED
   GPIO_InitStruct.Pin   = LED_PIN;
-  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull  = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  LL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
   // BRK
   GPIO_InitStruct.Pin   = BRK_PIN;
-  GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(BRK_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  LL_GPIO_Init(BRK_PORT, &GPIO_InitStruct);
 
-  if(HAL_GPIO_ReadPin(BRK_PORT, BRK_PIN)) {  // BRK circuit detected
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(BRK_PORT, &GPIO_InitStruct);
+  if(LL_GPIO_IsInputPinSet(BRK_PORT, BRK_PIN)) {  // BRK circuit detected
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(BRK_PORT, &GPIO_InitStruct);
     PIN(brk_present) = 1.0;
   }
 
@@ -222,7 +227,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->fault_pin_error   = 0;
   ctx->hv_temp           = 0;
   ctx->hv_temp_min       = 0.0;
-  ctx->hv_temp_ms        = HAL_GetTick();
+  ctx->hv_temp_ms        = tick_ms();
   ctx->sbrake_ms         = ctx->hv_temp_ms;
   ctx->mot_temp          = 0;
   ctx->enabled           = 0;
@@ -239,17 +244,17 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
 #ifdef HV_EN_PIN
   GPIO_InitStruct.Pin   = HV_EN_PIN;
-  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Pull  = GPIO_NOPULL;
-  HAL_GPIO_Init(HV_EN_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(HV_EN_PORT, &GPIO_InitStruct);
 #endif
 
 #ifdef HV_FAULT_PIN
   GPIO_InitStruct.Pin  = HV_FAULT_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(HV_FAULT_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(HV_FAULT_PORT, &GPIO_InitStruct);
 #endif
   PIN(dac) = 0;
   PIN(sbrake)     = 0.0;
@@ -267,15 +272,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // requests once both ADCs of a pair finish) waiting here forever would hang
   // the rt with irqs of its priority blocked. Give up after ~50 us and stop
   // the rt instead: the watchdog then resets the F3.
-  for(uint32_t n = 0; !((DMA1->ISR & DMA_ISR_TCIF1) && (DMA2->ISR & DMA_ISR_TCIF5)); n++) {
+  for(uint32_t n = 0; !(LL_DMA_IsActiveFlag_TC1(DMA1) && LL_DMA_IsActiveFlag_TC5(DMA2)); n++) {
     if(n > 1000) {
       hal_stop();
       return;
     }
   }
 
-  DMA1->IFCR = DMA_IFCR_CTCIF1;
-  DMA2->IFCR = DMA_IFCR_CTCIF5;
+  LL_DMA_ClearFlag_TC1(DMA1);
+  LL_DMA_ClearFlag_TC5(DMA2);
 
   // ranks 1-3 of each pair are current samples, rank 4 the voltage (adc.c)
   uint32_t a12 = adc_12_buf[0] + adc_12_buf[1] + adc_12_buf[2];
@@ -332,14 +337,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     // others down): with no neutral the three sum to zero. At most one phase
     // is at the top at a time, so at most one is rebuilt.
 #ifdef PWM_INVERT
-    int32_t lo_u = (int32_t)TIM8->CCR3;
-    int32_t lo_v = (int32_t)TIM8->CCR2;
-    int32_t lo_w = (int32_t)TIM8->CCR1;
+    int32_t lo_u = (int32_t)LL_TIM_OC_GetCompareCH3(TIM8);
+    int32_t lo_v = (int32_t)LL_TIM_OC_GetCompareCH2(TIM8);
+    int32_t lo_w = (int32_t)LL_TIM_OC_GetCompareCH1(TIM8);
 #else
-    int32_t arr  = (int32_t)TIM8->ARR;
-    int32_t lo_u = arr - (int32_t)TIM8->CCR3;
-    int32_t lo_v = arr - (int32_t)TIM8->CCR2;
-    int32_t lo_w = arr - (int32_t)TIM8->CCR1;
+    int32_t arr  = (int32_t)LL_TIM_GetAutoReload(TIM8);
+    int32_t lo_u = arr - (int32_t)LL_TIM_OC_GetCompareCH3(TIM8);
+    int32_t lo_v = arr - (int32_t)LL_TIM_OC_GetCompareCH2(TIM8);
+    int32_t lo_w = arr - (int32_t)LL_TIM_OC_GetCompareCH1(TIM8);
 #endif
     PIN(recon_phase) = 0.0;
     if(PIN(recon) > 0.0) {
@@ -400,10 +405,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ctx->sbrake_ticks = 0;
       if(!ctx->enabled) {  //rising edge of enable
         //set timer master out enable
-        TIM8->BDTR |= TIM_BDTR_MOE;
+        LL_TIM_EnableAllOutputs(TIM8);
 #ifdef HV_EN_PIN
         //clear driver enable pin
-        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
+        LL_GPIO_ResetOutputPin(HV_EN_PORT, HV_EN_PIN);
 #endif
         ctx->enabled   = 1;
         ctx->sbrake_ok = ctx->fault == NO_ERROR;
@@ -414,7 +419,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       if(ctx->fault == NO_ERROR) {
 #ifdef HV_FAULT_PIN
         //read fault pin from driver
-        if(PIN(ignore_fault_pin) <= 0.0 && err_filter(&(ctx->fault_pin_error), 5.0, 0.01, HAL_GPIO_ReadPin(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY)) {
+        if(PIN(ignore_fault_pin) <= 0.0 && err_filter(&(ctx->fault_pin_error), 5.0, 0.01, LL_GPIO_IsInputPinSet(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY)) {
           ctx->fault = HV_FAULT_ERROR;
         }
 #endif
@@ -422,7 +427,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         //Timer break input is connected to comperators
         // the flags too: a break between the enable edge's MOE and HV_EN
         // writes can leave MOE set again once the comparator releases
-        if(!(TIM8->BDTR & TIM_BDTR_MOE) || (TIM8->SR & (TIM_SR_BIF | TIM_SR_B2IF))) {
+        if(!LL_TIM_IsEnabledAllOutputs(TIM8) || (TIM8->SR & TIM8_BRK_FLAGS)) {
           ctx->fault = HV_OVERCURRENT_HW;
         }
       } else {
@@ -430,27 +435,27 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         // a software trip (oc_lim, temperature, voltage, fault pin) takes the
         // bridge off in this tick too, not only the driver enable: MOE off
         // puts all six outputs in their OSSR idle state at once
-        TIM8->BDTR &= ~TIM_BDTR_MOE;
+        LL_TIM_DisableAllOutputs(TIM8);
 #ifdef HV_EN_PIN
         //set driver enable pin
-        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
+        LL_GPIO_SetOutputPin(HV_EN_PORT, HV_EN_PIN);
 #endif
       }
     } else if(PIN(sbrake) > 0.0 && ctx->sbrake_ok && ctx->offset_count > 200) {
       ctx->enabled = 0;
       if(ctx->sbrake_ticks == 0) {
         // a break flag left from before braking is not ours to judge
-        TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);
+        WRITE_REG(TIM8->SR, ~TIM8_BRK_FLAGS);
       }
       if(ctx->fault == NO_ERROR) {
 #ifdef HV_FAULT_PIN
-        if(PIN(ignore_fault_pin) <= 0.0 && HAL_GPIO_ReadPin(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY) {
+        if(PIN(ignore_fault_pin) <= 0.0 && LL_GPIO_IsInputPinSet(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY) {
           ctx->fault = HV_FAULT_ERROR;
         }
 #endif
         // the comparators clear MOE and set a break flag even while this
         // code holds MOE off for a chop, so the flag is the trip signal here
-        if(TIM8->SR & (TIM_SR_BIF | TIM_SR_B2IF)) {
+        if(TIM8->SR & TIM8_BRK_FLAGS) {
           ctx->fault = HV_OVERCURRENT_HW;
         }
       }
@@ -460,9 +465,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         ctx->sbrake_ok    = 0;
         ctx->sbrake_ticks = 0;
         PIN(sbrake_on)    = 0.0;
-        TIM8->BDTR &= ~TIM_BDTR_MOE;
+        LL_TIM_DisableAllOutputs(TIM8);
 #ifdef HV_EN_PIN
-        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
+        LL_GPIO_SetOutputPin(HV_EN_PORT, HV_EN_PIN);
 #endif
       } else {
         float lim = PIN(sbrake_cur) > 0.0 ? PIN(sbrake_cur) : (PIN(max_cur) > 0.0 ? PIN(max_cur) : 10.0);
@@ -470,16 +475,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
         PIN(sbrake_on) = 1.0;
 #ifdef HV_EN_PIN
-        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
+        LL_GPIO_ResetOutputPin(HV_EN_PORT, HV_EN_PIN);
 #endif
         // two ticks for hv0's zero compares to reach the timer
         if(ctx->sbrake_ticks < 2) {
           ctx->sbrake_ticks++;
-          TIM8->BDTR &= ~TIM_BDTR_MOE;
+          LL_TIM_DisableAllOutputs(TIM8);
         } else if(PIN(iabs) > lim) {
-          TIM8->BDTR &= ~TIM_BDTR_MOE;
+          LL_TIM_DisableAllOutputs(TIM8);
         } else {
-          TIM8->BDTR |= TIM_BDTR_MOE;
+          LL_TIM_EnableAllOutputs(TIM8);
         }
       }
     } else {
@@ -491,17 +496,17 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       }
       ctx->sbrake_ticks = 0;
       PIN(sbrake_on)    = 0.0;
-      TIM8->BDTR &= ~TIM_BDTR_MOE;
+      LL_TIM_DisableAllOutputs(TIM8);
 #ifdef HV_EN_PIN
       //set driver enable pin
-      HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
+      LL_GPIO_SetOutputPin(HV_EN_PORT, HV_EN_PIN);
 #endif
     }
 
     if(PIN(brk) > 0.0) {
-      HAL_GPIO_WritePin(BRK_PORT, BRK_PIN, GPIO_PIN_RESET);
+      LL_GPIO_ResetOutputPin(BRK_PORT, BRK_PIN);
     } else {
-      HAL_GPIO_WritePin(BRK_PORT, BRK_PIN, GPIO_PIN_SET);
+      LL_GPIO_SetOutputPin(BRK_PORT, BRK_PIN);
     }
   }
 
@@ -525,18 +530,23 @@ void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     led = 2;
   }
 
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, BLINK(led) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  if(BLINK(led) > 0) {
+    LL_GPIO_SetOutputPin(LED_PORT, LED_PIN);
+  } else {
+    LL_GPIO_ResetOutputPin(LED_PORT, LED_PIN);
+  }
 
   // re-arm the break interrupt (second shutdown via HV_EN, main.c) while the
   // bridge is idle. Done here, in flash, because CCM is full. A trip while
   // enabled is already latched by rt from MOE, and braking clears the flags
   // itself when it starts, so clearing them here loses nothing.
-  if(!ctx->enabled && PIN(sbrake_on) <= 0.0 && !(TIM8->DIER & TIM_DIER_BIE)) {
-    TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);
-    TIM8->DIER |= TIM_DIER_BIE;
+  if(!ctx->enabled && PIN(sbrake_on) <= 0.0 && !LL_TIM_IsEnabledIT_BRK(TIM8)) {
+    LL_TIM_ClearFlag_BRK(TIM8);
+    LL_TIM_ClearFlag_BRK2(TIM8);
+    LL_TIM_EnableIT_BRK(TIM8);
   }
 
-  uint32_t now    = HAL_GetTick();
+  uint32_t now    = tick_ms();
   float dt        = (now - ctx->hv_temp_ms) * 0.001;
   ctx->hv_temp_ms = now;
 
