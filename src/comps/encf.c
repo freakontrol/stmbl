@@ -23,6 +23,8 @@ HAL_PIN(batt);
 HAL_PIN(req_len);
 
 HAL_PIN(pos_offset);
+HAL_PIN(hold);      // link fault0.en_out: an index re-reference while 1 is held as an offset on pos/turns
+HAL_PIN(hold_off);  // held offset in turns, 0 when none
 
 HAL_PIN(send_step);
 HAL_PIN(crc_ok);
@@ -99,8 +101,16 @@ static union {
 } data;
 static uint8_t print_buf[10];
 
-static int32_t pos_offset;
-static uint32_t state_counter;
+// turn count referenced to the +-pi wrap of pos, see rt_func
+static int32_t turns_pi;
+static uint32_t turns_age;
+static uint32_t last_no_index;
+static int32_t last_sp;
+static uint32_t retake;
+static int64_t last_tot;   // pos/turns as one count, last good frame
+static int32_t last_step;  // its motion over the last good frame
+static int64_t hold_off;   // offset that keeps the output continuous
+static uint32_t have_tot;
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct encf_ctx_t *ctx = (struct encf_ctx_t *)ctx_ptr;
@@ -179,11 +189,45 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
 
-  pos_offset    = 0;
   PIN(pos_offset) = 0;
-  PIN(req_len)  = 2046;
-  state_counter = 0;
-  PIN(freq)     = 1024000;
+  PIN(req_len)    = 2046;
+  turns_pi        = 0;
+  turns_age       = 1000;
+  last_no_index   = 0;
+  last_sp         = 0;
+  retake          = 0;
+  hold_off        = 0;
+  have_tot        = 0;
+  PIN(freq)       = 1024000;
+}
+
+// crc5 of four bits (MSB first) from a zero register
+static const uint8_t crc5_nib[16] = {0x00, 0x15, 0x1f, 0x0a, 0x0b, 0x1e, 0x14, 0x01, 0x16, 0x03, 0x09, 0x1c, 0x1d, 0x08, 0x02, 0x17};
+
+// feed 32 bits into the crc5, MSB first
+static inline uint32_t crc5_word(uint32_t crc, uint32_t x) {
+  for(int j = 28; j >= 0; j -= 4) {
+    crc = ((crc << 4) & 0x1f) ^ crc5_nib[((crc >> 1) ^ (x >> j)) & 0xf];
+  }
+  return crc;
+}
+
+// angle of a count on an n bit circle, in [-pi, pi). Wrapping the integer
+// replaces mod()'s fmodf and is exact; same result as mod() to within one
+// float rounding.
+static inline float wrap_bits(uint32_t count, int n) {
+  int32_t c = (int32_t)(count << (32 - n)) >> (32 - n);
+  return (float)c * (2.0 * M_PI / (float)(1 << n));
+}
+
+// set bits [a, b) of the frame words w
+static inline void set_bits(uint32_t *w, int a, int b) {
+  while(a < b) {
+    int n      = MIN(b - a, 32 - (a & 31));
+    uint32_t m = (n == 32) ? 0xffffffff : (((1u << n) - 1) << (a & 31));
+    w[a >> 5] |= m;
+    a += n;
+  }
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -193,96 +237,151 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   uint32_t count = ARRAY_SIZE(tim_data) - DMA1_Stream0->NDTR;
   PIN(dma)       = count;
 
-  for(int i = 0; i < 10; i++) {
-    data.enc_data[i] = 0;
-  }
+  // TIM4 counts at 84 MHz (APB1 42 MHz x2): 1 bit = 82.03 ticks at 1.024 Mbit/s.
+  // 82 MHz here put the default freq 1.2% from the CRC-clean edge (bench
+  // sweep on X: clean for freq 962k-1036k, centre ~999k).
+  PIN(bit_ticks)      = 84000000 / PIN(freq);
+  const float per_bit = 1.0 / PIN(bit_ticks);
 
-  //1 bit = 80 ticks 82e6/1.024e6
-  PIN(bit_ticks) = 82000000 / PIN(freq);
-
-  uint8_t bits_sum = 0;
-  for(int i = 1; i < count; i++) {  //each capture form dma
-    //calculate time between edges
-    uint16_t diff = tim_data[i] - tim_data[i - 1];
-    //number of bits to set
-    int bits = (float)diff / PIN(bit_ticks) + 0.5;
-    if(i % 2 == 0) {  //line starts high, set every even numbered captures to 1
-      for(int j = bits_sum; j < bits + bits_sum; j++) {
-        data.enc_data[j / 8] |= (1 << j % 8);
-      }
+  // The frame is built a word at a time: a run of ones is one or two ORs
+  // instead of a byte and shift per bit. Little endian, so bit j of w is bit
+  // j % 8 of enc_data[j / 8], the layout fanuc_t reads.
+  uint32_t w[3]      = {0, 0, 0};
+  const int max_bits = sizeof(data.enc_data) * 8;
+  int bits_sum       = 0;
+  uint16_t prev      = tim_data[0];
+  for(uint32_t i = 1; i < count; i++) {  //each capture form dma
+    //time between edges, rounded to a number of bits
+    uint16_t t = tim_data[i];
+    int bits   = (float)(uint16_t)(t - prev) * per_bit + 0.5;
+    prev       = t;
+    int end    = MIN(bits_sum + bits, max_bits);
+    if((i & 1) == 0) {  //line starts high, set every even numbered captures to 1
+      set_bits(w, bits_sum, end);
     }
-    bits_sum += bits;
+    bits_sum = end;
   }
   //set remaining bits to 1
-  for(int j = bits_sum; j < 77; j++) {
-    data.enc_data[j / 8] |= (1 << j % 8);
-  }
+  set_bits(w, bits_sum, 77);
+  memcpy((void *)data.enc_data, w, sizeof(data.enc_data));
 
   if(!sendf) {
     memcpy((void *)print_buf, (void *)data.enc_data, 10);
     sendf = 1;
   }
   if(bits_sum > 50) {
-    //check crc. TODO: use result, change to word/byte algorithm
-    //http://freeby.mesanet.com/fabsread.pas
-    uint8_t crc[5]    = {0, 0, 0, 0, 0};
-    uint8_t oldcrc[5] = {0, 0, 0, 0, 0};
-    for(uint8_t i = 76; i >= 1; i--) {
-      uint8_t bit = (data.enc_data[i / 8] & (1 << i % 8)) ? 1 : 0;
-      crc[0]      = oldcrc[4] ^ bit;
-      crc[1]      = oldcrc[0];
-      crc[2]      = oldcrc[1] ^ bit ^ oldcrc[4];
-      crc[3]      = oldcrc[2];
-      crc[4]      = oldcrc[3] ^ bit ^ oldcrc[4];
-      oldcrc[0]   = crc[0];
-      oldcrc[1]   = crc[1];
-      oldcrc[2]   = crc[2];
-      oldcrc[3]   = crc[3];
-      oldcrc[4]   = crc[4];
+    //check crc, MSB first: http://freeby.mesanet.com/fabsread.pas
+    //bit k of crc is the old crc[k]; feedback taps are bits 0, 2 and 4.
+    //Four bits per step: bits 76..65, then 64..33 and 32..1 as words.
+    uint32_t crc = 0;
+    for(int j = 9; j >= 1; j -= 4) {
+      crc = ((crc << 4) & 0x1f) ^ crc5_nib[((crc >> 1) ^ (w[2] >> j)) & 0xf];
     }
-    if(crc[0] == 0 && crc[1] == 0 && crc[2] == 0 && crc[3] == 0 && crc[4] == 0) {
+    crc = crc5_word(crc, (w[2] << 31) | (w[1] >> 1));
+    crc = crc5_word(crc, (w[1] << 31) | (w[0] >> 1));
+    if(crc == 0) {
       PIN(crc_ok)
       ++;
-      int32_t pos = data.fanuc.pos_lo + (data.fanuc.pos_hi << 6);
-      PIN(index)  = data.fanuc.no_index;
-      PIN(batt)   = data.fanuc.bat;
+      uint32_t pos = data.fanuc.pos_lo + (data.fanuc.pos_hi << 6);
+      PIN(index)   = data.fanuc.no_index;
+      PIN(batt)    = data.fanuc.bat;
 
-      PIN(abs_pos) = mod((float)pos * 2.0 * M_PI / (1 << 22));
+      PIN(abs_pos) = wrap_bits(pos, 22);
 
-      if(PIN(index) > 0.0) {
-        pos_offset    = pos;
-        PIN(pos)      = PIN(abs_pos);
-        PIN(state)    = 1;
-        state_counter = 1;
-      } else if(state_counter == 1) {
-        state_counter = 2;
-        pos_offset    = pos;
-        PIN(pos)      = PIN(abs_pos);
-      } else {
-        state_counter = 3;
-        PIN(pos)      = mod((float)(pos + pos_offset + ((uint32_t)PIN(pos_offset) << 6)) * 2.0 * M_PI / (1 << 22));
-        PIN(state)    = 3;
+      // The encoder steps its turn count where the unsigned 22 bit count
+      // wraps (abs_pos = 0), half a turn away from the +-pi wrap of abs_pos.
+      // turns_pi counts turns at the +-pi wrap instead: turns + 1 on the
+      // negative half. Near abs_pos = 0 the encoder's own step may land a
+      // few counts off, so there the last value is held; it can only
+      // change at +-pi, a quarter turn or more away (a frame moves at most
+      // about 0.01 turn at 3000 rpm).
+      int32_t sp = (int32_t)(pos << 10) >> 10;  // signed count, abs_pos
+      // The encoder re-references its count at the first index: on X the
+      // no_index flag clears one frame before pos and turns jump. Take its
+      // turns at once for a few frames after the flag changes, and on any
+      // pos jump larger than a frame of motion can explain (2^17 counts is
+      // 1/32 turn, about 9000 rpm at 5 kHz), instead of holding a value
+      // from the old reference.
+      if(data.fanuc.no_index != last_no_index) {
+        retake = 3;
       }
-
-      if (data.fanuc.turns > 32767) {
-        PIN(turns) = (int32_t)data.fanuc.turns % 32768 - 32768;
-      } else {
-        PIN(turns) = data.fanuc.turns;
+      last_no_index = data.fanuc.no_index;
+      int32_t jump  = (int32_t)((uint32_t)(sp - last_sp) << 10) >> 10;
+      if(turns_age <= 10 && (jump > (1 << 17) || jump < -(1 << 17))) {
+        retake = MAX(retake, 1);
       }
+      last_sp = sp;
+      if(retake || turns_age > 10 || sp < -(1 << 20) || sp >= (1 << 20)) {
+        turns_pi = (int32_t)data.fanuc.turns + (sp < 0);
+      }
+      if(retake) {
+        retake--;
+      }
+      turns_age = 0;
+
+      // pos_offset (in 16 bit counts) shifts pos in every state; turns
+      // steps exactly where pos wraps. The constant term makes turns equal
+      // the encoder's own count at pos = pos_offset (abs_pos 0 and just
+      // above): pos_offset = 0 reads the encoder's turns on the positive
+      // half, and 32768 gives the same pos and turns as before.
+      int32_t off   = (int32_t)PIN(pos_offset) << 6;
+      int32_t x     = sp + off;
+      int32_t t     = (int16_t)(uint16_t)(turns_pi + ((x + (1 << 21)) >> 22) - ((off + (1 << 21)) >> 22));
+      int32_t xw    = (int32_t)((uint32_t)x << 10) >> 10;
+      int64_t tot   = (int64_t)t * (1 << 22) + xw;
+      uint32_t gap  = turns_age + 1;  // frames since the last good one
+      // While hold (the drive enabled), a re-reference at the index would
+      // step pos and turns by up to a turn and the position loop would pull
+      // the motor back by that much. Keep the output continuous instead: a
+      // step no motion explains (more than 1/32 turn per frame, or during
+      // the re-take frames a change of more than 2^12 counts from the last
+      // frame's motion) goes into hold_off, the frame counts as moving like
+      // the one before. hold_off drops when hold does, so the new reference
+      // shows while disabled, with state 1 for that frame so linrev re-takes
+      // its turns. abs_pos and com_pos stay true for commutation.
+      int32_t release = 0;
+      if(have_tot) {
+        int64_t step = tot - last_tot;
+        int64_t dev  = step - (int64_t)last_step * gap;
+        int64_t lim  = (int64_t)(1 << 17) * gap;
+        int jumped   = step > lim || step < -lim || (retake && (dev > (1 << 12) || dev < -(1 << 12)));
+        if(PIN(hold) > 0.0) {
+          if(jumped) {
+            hold_off -= dev;
+          } else {
+            last_step = step / gap;
+          }
+        } else {
+          release   = hold_off != 0;
+          hold_off  = 0;
+          last_step = jumped ? 0 : step / gap;
+        }
+      }
+      last_tot = tot;
+      have_tot = 1;
+      int64_t out    = tot + hold_off;
+      PIN(pos)       = wrap_bits((uint32_t)out, 22);
+      PIN(turns)     = (int16_t)(uint16_t)((out + (1 << 21)) >> 22);
+      PIN(hold_off)  = (float)hold_off / (float)(1 << 22);
+      // absolute only once the re-reference is through: no_index clears a
+      // frame before abs_pos jumps, and fb_switch commutates from abs_pos as
+      // soon as this reads 3, so hold 1 through the re-take frames
+      PIN(state) = (PIN(index) > 0.0 || retake || release) ? 1 : 3;
 
       pos          = data.fanuc.com_pos;
-      PIN(com_pos) = mod(pos * 2.0 * M_PI / 1024);
+      PIN(com_pos) = wrap_bits(pos, 10);
       PIN(error)   = 0;
     } else {
+      turns_age += turns_age < 1000;
       PIN(crc_er)
       ++;
       PIN(state) = 1;
       PIN(error) = 1;
     }
   } else {
-    PIN(error)    = 1;
-    PIN(state)    = 1;
-    state_counter = 0;
+    turns_age += turns_age < 1000;
+    PIN(error) = 1;
+    PIN(state) = 1;
   }
   //reset timer
   FB0_ENC_TIM->CNT  = 0;

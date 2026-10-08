@@ -40,7 +40,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   tab[15] = 10;
 
   uint32_t t = (PIN(C1) > 0.0) + (PIN(C2) > 0.0) * 2 + (PIN(C4) > 0.0) * 4 + (PIN(C8) > 0.0) * 8;
-  PIN(pos)   = mod((tab[t] / 15.0 * 2.0 * M_PI));
+  // 16 Gray-code sectors per electrical turn, 1/16 turn each
+  PIN(pos) = mod(tab[t] / 16.0 * 2.0 * M_PI);
 }
 
 hal_comp_t fanuc_comp_struct = {
