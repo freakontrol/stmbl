@@ -97,7 +97,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   volatile uint32_t *ADC_DMA_Buffer;
 
-  if(DMA_GetCurrentMemoryTarget(DMA2_Stream0)) {
+  if(LL_DMA_GetCurrentTargetMem(DMA2, LL_DMA_STREAM_0) == LL_DMA_CURRENTTARGETMEM1) {
     ADC_DMA_Buffer = ADC_DMA_Buffer0;
   } else {
     ADC_DMA_Buffer = ADC_DMA_Buffer1;

@@ -31,8 +31,8 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f3xx_hal.h"
 #include "stm32f3xx.h"
+#include "periph.h"
 #include "stm32f3xx_it.h"
 #include "hal.h"
 
@@ -54,9 +54,6 @@ static void fault_stop(uint32_t handler) {
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-#ifdef USB_TERM
-extern PCD_HandleTypeDef hpcd_USB_FS;
-#endif
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */
 /******************************************************************************/
@@ -67,8 +64,8 @@ extern PCD_HandleTypeDef hpcd_USB_FS;
 void NMI_Handler(void) {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
   // RM0316 9.2.7: the CSS NMI repeats until CSSC is written
-  if(RCC->CIR & RCC_CIR_CSSF) {
-    RCC->CIR |= RCC_CIR_CSSC;
+  if(LL_RCC_IsActiveFlag_HSECSS()) {
+    LL_RCC_ClearFlag_HSECSS();
   }
   bridge_off();
   hal_error(NMI);  // rt stops, the nrt stops kicking, the IWDG resets
@@ -142,42 +139,12 @@ void DebugMon_Handler(void) {
   /* USER CODE END DebugMonitor_IRQn 1 */
 }
 
-/**
-* @brief This function handles System tick timer.
-*/
-// void SysTick_Handler(void) {
-//   /* USER CODE BEGIN SysTick_IRQn 0 */
-
-//   /* USER CODE END SysTick_IRQn 0 */
-//   HAL_IncTick();
-//   HAL_SYSTICK_IRQHandler();
-//   /* USER CODE BEGIN SysTick_IRQn 1 */
-
-//   /* USER CODE END SysTick_IRQn 1 */
-// }
-
 /******************************************************************************/
 /* STM32F3xx Peripheral Interrupt Handlers                                    */
 /* Add here the Interrupt Handlers for the used peripherals.                  */
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f3xx.s).                    */
 /******************************************************************************/
-
-/**
-* @brief This function handles USB low priority or CAN_RX0 interrupts.
-*/
-void USB_LP_CAN_RX0_IRQHandler(void) {
-/* USER CODE BEGIN USB_LP_CAN_RX0_IRQn 0 */
-//GPIOA->BSRR |= GPIO_PIN_10;
-
-/* USER CODE END USB_LP_CAN_RX0_IRQn 0 */
-#ifdef USB_TERM
-  HAL_PCD_IRQHandler(&hpcd_USB_FS);
-#endif
-  /* USER CODE BEGIN USB_LP_CAN_RX0_IRQn 1 */
-  //GPIOA->BSRR |= GPIO_PIN_10 << 16;
-  /* USER CODE END USB_LP_CAN_RX0_IRQn 1 */
-}
 
 /* USER CODE BEGIN 1 */
 

@@ -4,7 +4,7 @@
 #include "math.h"
 #include "defines.h"
 #include "angle.h"
-#include "tim.h"
+#include "periph.h"
 #include "f3hw.h"
 #include "common.h"
 
@@ -114,7 +114,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct hv_pin_ctx_t *pins = (struct hv_pin_ctx_t *)pin_ptr;
 
   ctx->pwm_res = (int32_t)CLAMP(PIN(arr), PWM_RES * 0.9, PWM_RES * 1.1);
-  TIM8->ARR    = ctx->pwm_res;
+  LL_TIM_SetAutoReload(TIM8, ctx->pwm_res);
 
   float udc = MAX(PIN(udc), 0.1);
 

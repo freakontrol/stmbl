@@ -9,38 +9,55 @@
 #include "setup.h"
 #include "usbd_cdc_if.h"
 #include "defines.h"
+#include "f4_clock.h"
 
-RCC_ClocksTypeDef RCC_Clocks;
+LL_RCC_ClocksTypeDef RCC_Clocks;
 volatile uint32_t ADC_DMA_Buffer0[ADC_SAMPLES_IN_RT];  //240
 volatile uint32_t ADC_DMA_Buffer1[ADC_SAMPLES_IN_RT];
 
 void setup() {
+  clock_init();  // 168 MHz, from the HSI SystemInit() left us on
+
   //Enable clocks
   //TODO: small f4 does not have GPIOE
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB | RCC_AHB1Periph_GPIOC | RCC_AHB1Periph_GPIOD | RCC_AHB1Periph_GPIOE | RCC_AHB1Periph_DMA1 | RCC_AHB1Periph_DMA2 | RCC_AHB1Periph_CRC, ENABLE);
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA | LL_AHB1_GRP1_PERIPH_GPIOB | LL_AHB1_GRP1_PERIPH_GPIOC | LL_AHB1_GRP1_PERIPH_GPIOD | LL_AHB1_GRP1_PERIPH_GPIOE | LL_AHB1_GRP1_PERIPH_DMA1 | LL_AHB1_GRP1_PERIPH_DMA2 | LL_AHB1_GRP1_PERIPH_CRC);
 
-  NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+  NVIC_SetPriorityGrouping(3);  // 4 bits preemption, 0 bits subpriority
 
-  setup_res();
-  usb_init();
-
-  GPIO_InitTypeDef GPIO_InitStructure;
-  // messpin
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-
-  //fan
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_0;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
-
-  // systick timer
-  RCC_GetClocksFreq(&RCC_Clocks);
+  // systick timer, before usb_init(): the HAL USB driver waits with HAL_Delay()
+  LL_RCC_GetSystemClocksFreq(&RCC_Clocks);
   SysTick_Config(RCC_Clocks.HCLK_Frequency / 1000);
   //systick prio
 
   NVIC_SetPriority(SysTick_IRQn, 14);
+
+  setup_res();
+  usb_init();
+
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
+  LL_GPIO_StructInit(&GPIO_InitStructure);
+  // messpin
+  GPIO_InitStructure.Mode       = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Speed      = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStructure.Pull       = LL_GPIO_PULL_NO;
+
+  //fan
+  GPIO_InitStructure.Pin = LL_GPIO_PIN_1 | LL_GPIO_PIN_0;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStructure);
+
+}
+
+static const uint32_t adc_reg_rank[16] = {
+    LL_ADC_REG_RANK_1, LL_ADC_REG_RANK_2, LL_ADC_REG_RANK_3, LL_ADC_REG_RANK_4,
+    LL_ADC_REG_RANK_5, LL_ADC_REG_RANK_6, LL_ADC_REG_RANK_7, LL_ADC_REG_RANK_8,
+    LL_ADC_REG_RANK_9, LL_ADC_REG_RANK_10, LL_ADC_REG_RANK_11, LL_ADC_REG_RANK_12,
+    LL_ADC_REG_RANK_13, LL_ADC_REG_RANK_14, LL_ADC_REG_RANK_15, LL_ADC_REG_RANK_16};
+
+// rank is 1 based, like the old ADC_RegularChannelConfig()
+static void adc_regular_channel_config(ADC_TypeDef *adc, uint32_t chan, int rank, uint32_t sample_time) {
+  LL_ADC_REG_SetSequencerRanks(adc, adc_reg_rank[rank - 1], chan);
+  LL_ADC_SetChannelSamplingTime(adc, chan, sample_time);
 }
 
 // Setup Resolver Interface
@@ -48,165 +65,163 @@ void setup() {
 // slave timer OC generates resolver reference signal at 10kHz, phase can be adjusted by oc value
 // DMA2 moves ADC_ANZ samples to memory, generates transfer complete interrupt at 5kHz
 void setup_res() {
-  TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-  TIM_OCInitTypeDef TIM_OCInitStructure;
+  LL_TIM_InitTypeDef TIM_TimeBaseStructure;
+  LL_TIM_OC_InitTypeDef TIM_OCInitStructure;
   //master timer
-  RCC_APB1PeriphClockCmd(TIM_MASTER_RCC, ENABLE);
-  TIM_TimeBaseStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
-  TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
-  TIM_TimeBaseStructure.TIM_Period            = ADC_TIMER_FREQ / ADC_TRIGGER_FREQ - 1;  //70 1.2MHz
-  TIM_TimeBaseStructure.TIM_Prescaler         = 0;
-  TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
-  TIM_TimeBaseInit(TIM_MASTER, &TIM_TimeBaseStructure);
-  TIM_ARRPreloadConfig(TIM_MASTER, ENABLE);
-  TIM_SelectOutputTrigger(TIM_MASTER, TIM_TRGOSource_Update);  // trigger ADC
+  LL_APB1_GRP1_EnableClock(TIM_MASTER_RCC);
+  LL_TIM_StructInit(&TIM_TimeBaseStructure);
+  TIM_TimeBaseStructure.ClockDivision     = LL_TIM_CLOCKDIVISION_DIV1;
+  TIM_TimeBaseStructure.CounterMode       = LL_TIM_COUNTERMODE_UP;
+  TIM_TimeBaseStructure.Autoreload        = ADC_TIMER_FREQ / ADC_TRIGGER_FREQ - 1;  //70 1.2MHz
+  TIM_TimeBaseStructure.Prescaler         = 0;
+  TIM_TimeBaseStructure.RepetitionCounter = 0;
+  LL_TIM_Init(TIM_MASTER, &TIM_TimeBaseStructure);
+  LL_TIM_EnableARRPreload(TIM_MASTER);
+  LL_TIM_SetTriggerOutput(TIM_MASTER, LL_TIM_TRGO_UPDATE);  // trigger ADC
 
   //oc for adc trigger
-  TIM_OCInitStructure.TIM_OCMode       = TIM_OCMode_PWM1;
-  TIM_OCInitStructure.TIM_OutputState  = TIM_OutputState_Enable;
-  TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Disable;
-  TIM_OCInitStructure.TIM_Pulse        = 1;
-  TIM_OCInitStructure.TIM_OCPolarity   = TIM_OCPolarity_High;
-  TIM_OCInitStructure.TIM_OCIdleState  = TIM_OCIdleState_Set;
+  LL_TIM_OC_StructInit(&TIM_OCInitStructure);
+  TIM_OCInitStructure.OCMode       = LL_TIM_OCMODE_PWM1;
+  TIM_OCInitStructure.OCState      = LL_TIM_OCSTATE_ENABLE;
+  TIM_OCInitStructure.OCNState     = LL_TIM_OCSTATE_DISABLE;
+  TIM_OCInitStructure.CompareValue = 1;
+  TIM_OCInitStructure.OCPolarity   = LL_TIM_OCPOLARITY_HIGH;
+  TIM_OCInitStructure.OCIdleState  = LL_TIM_OCIDLESTATE_HIGH;
   //ADC trigger OC depends on timer
-  TIM_MASTER_ADC_OC_INIT(TIM_MASTER, &TIM_OCInitStructure);
-  TIM_MASTER_ADC_OC_PRELOAD(TIM_MASTER, TIM_OCPreload_Enable);
+  LL_TIM_OC_Init(TIM_MASTER, TIM_MASTER_ADC_OC_CH, &TIM_OCInitStructure);
+  LL_TIM_OC_EnablePreload(TIM_MASTER, TIM_MASTER_ADC_OC_CH);
+  // TIM_MASTER is a general purpose timer, no MOE bit to set
 
   //slave timer triggers frt
-  RCC_APB1PeriphClockCmd(TIM_SLAVE_RCC, ENABLE);
-  TIM_TimeBaseStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
-  TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
-  TIM_TimeBaseStructure.TIM_Period            = ADC_TRIGGER_FREQ / FRT_FREQ - 1;  //60 20kHz
-  TIM_TimeBaseStructure.TIM_Prescaler         = 0;
-  TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
-  TIM_TimeBaseInit(TIM_SLAVE, &TIM_TimeBaseStructure);
-  TIM_SelectSlaveMode(TIM_SLAVE, TIM_SlaveMode_External1);  //Rising edges of the selected trigger (TRGI) clock the counter
-  TIM_ITRxExternalClockConfig(TIM_SLAVE, TIM_SLAVE_ITR);    // clk = TIM_MASTER trigger out
-  TIM_ARRPreloadConfig(TIM_SLAVE, ENABLE);
+  LL_APB1_GRP1_EnableClock(TIM_SLAVE_RCC);
+  LL_TIM_StructInit(&TIM_TimeBaseStructure);
+  TIM_TimeBaseStructure.ClockDivision     = LL_TIM_CLOCKDIVISION_DIV1;
+  TIM_TimeBaseStructure.CounterMode       = LL_TIM_COUNTERMODE_UP;
+  TIM_TimeBaseStructure.Autoreload        = ADC_TRIGGER_FREQ / FRT_FREQ - 1;  //60 20kHz
+  TIM_TimeBaseStructure.Prescaler         = 0;
+  TIM_TimeBaseStructure.RepetitionCounter = 0;
+  LL_TIM_Init(TIM_SLAVE, &TIM_TimeBaseStructure);
+  //Rising edges of the selected trigger (TRGI) clock the counter, clk = TIM_MASTER trigger out
+  LL_TIM_SetTriggerInput(TIM_SLAVE, TIM_SLAVE_ITR);
+  LL_TIM_SetClockSource(TIM_SLAVE, LL_TIM_CLOCKSOURCE_EXT_MODE1);
+  LL_TIM_EnableARRPreload(TIM_SLAVE);
   TIM_SLAVE->CNT = (TIM_SLAVE->ARR + 1) / 2;
-  TIM_Cmd(TIM_SLAVE, ENABLE);
+  LL_TIM_EnableCounter(TIM_SLAVE);
 
   /* ADC clock enable */
-  RCC_APB2PeriphClockCmd(FB0_SIN_ADC_RCC | FB0_COS_ADC_RCC, ENABLE);
+  LL_APB2_GRP1_EnableClock(FB0_SIN_ADC_RCC | FB0_COS_ADC_RCC);
 
 #ifdef FB1
-  RCC_APB2PeriphClockCmd(FB1_SIN_ADC_RCC | FB1_COS_ADC_RCC, ENABLE);
+  LL_APB2_GRP1_EnableClock(FB1_SIN_ADC_RCC | FB1_COS_ADC_RCC);
 #endif
 
   //Analog pin configuration
-  GPIO_InitTypeDef GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Pin  = FB0_SIN_PIN;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_SIN_PORT, &GPIO_InitStructure);
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
+  LL_GPIO_StructInit(&GPIO_InitStructure);
+  GPIO_InitStructure.Pin  = FB0_SIN_PIN;
+  GPIO_InitStructure.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStructure.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB0_SIN_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_COS_PIN;
-  GPIO_Init(FB0_COS_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_COS_PIN;
+  LL_GPIO_Init(FB0_COS_PORT, &GPIO_InitStructure);
 
 #ifdef FB1
-  GPIO_InitStructure.GPIO_Pin = FB1_SIN_PIN;
-  GPIO_Init(FB1_SIN_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB1_SIN_PIN;
+  LL_GPIO_Init(FB1_SIN_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = FB1_COS_PIN;
-  GPIO_Init(FB1_COS_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB1_COS_PIN;
+  LL_GPIO_Init(FB1_COS_PORT, &GPIO_InitStructure);
 #endif
 
   //ADC structure configuration
-  ADC_DeInit();
-  ADC_InitTypeDef ADC_InitStructure;
-  ADC_InitStructure.ADC_DataAlign            = ADC_DataAlign_Right;  //data converted will be shifted to right
-  ADC_InitStructure.ADC_Resolution           = ADC_Resolution_12b;   //Input voltage is converted into a 12bit number giving a maximum value of 4096
-  ADC_InitStructure.ADC_ContinuousConvMode   = DISABLE;              //the conversion is continuous, the input data is converted more than once
-  ADC_InitStructure.ADC_ExternalTrigConv     = TIM_MASTER_ADC;       //trigger on rising edge of TIM_MASTER oc
-  ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_Rising;
-  ADC_InitStructure.ADC_NbrOfConversion      = ADC_OVER_FB0 + ADC_OVER_FB1;  //I think this one is clear :p
-  ADC_InitStructure.ADC_ScanConvMode         = ENABLE;                       //The scan is configured in one channel
-  ADC_Init(FB0_SIN_ADC, &ADC_InitStructure);                                 //Initialize ADC with the previous configuration
-  ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
-  ADC_Init(FB0_COS_ADC, &ADC_InitStructure);  //Initialize ADC with the previous configuration
+  LL_APB2_GRP1_ForceReset(LL_APB2_GRP1_PERIPH_ADC);
+  LL_APB2_GRP1_ReleaseReset(LL_APB2_GRP1_PERIPH_ADC);
+  ADC_TypeDef *const adcs[2] = {FB0_SIN_ADC, FB0_COS_ADC};
+  for(int i = 0; i < 2; i++) {
+    LL_ADC_SetResolution(adcs[i], LL_ADC_RESOLUTION_12B);         //Input voltage is converted into a 12bit number giving a maximum value of 4096
+    LL_ADC_SetDataAlignment(adcs[i], LL_ADC_DATA_ALIGN_RIGHT);    //data converted will be shifted to right
+    LL_ADC_SetSequencersScanMode(adcs[i], LL_ADC_SEQ_SCAN_ENABLE);
+    LL_ADC_REG_SetContinuousMode(adcs[i], LL_ADC_REG_CONV_SINGLE);
+    LL_ADC_REG_SetSequencerLength(adcs[i], (ADC_OVER_FB0 + ADC_OVER_FB1 - 1) << ADC_SQR1_L_Pos);
+  }
+  LL_ADC_REG_SetTriggerSource(FB0_SIN_ADC, TIM_MASTER_ADC);  //trigger on rising edge of TIM_MASTER oc
+  // F4 LL SetTriggerSource only writes EXTSEL, the edge (EXTEN) is set here
+  LL_ADC_REG_StartConversionExtTrig(FB0_SIN_ADC, LL_ADC_REG_TRIG_EXT_RISING);
+  LL_ADC_REG_SetTriggerSource(FB0_COS_ADC, LL_ADC_REG_TRIG_SOFTWARE);  // slave in dual mode
 
-  ADC_CommonInitTypeDef ADC_CommonInitStructure;
-  ADC_CommonInitStructure.ADC_Mode             = ADC_DualMode_RegSimult;
-  ADC_CommonInitStructure.ADC_Prescaler        = ADC_Prescaler_Div4;
-  ADC_CommonInitStructure.ADC_DMAAccessMode    = ADC_DMAAccessMode_2;
-  ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;
-  ADC_CommonInit(&ADC_CommonInitStructure);
+  ADC_Common_TypeDef *adc_common = __LL_ADC_COMMON_INSTANCE(FB0_SIN_ADC);
+  LL_ADC_SetMultimode(adc_common, LL_ADC_MULTI_DUAL_REG_SIMULT);
+  LL_ADC_SetCommonClock(adc_common, LL_ADC_CLOCK_SYNC_PCLK_DIV4);
+  LL_ADC_SetMultiTwoSamplingDelay(adc_common, LL_ADC_MULTI_TWOSMP_DELAY_5CYCLES);
 
   for(int i = 1; i <= ADC_OVER_FB0; i++) {
-    ADC_RegularChannelConfig(FB0_SIN_ADC, FB0_SIN_ADC_CHAN, i, RES_SampleTime);
-    ADC_RegularChannelConfig(FB0_COS_ADC, FB0_COS_ADC_CHAN, i, RES_SampleTime);
+    adc_regular_channel_config(FB0_SIN_ADC, FB0_SIN_ADC_CHAN, i, RES_SampleTime);
+    adc_regular_channel_config(FB0_COS_ADC, FB0_COS_ADC_CHAN, i, RES_SampleTime);
   }
 
 #ifdef FB1
   for(int i = ADC_OVER_FB0 + 1; i <= ADC_OVER_FB0 + ADC_OVER_FB1; i++) {
-    ADC_RegularChannelConfig(FB1_SIN_ADC, FB1_SIN_ADC_CHAN, i, RES_SampleTime);
-    ADC_RegularChannelConfig(FB1_COS_ADC, FB1_COS_ADC_CHAN, i, RES_SampleTime);
+    adc_regular_channel_config(FB1_SIN_ADC, FB1_SIN_ADC_CHAN, i, RES_SampleTime);
+    adc_regular_channel_config(FB1_COS_ADC, FB1_COS_ADC_CHAN, i, RES_SampleTime);
   }
 #endif
 
+  // discontinuous mode, one conversion per trigger
+  LL_ADC_REG_SetSequencerDiscont(ADC1, LL_ADC_REG_SEQ_DISCONT_1RANK);
+  LL_ADC_REG_SetSequencerDiscont(ADC2, LL_ADC_REG_SEQ_DISCONT_1RANK);
 
-  ADC_DiscModeChannelCountConfig(ADC1, 1);
-  ADC_DiscModeChannelCountConfig(ADC2, 1);
-  ADC_DiscModeCmd(ADC1, ENABLE);
-  ADC_DiscModeCmd(ADC2, ENABLE);
-
-  ADC_MultiModeDMARequestAfterLastTransferCmd(ENABLE);
-
-  //Enable ADC conversion
-  ADC_Cmd(FB0_SIN_ADC, ENABLE);
-  ADC_Cmd(FB0_COS_ADC, ENABLE);
+  // DMA mode 2, DMA requests continue after the last transfer
+  LL_ADC_SetMultiDMATransfer(adc_common, LL_ADC_MULTI_REG_DMA_UNLMT_2);
 
   // DMA-Disable
-  DMA_Cmd(DMA2_Stream0, DISABLE);
-  DMA_DeInit(DMA2_Stream0);
+  LL_DMA_DisableStream(DMA2, LL_DMA_STREAM_0);
+  while(LL_DMA_IsEnabledStream(DMA2, LL_DMA_STREAM_0)) {
+  }
+  LL_DMA_DeInit(DMA2, LL_DMA_STREAM_0);
 
   // DMA2-Config
-  DMA_InitTypeDef DMA_InitStructure;
-  DMA_InitStructure.DMA_Channel            = DMA_Channel_0;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&ADC->CDR;
-  DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t)ADC_DMA_Buffer0;
-  DMA_InitStructure.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructure.DMA_BufferSize         = ARRAY_SIZE(ADC_DMA_Buffer0);
-  DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
-  DMA_InitStructure.DMA_MemoryDataSize     = DMA_MemoryDataSize_Word;
-  DMA_InitStructure.DMA_Mode               = DMA_Mode_Circular;
-  DMA_InitStructure.DMA_Priority           = DMA_Priority_High;
-  DMA_InitStructure.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructure.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructure.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructure.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  LL_DMA_InitTypeDef DMA_InitStructure;
+  LL_DMA_StructInit(&DMA_InitStructure);
+  DMA_InitStructure.Channel                = LL_DMA_CHANNEL_0;
+  DMA_InitStructure.PeriphOrM2MSrcAddress  = (uint32_t)&ADC->CDR;
+  DMA_InitStructure.MemoryOrM2MDstAddress  = (uint32_t)ADC_DMA_Buffer0;
+  DMA_InitStructure.Direction              = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  DMA_InitStructure.NbData                 = ARRAY_SIZE(ADC_DMA_Buffer0);
+  DMA_InitStructure.PeriphOrM2MSrcIncMode  = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructure.MemoryOrM2MDstIncMode  = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructure.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_WORD;
+  DMA_InitStructure.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_WORD;
+  DMA_InitStructure.Mode                   = LL_DMA_MODE_CIRCULAR;
+  DMA_InitStructure.Priority               = LL_DMA_PRIORITY_HIGH;
+  DMA_InitStructure.FIFOMode               = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructure.FIFOThreshold          = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructure.MemBurst               = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructure.PeriphBurst            = LL_DMA_PBURST_SINGLE;
+  LL_DMA_Init(DMA2, LL_DMA_STREAM_0, &DMA_InitStructure);
 
-  DMA_DoubleBufferModeConfig(DMA2_Stream0, (uint32_t)ADC_DMA_Buffer1, DMA_Memory_0);
-  DMA_DoubleBufferModeCmd(DMA2_Stream0, ENABLE);
-  DMA_Init(DMA2_Stream0, &DMA_InitStructure);
+  LL_DMA_SetMemory1Address(DMA2, LL_DMA_STREAM_0, (uint32_t)ADC_DMA_Buffer1);
+  LL_DMA_SetCurrentTargetMem(DMA2, LL_DMA_STREAM_0, LL_DMA_CURRENTTARGETMEM0);
+  LL_DMA_EnableDoubleBufferMode(DMA2, LL_DMA_STREAM_0);
 
-  NVIC_InitTypeDef NVIC_InitStructure;
   //HAL Fast realtime irq 20kHz
-  NVIC_InitStructure.NVIC_IRQChannel                   = TIM_SLAVE_IRQ;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-  NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 0;
-  NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
-  NVIC_Init(&NVIC_InitStructure);
+  NVIC_SetPriority(TIM_SLAVE_IRQ, 0);
+  NVIC_EnableIRQ(TIM_SLAVE_IRQ);
 
   //ADC overrun would stop the rt silently, see ADC_IRQHandler
-  ADC_ITConfig(FB0_SIN_ADC, ADC_IT_OVR, ENABLE);
-  ADC_ITConfig(FB0_COS_ADC, ADC_IT_OVR, ENABLE);
-  NVIC_InitStructure.NVIC_IRQChannel                   = ADC_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
-  NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 0;
-  NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
-  NVIC_Init(&NVIC_InitStructure);
+  LL_ADC_EnableIT_OVR(FB0_SIN_ADC);
+  LL_ADC_EnableIT_OVR(FB0_COS_ADC);
+  NVIC_SetPriority(ADC_IRQn, 2);
+  NVIC_EnableIRQ(ADC_IRQn);
 
   //HAL Realtime irq 5kHz
-  NVIC_InitStructure.NVIC_IRQChannel                   = DMA2_Stream0_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
-  NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 0;
-  NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
-  NVIC_Init(&NVIC_InitStructure);
+  NVIC_SetPriority(DMA2_Stream0_IRQn, 2);
+  NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 
-  DMA_Cmd(DMA2_Stream0, ENABLE);
+  LL_DMA_EnableIT_TC(DMA2, LL_DMA_STREAM_0);
+  LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_0);
 
-  DMA_ITConfig(DMA2_Stream0, DMA_IT_TC, ENABLE);
+  // ADCs on only once the stream takes their requests, so no conversion can overrun first
+  LL_ADC_Enable(FB0_SIN_ADC);
+  LL_ADC_Enable(FB0_COS_ADC);
 }

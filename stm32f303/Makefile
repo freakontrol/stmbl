@@ -17,11 +17,7 @@ INCDIRS += stm32f303/inc
 INCDIRS += stm32f303/inc/comps
 INCDIRS += stm32f303/inc/shared_comps
 SOURCES += stm32f303/src/main.c
-SOURCES += stm32f303/src/adc.c
-SOURCES += stm32f303/src/dac.c
-SOURCES += stm32f303/src/opamp.c
-SOURCES += stm32f303/src/stm32f3xx_hal_msp.c
-SOURCES += stm32f303/src/tim.c
+SOURCES += stm32f303/src/periph.c
 SOURCES += stm32f303/src/stm32f3xx_it.c
 SOURCES += stm32f303/src/usbd_cdc_if.c
 SOURCES += stm32f303/src/version.c
@@ -52,27 +48,14 @@ INCDIRS += lib/CMSIS/Device/ST/STM32F3xx/Include/
 SOURCES += lib/CMSIS/Device/ST/STM32F3xx/Source/Templates/gcc/startup_stm32f303xc.s
 SOURCES += lib/CMSIS/Device/ST/STM32F3xx/Source/Templates/system_stm32f3xx.c
 
-#stm32f3 HAL Driver
+#stm32f3 LL drivers (HAL is not used by the hv firmware)
 HAL_DRV_DIR = lib/STM32F3xx_HAL_Driver/
+CPPFLAGS += -DUSE_FULL_LL_DRIVER
 
 INCDIRS += $(HAL_DRV_DIR)/Inc
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_adc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_adc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_cortex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_crc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_crc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_dac.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_dac_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_gpio.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_opamp.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_opamp_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rcc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rcc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_tim.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_tim_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart_ex.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_gpio.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_rcc.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_usart.c
 
 LDSCRIPT = stm32f303/STM32F303CBTx_FLASH.ld
 
@@ -147,7 +130,7 @@ LDFLAGS += -lm
 LDFLAGS += -Wl,-Map=$(TARGET).map,--cref
 LDFLAGS += -Wl,--gc-sections
 
-# LDFLAGS += -specs=nano.specs -u _printf_float -u _scanf_float
+LDFLAGS += -specs=nano.specs -u _printf_float -u _scanf_float
 LDFLAGS += -lc -specs=nosys.specs #fixes sbrk missing? present in eclipse?
 LDFLAGS += -T$(LDSCRIPT)
 
