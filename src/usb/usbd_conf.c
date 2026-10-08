@@ -39,7 +39,21 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef *hpcd) {
 
 // PCD -> USB Device Library
 
+// A SETUP ends whatever control transfer came before it. When the host gave
+// up on an IN data stage, its bytes could still sit in the EP0 TX FIFO (or
+// be refilled from the old buffer on the next FIFO-empty interrupt) and go
+// out as the answer to the next request: X once enumerated with every
+// string one request late, the LANGID 0x0409 as iProduct ("Љ"), the product
+// string as iManufacturer and the manufacturer as iSerial. Stop EP0 IN, mask
+// its FIFO-empty refill and flush its FIFO before handling the new request.
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd) {
+  USB_OTG_GlobalTypeDef *USBx = hpcd->Instance;
+  uint32_t USBx_BASE          = (uint32_t)USBx;
+  if(USBx_INEP(0)->DIEPCTL & USB_OTG_DIEPCTL_EPENA) {
+    (void)USB_EPStopXfer(USBx, &hpcd->IN_ep[0]);
+  }
+  USBx_DEVICE->DIEPEMPMSK &= ~1U;
+  (void)USB_FlushTxFifo(USBx, 0U);
   USBD_LL_SetupStage(hpcd->pData, (uint8_t *)hpcd->Setup);
 }
 

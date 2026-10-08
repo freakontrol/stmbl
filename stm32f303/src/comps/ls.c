@@ -23,6 +23,12 @@ HAL_PIN(ramp);
 #define LS_RAMP_TICKS PWM_TICKS_PER_PACKET
 // link loss after two missed packets (0.4 ms): 5 ticks at 15 kHz
 #define LS_TIMEOUT_TICKS (2 * PWM_TICKS_PER_PACKET - 1)
+// short-circuit braking on a link loss only after four missed packets (0.8
+// ms): one or two lost to noise just take the gates off until the next packet
+#define LS_SBRAKE_TICKS (4 * PWM_TICKS_PER_PACKET - 1)
+// a restarted f4 is silent far longer than 10 ms (boot, config load); a gap
+// that long must deliver the whole config again before the next enable
+#define LS_CONF_TICKS (PWM_FREQ / 100)
 HAL_PIN(pos);
 HAL_PIN(vel);
 // The angle the voltage computed this tick lands at, on average: the
@@ -108,6 +114,7 @@ struct ls_ctx_t {
   uint32_t sbrake_loss;  // brake for this link loss
   uint32_t tx_addr;
   uint32_t conf_seen;  // bit per config word written since boot
+  uint32_t rx_done;     // rx DMA re-armed after a whole packet, before its idle flag
   uint8_t send;
   volatile packet_to_hv_t packet_to_hv;
   volatile packet_from_hv_t packet_from_hv;
@@ -221,6 +228,7 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->sbrake_loss = 0;
   ctx->tx_addr     = 0;
   ctx->conf_seen   = 0;
+  ctx->rx_done     = 0;
   ctx->send        = 0;
   PIN(crc_error)   = 0.0;
   PIN(crc_ok)      = 0.0;
@@ -261,6 +269,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   uint32_t fault = 0;
+  uint32_t rearm = 0;  // restart rx DMA this tick
 
   if(dma_pos == sizeof(packet_to_hv_t)) {
     uint32_t crc = crc_calc((uint32_t *)&(ctx->packet_to_hv.header.slave_addr), sizeof(packet_to_hv_t) / 4 - 1);
@@ -345,6 +354,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ++;
       fault = 3;
     }
+
+    // Re-arm rx now rather than on the idle flag. At 10 and 20 kHz this tick
+    // can come less than the 16 bit idle time (5.3 us) after the last byte;
+    // waiting for the flag then left dma_pos at 32 for the next tick, which
+    // took the packet a second time and started the reply early enough to
+    // run into the f4's next rx re-arm.
+    rearm        = 1;
+    ctx->rx_done = 1;
   } else if(ctx->timeout <= LS_TIMEOUT_TICKS) {  // if no packet and no timeout, advance pos by velovity
     PIN(pos) = PIN(pos) + PIN(vel) * period;
   }
@@ -367,18 +384,25 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     PIN(idle)
     ++;
-    if(dma_pos != sizeof(packet_to_hv_t)) {
+    if(ctx->rx_done) {
+      // this idle ended a packet already taken and re-armed above; the next
+      // packet may have started since, so leave its bytes alone
+      ctx->rx_done = 0;
+    } else {
+      // a partial packet or noise: resync on the idle line
       PIN(dma_pos) = dma_pos;
+      rearm        = 1;
     }
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_10);
 
-    // reset rx DMA
+    //ctx->send = 1;
+  }
+
+  if(rearm) {
     LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_3);
     LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_3, sizeof(packet_to_hv_t));
     LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_3);
     dma_pos = 0;
-    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_10);
-
-    //ctx->send = 1;
   }
 
   if(ctx->send == 2) {
@@ -400,6 +424,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     state.pins.obs_err   = PIN(obs_err);
     state.pins.obs_vel   = PIN(obs_vel);
     state.pins.pwm_freq  = PWM_FREQ;
+    state.pins.link_to   = PIN(timeout);
 
     // fill tx struct
     ctx->packet_from_hv.fault             = (uint8_t)PIN(fault_in);
@@ -431,10 +456,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     // brake on the loss only if the motor was driven or already braking
     ctx->sbrake_loss = PIN(sbrake_arm) > 0.0 && (PIN(en) > 0.0 || PIN(sbrake) > 0.0);
   }
+  if(ctx->timeout == LS_CONF_TICKS) {
+    // a restarted f4 sends its config from word 0 again: no enable until the
+    // whole set has come round once more, as after an f3 boot
+    ctx->conf_seen = 0;
+    PIN(conf_ok)   = 0.0;
+  }
   if(ctx->timeout > LS_TIMEOUT_TICKS) {  //disable driver
     PIN(en)     = 0.0;
     PIN(vel)    = 0.0;
-    PIN(sbrake) = ctx->sbrake_loss && (float)(ctx->timeout - LS_TIMEOUT_TICKS) * period < PIN(sbrake_time);
+    PIN(sbrake) = ctx->sbrake_loss && ctx->timeout > LS_SBRAKE_TICKS && (float)(ctx->timeout - LS_SBRAKE_TICKS) * period < PIN(sbrake_time);
     PIN(timeout)
     ++;
     fault = 1;

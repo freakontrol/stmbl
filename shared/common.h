@@ -135,6 +135,7 @@ typedef union {
     float obs_err;  // f3 obs angle minus the frame it commutated with [rad]
     float obs_vel;  // f3 obs speed [rad/s electrical]
     float pwm_freq;  // PWM and rt rate the image was built for [Hz]
+    float link_to;  // f3 rt ticks spent in link timeout since its boot (ls0.timeout)
   } pins;
   float data[sizeof(struct f3_state_data_temp) / 4];
 } f3_state_data_t;

@@ -119,6 +119,18 @@ static int flash_erase_pages(uint32_t addr, uint32_t end) {
     return -1;
   }
   for(; addr < end; addr += FLASH_PAGE_SIZE) {
+    // Skip pages that are already blank. The erase runs in the TIM8 interrupt
+    // and answers once; when that answer is lost the f4 sends PAGEERASE
+    // again, and a full 56 page erase each time (1-2 s) ran it out of time.
+    // A repeat now answers within a few ms.
+    const uint32_t *p = (const uint32_t *)addr;
+    uint32_t blank    = 0xFFFFFFFFu;
+    for(uint32_t i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+      blank &= p[i];
+    }
+    if(blank == 0xFFFFFFFFu) {
+      continue;
+    }
     FLASH->CR |= FLASH_CR_PER;
     FLASH->AR = addr;
     FLASH->CR |= FLASH_CR_STRT;

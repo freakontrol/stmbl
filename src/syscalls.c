@@ -61,13 +61,13 @@ void *_sbrk_r(struct _reent *r, ptrdiff_t incr) {
 
 ssize_t _read(int fd, void *ptr, size_t len) {
   (void)fd;
-  while(!usb_rx_buf.len)
+  while(!rb_len(&usb_rx_buf))
     ;
 
   // same interrupt as cdc_getline guards against, see usb_cdc.c
   NVIC_DisableIRQ(OTG_FS_IRQn);
-  if(len > usb_rx_buf.len)
-    len = usb_rx_buf.len;
+  if(len > rb_len(&usb_rx_buf))
+    len = rb_len(&usb_rx_buf);
 
   char *c = (char *)ptr;
   for(uint16_t i = 0; i < len; i++)
