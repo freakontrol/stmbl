@@ -54,7 +54,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(vel_cmd) += LIMIT(vel_error, (abs_vel_error > 0.f ? max_acc : max_dec) * period);
   }
 
-  if(ABS(vel_ext_cmd - PIN(vel_cmd)) < PIN(max_vel) * PIN(at_speed_th) && PIN(vel_cmd) > 0.01) {
+  if(ABS(vel_ext_cmd - PIN(vel_cmd)) < PIN(max_vel) * PIN(at_speed_th) && ABS(PIN(vel_cmd)) > 0.01) {
     PIN(at_speed) = 1;
   } else {
     PIN(at_speed) = 0;

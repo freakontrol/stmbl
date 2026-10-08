@@ -18,6 +18,7 @@ struct idx_home_ctx_t {
   int state;
   int lastq;
   int waitabs;
+  int last_en;
 };
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -25,13 +26,21 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct idx_home_pin_ctx_t *pins = (struct idx_home_pin_ctx_t *)pin_ptr;
 
   uint8_t q = 0;
+  int en    = PIN(index_en) > 0;
 
-  if(PIN(index_en) > 0) {
+  if(en && !ctx->last_en) {  // new request: nothing carried over from an old one
+    ctx->lastq   = 0;
+    ctx->waitabs = 0;
+  }
+  ctx->last_en = en;
+
+  if(en) {
     if(PIN(mot_state) == 3) {
       q = quadrant(PIN(fb_abs));
       if(((q == 1 && ctx->lastq == 4) || (q == 4 && ctx->lastq == 1)) || ctx->waitabs == 1) {
         PIN(index_clear) = 1;
         ctx->state       = 1;
+        ctx->waitabs     = 0;  // only this request; later ones wait for the zero crossing
       }
       ctx->lastq = q;
     } else {  //index requested, but index not seen

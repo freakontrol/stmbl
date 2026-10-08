@@ -24,8 +24,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct veltopos_pin_ctx_t *pins = (struct veltopos_pin_ctx_t *)pin_ptr;
 
   //ctx->vel = CLAMP(PIN(vel), ctx->vel - PIN(max_acc) * period, ctx->vel + PIN(max_acc) * period);
-  ctx->vel = LIMIT(ctx->vel, PIN(max_vel));
   ctx->vel = CLAMP(PIN(vel), PIN(vel_fb) - PIN(max_acc) * period, PIN(vel_fb) + PIN(max_acc) * period);
+  if(PIN(max_vel) > 0.0) {
+    ctx->vel = LIMIT(ctx->vel, PIN(max_vel));
+  }
   PIN(pos) += ctx->vel * PIN(polecount) * period;
   PIN(pos) = mod(PIN(pos));
 }

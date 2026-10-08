@@ -40,9 +40,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(e_kin) = PIN(j) * vel * vel / 2.0;
 
   PIN(p_el_dc) = udc * PIN(idc);
-  PIN(p_el_ac) = PIN(ud) * PIN(id) + PIN(ud) * PIN(id);
+  PIN(p_el_ac) = 1.5 * (PIN(ud) * id + PIN(uq) * iq);
   PIN(p_m)     = t * vel;
-  PIN(p_t)     = 3 / 2 * PIN(r) * (id * id + iq * iq);
+  PIN(p_t)     = 1.5 * PIN(r) * (id * id + iq * iq);
 }
 
 hal_comp_t pe_comp_struct = {
