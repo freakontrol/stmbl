@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include "common.h"
 #include "main.h"
@@ -160,7 +161,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   USART_Cmd(UART_DRV, ENABLE);
 
   // DMA-Disable
-  DMA_Cmd(UART_DRV_TX_DMA, DISABLE);
+  dma_stream_stop(UART_DRV_TX_DMA);
   DMA_DeInit(UART_DRV_TX_DMA);
 
   // DMA2-Config
@@ -187,7 +188,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
 
   // DMA-Disable
-  DMA_Cmd(UART_DRV_RX_DMA, DISABLE);
+  dma_stream_stop(UART_DRV_RX_DMA);
   DMA_DeInit(UART_DRV_RX_DMA);
 
   // DMA2-Config
@@ -210,8 +211,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
 
   USART_DMACmd(UART_DRV, USART_DMAReq_Rx, ENABLE);
-  DMA_Cmd(UART_DRV_RX_DMA, DISABLE);
-  DMA_ClearFlag(UART_DRV_RX_DMA, UART_DRV_RX_DMA_TCIF);
+  dma_stream_stop(UART_DRV_RX_DMA);
   DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
@@ -540,8 +540,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     ctx->to_hv.packet_to_hv.header.crc = CRC_CalcBlockCRC((uint32_t *)&(ctx->to_hv.packet_to_hv.header.slave_addr), tx_size / 4 - 1);
 
     //start DMA TX transfer
-    DMA_Cmd(UART_DRV_TX_DMA, DISABLE);
-    DMA_ClearFlag(UART_DRV_TX_DMA, UART_DRV_TX_DMA_TCIF);
+    dma_stream_stop(UART_DRV_TX_DMA);
     UART_DRV_TX_DMA->NDTR = tx_size;
     DMA_Cmd(UART_DRV_TX_DMA, ENABLE);
 
@@ -549,9 +548,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(uart_sr) = UART_DRV->SR;
     PIN(uart_dr) = UART_DRV->DR;
 
-    //start DMA RX transfer
-    DMA_Cmd(UART_DRV_RX_DMA, DISABLE);
-    DMA_ClearFlag(UART_DRV_RX_DMA, UART_DRV_RX_DMA_TCIF);
+    //start DMA RX transfer. The stream is usually stopped mid-transfer
+    //(sized for the larger bootloader packet), so set NDTR again rather than
+    //rely on the reload (RM0090 10.3.17 step 5)
+    dma_stream_stop(UART_DRV_RX_DMA);
+    UART_DRV_RX_DMA->NDTR = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t));
     DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
   }
 

@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include <string.h>
 
@@ -153,7 +154,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   DMA_InitStruct.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
   DMA_InitStruct.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
   DMA_InitStruct.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_Cmd(DMA1_Stream0, DISABLE);
+  dma_stream_stop(DMA1_Stream0);
   DMA_DeInit(DMA1_Stream0);
   DMA_Init(DMA1_Stream0, &DMA_InitStruct);
 
@@ -391,8 +392,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //send request, 1/(42e6/32)*11 = 8.4uS
   SPI3->DR = PIN(req_len);
   //start DMA
-  DMA_Cmd(DMA1_Stream0, DISABLE);
-  DMA_ClearFlag(DMA1_Stream0, DMA_FLAG_TCIF0);
+  dma_stream_stop(DMA1_Stream0);
   DMA_Cmd(DMA1_Stream0, ENABLE);
 }
 

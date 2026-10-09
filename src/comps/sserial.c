@@ -25,6 +25,7 @@
 #include "math.h"
 #include "defines.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include "sserial.h"
 #include "crc8.h"
@@ -577,8 +578,7 @@ static void send(uint8_t len, uint8_t docrc) {
   } else {
     DMA_SetCurrDataCounter(DMA1_Stream4, len);
   }
-  DMA_Cmd(DMA1_Stream4, DISABLE);
-  DMA_ClearFlag(DMA1_Stream4, DMA_FLAG_TCIF4);
+  dma_stream_stop(DMA1_Stream4);
   DMA_Cmd(DMA1_Stream4, ENABLE);
 }
 
@@ -635,7 +635,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //RX DMA
 
-  DMA_Cmd(DMA2_Stream5, DISABLE);
+  dma_stream_stop(DMA2_Stream5);
   DMA_DeInit(DMA2_Stream5);
 
   // DMA2-Config
@@ -662,7 +662,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //TX DMA
 
-  DMA_Cmd(DMA1_Stream4, DISABLE);
+  dma_stream_stop(DMA1_Stream4);
   DMA_DeInit(DMA1_Stream4);
 
   // DMA2-Config
@@ -831,8 +831,7 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         if(crc_reuest(discovery.output + 1)) {
           //send buffer
           DMA_SetCurrDataCounter(DMA1_Stream4, discovery.input + 1);
-          DMA_Cmd(DMA1_Stream4, DISABLE);
-          DMA_ClearFlag(DMA1_Stream4, DMA_FLAG_TCIF4);
+          dma_stream_stop(DMA1_Stream4);
           DMA_Cmd(DMA1_Stream4, ENABLE);
           txbuf[discovery.input] = crc8((uint8_t *)txbuf, discovery.input);
           //send(discovery.input, 1);
