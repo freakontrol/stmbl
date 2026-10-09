@@ -3,7 +3,7 @@ load idm
 idm0.rt_prio = 4
 
 idm0.en = fault0.en_out
-idm0.pos_fb = pid0.pos_fb
+idm0.pos_fb = fb_switch0.pos_fb
 pid0.pos_ext_cmd = idm0.pos_cmd
 pid0.vel_ext_cmd = idm0.vel_cmd
 pid0.acc_ext_cmd = idm0.acc_cmd
