@@ -167,7 +167,7 @@ Commands for internal use:
 * `debug_level`: set the HAL debug level, 0 = print all, 1 = print errors, 2 = no output
 * `sleep`: wait for the given number of seconds
 * `hv_pause <ms>`: stops sending to the F3 for 1 to 2000 ms, to test link loss. While the drive is enabled this raises fault 9. This is a test command, do not use it on a running machine.
-* `hardboot`: **do not use.** It erases the first sector of the firmware to force the bootloader, so the drive must be flashed again.
+* `hardboot`: **do not use.** It clears the app's reset vector, so the bootloader's CRC check fails from then on, and enters the ROM DFU bootloader. The drive must be flashed again.
 
 ## Saving a config
 

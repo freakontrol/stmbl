@@ -113,20 +113,38 @@ void ADC_IRQHandler(void) {
   }
 }
 
+// Jump to the ROM DFU bootloader from the app. The F4 bootloader on boards in
+// the field starts the PLL and jumps to the ROM with it still running, so a
+// reset-based entry only works with a new F4 bootloader. AN2606 wants clocks,
+// PLL and interrupts back at reset before a jump to system memory.
 void bootloader(char *ptr) {
   hal_stop();
 
-  NVIC_DisableIRQ(TIM_SLAVE_IRQ);
-  NVIC_DisableIRQ(DMA2_Stream0_IRQn);
-  NVIC_DisableIRQ(SysTick_IRQn);
+  // AN2606: interrupts disabled and none pending. PRIMASK stays clear: the
+  // ROM's USB DFU runs on interrupts and does not enable them.
+  for(int i = 0; i < 8; i++) {
+    NVIC->ICER[i] = 0xFFFFFFFF;
+    NVIC->ICPR[i] = 0xFFFFFFFF;
+  }
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL  = 0;
+  SCB->ICSR     = SCB_ICSR_PENDSTCLR_Msk;
 
   void (*SysMemBootJump)(void);
   volatile uint32_t addr = 0x1FFF0000;
 
+  // LL_RCC_DeInit writes SW = HSI and clears PLLON back to back; PLLON can't
+  // be cleared while the PLL still clocks the core (RM0090 6.2.6), and
+  // LL_RCC_DeInit then waits forever for PLLRDY to drop. Finish the switch
+  // first, as SystemInit does.
+  LL_RCC_HSI_Enable();
+  while(!LL_RCC_HSI_IsReady()) {
+  }
+  LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_HSI);
+  while(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_HSI) {
+  }
   LL_RCC_DeInit();
-  SysTick->CTRL = 0;
-  SysTick->LOAD = 0;
-  SysTick->VAL  = 0;
 
   RCC->AHB1RSTR = 0x22E017FF;
   RCC->AHB1RSTR = 0;
@@ -139,7 +157,16 @@ void bootloader(char *ptr) {
   RCC->APB2RSTR = 0x4777933;
   RCC->APB2RSTR = 0;
 
-  SYSCFG->MEMRMP = 0x01;
+  // AN2606: peripheral clocks off, enables back at their reset values
+  RCC->AHB1ENR = 0x00100000;  // CCM data RAM only
+  RCC->AHB2ENR = 0;
+  RCC->AHB3ENR = 0;
+  RCC->APB1ENR = 0;
+  RCC->APB2ENR = 0;
+
+  // No SYSCFG->MEMRMP = 1: it never took effect before SYSCFG got its clock,
+  // and the jump works on the ROM's own vectors without the remap (AN2606
+  // names the remap only for dual-bank parts).
   SysMemBootJump = (void (*)(void))(*((uint32_t *)(addr + 4)));
   __set_MSP(*(uint32_t *)addr);
   SysMemBootJump();

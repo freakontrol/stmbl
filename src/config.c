@@ -23,6 +23,7 @@
 #include "hal.h"
 #include "commands.h"
 #include "stm32f4xx_conf.h"
+#include "main.h"
 
 // Flash sector erase and byte program on registers (RM0090 3.6; LL has no
 // flash API on F4). 2.7-3.6 V supply, so erase runs at PSIZE x32. The CPU
@@ -152,9 +153,16 @@ void showconf(char *ptr) {
 COMMAND("showconf", showconf, "show config");
 
 void appendconf(char *ptr) {
+  // strncat's count bounds what is appended, not the total: leave room for
+  // the line, its newline and the terminator, or refuse
+  size_t len = strnlen(config, sizeof(config));
+  if(len + strlen(ptr) + 2 > sizeof(config)) {
+    printf("config full, not added\n");
+    return;
+  }
   printf("adding %s\n", ptr);
-  strncat(config, ptr, sizeof(config) - 1);
-  strncat(config, "\n", sizeof(config) - 1);
+  strcat(config, ptr);
+  strcat(config, "\n");
 }
 COMMAND("appendconf", appendconf, "append string to config");
 
@@ -163,16 +171,32 @@ void deleteconf(char *ptr) {
 }
 COMMAND("deleteconf", deleteconf, "delete config");
 
+// Erasing sector 4 took the vector table with it while the rt/frt interrupts
+// ran: the next interrupt vectored into 0xFFFFFFFF and the core locked up
+// until a power cycle. Clearing one word of the image is enough to make the
+// F4 bootloader's CRC check fail (1 -> 0 needs no erase, RM0090 3.6.4); the
+// vectors stay intact. Then the ROM DFU is entered from here: the F4
+// bootloader on boards in the field jumps to the ROM with the PLL running.
 void hardboot(char *ptr) {
-  printf("erasing flash page...\n");
+  printf("clearing the reset vector, calling bootloader\n");
+  Wait(10);  // let the text go out
+  hal_stop();
+  __disable_irq();
   flash_unlock();
-  if(flash_erase_sector(4)) {  // 0x08010000, 64 KB: the app's first sector
+  uint32_t err = flash_wait();
+  if(!err) {
+    MODIFY_REG(FLASH->CR, FLASH_CR_PSIZE, FLASH_CR_PSIZE_1);  // x32
+    FLASH->CR |= FLASH_CR_PG;
+    *(volatile uint32_t *)0x08010004 = 0;  // app reset vector
+    err = flash_wait();
+    FLASH->CR &= ~FLASH_CR_PG;
+  }
+  flash_lock();
+  __enable_irq();
+  if(err) {
     printf("error!\n");
-    flash_lock();
     return;
   }
-  printf("OK, call bootloader\n");
-  flash_lock();
-  NVIC_SystemReset();
+  bootloader(0);
 }
 COMMAND("hardboot", hardboot, "destroy firmware to force bootloader");
