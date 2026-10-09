@@ -44,6 +44,8 @@ HAL_PIN(min_off);  // min off time [s]
 
 HAL_PIN(arr);
 
+HAL_PIN(sbrake);  // io0.sbrake_on: all compares 0, so the low sides carry the phases
+
 struct hv_ctx_t {
   int32_t pwm_res;
   int8_t drop_su;
@@ -182,6 +184,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   u = CLAMP(u, 0, ctx->pwm_res - min_off);
   v = CLAMP(v, 0, ctx->pwm_res - min_off);
   w = CLAMP(w, 0, ctx->pwm_res - min_off);
+
+  if(PIN(sbrake) > 0.0) {
+    u = 0;
+    v = 0;
+    w = 0;
+  }
 
 #ifdef PWM_INVERT
   PWM_U = ctx->pwm_res - u;

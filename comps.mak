@@ -43,6 +43,7 @@ LV_SHARED_COMPS += shared/comps/fanuc.c
 LV_SHARED_COMPS += shared/comps/fb_switch.c
 LV_SHARED_COMPS += shared/comps/reslimit.c
 LV_SHARED_COMPS += shared/comps/iit.c
+LV_SHARED_COMPS += shared/comps/ipm.c
 LV_SHARED_COMPS += shared/comps/vel_int.c
 LV_SHARED_COMPS += shared/comps/linrev.c
 LV_SHARED_COMPS += shared/comps/psi.c
