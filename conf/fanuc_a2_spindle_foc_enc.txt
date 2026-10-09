@@ -1,0 +1,106 @@
+# Fanuc alpha 2 induction spindle motor, fan cooled
+# [plate] A06B-0852-B190#3000, delta, 4 poles
+#   (2 pole pairs), S1 2.2 kW 19 A rms (26.9 pk),
+#   S2 15 min / S3 60 % 3.7 kW 27 A rms, 14.0 Nm,
+#   base 1500 rpm, max 8000 rpm, J 0.0078 kgm2,
+#   110-216 V, overload 120 % of 30 min, 1 min
+# idacim input: 155 V at 78.4 Hz (2352 rpm)
+# original Fanuc amp: SPM-5.5 A06B-6078-H206#H500,
+#   27 A rms, 200-230 V in; parameters (FS16i,
+#   B-65160E/02 app. C, units not recorded):
+#   4020 max speed 8000, 4100 power base 1750,
+#   4101 100, 4102 base speed 2352, 4103 flux
+#   down start 2352, 4104/4105 cur P 1300,
+#   4106/4107 cur I 1500, 4108 300, 4110 585,
+#   4111 22, 4112 783, 4113 slip 450, 4114 high
+#   speed slip comp 10, 4115 dead time comp 2,
+#   motor model code 103
+# [id] idacim 9 Oct 2026, 16 A, standstill +
+#   rotating test, motor at about 30 C
+# checked 9 Oct 2026, no cutting load:
+# 50 to 838 rad/s (8000 rpm, FW scale 0.30),
+# peak 24 A at the 97.5 rad/s^2 start, no fault
+# variant: rotor flux FOC on the encoder (S1)
+link pid
+link acim_foc
+# encoder: 512 line sin/cos (magnetic) on fb0
+# the board's sin/cos terminating resistors are
+# removed: this magnetic encoder is a high
+# impedance source and they load it down
+link enc_fb0
+conf0.mot_fb_res = 512
+enc_fb0.ires = 32 # sin/cos interpolation
+fb_switch0.mot_pos = enc_fb0.ipos
+adc0.sin_gain = 1.5 # magnetic encoder, low amp
+adc0.cos_gain = 1.5
+# amp0 0.40-0.54 after gain vs enc_fb0.min_amp
+# 0.25 (tested standstill to 838 rad/s)
+# drive: STMBL on a water cooled IM06B50GC1 bridge
+# (600 V 50 A) in place of the stock IKCM30F60GD;
+# ocdac map, current limits and ipm model are for
+# this board and cooling, redo them for another one
+link ipm_im06b50gc1
+link ocdac
+ocdac0.dac0 = 128 # 0xC break filter map, 6 Oct
+ocdac0.k = 6.48
+ocdac0.cur = 36 # above the F3 software trips
+conf0.max_ac_cur = 32 # S2 peak; F3 trips 33.25
+conf0.max_dc_cur = 30
+iit0.cur_boost = 1.1896 # S1 26.9 A pk
+iit0.max_time = 1452 # S2 32 A for 30 min
+conf0.polecount = 2 # [plate]
+conf0.out_rev = 1
+conf0.r = 0.197839 # [id] idacim, drive chord
+conf0.l = 0.000750 # [id] leakage sigma*Ls
+conf0.j = 0.012063 # [id] rotor + belt, idacim
+conf0.max_vel = 838 # [plate] 8000 rpm
+conf0.lq = 0 # acim_foc: l is the leakage only
+conf0.psi = 0 # hv0.psi comes from acim_flux0
+conf0.max_acc = 97.5 # 65% of the belt's 150
+conf0.max_force = 18.4 # t_max at 32 A
+conf0.max_sat = 5
+hv0.drop_k = 0.885 # dead time comp, idpmsm fit
+hv0.drop_knee = 0.85
+acim_foc0.id_n = 19.480579 # [id] rotating test
+acim_flux0.tr = 0.090593 # [id] rotor edges
+acim_flux0.lmr = 0.012432 # [id] secant at id_n
+# saturation shape (6 Oct ladder; the 9 Oct fit
+# was rejected and keeps these)
+acim_flux0.i_knee = 14.4
+acim_flux0.tr_sat = 0.021708
+acim_flux0.lmr_sat = 0.021708
+acim_flux0.i_dip = 10.48
+acim_flux0.lmr_dip = 0.3488
+acim_flux0.r_w = 0.00025 # iron loss, ud slope
+acim_flux0.tr_ki = 0 # tr MRAS off
+# field weakening above base, up to 8000 rpm
+acim_fw0.duty = hv0.duty
+acim_fw0.duty_setpoint = 0.80
+acim_fw0.ki = 30 # 150 limit-cycled
+acim_fw0.p_max = 2200 # [plate] S1, x cur_boost
+# speed command through a ramp:
+# ramp0.vel_ext_cmd [rad/s], enable: ramp0.en
+load ramp
+ramp0.rt_prio = 5.1
+ramp0.vel_ext_cmd = rev0.out_d
+ramp0.en = 0 # set 1 to run
+ramp0.max_vel = conf0.max_vel
+ramp0.max_acc = conf0.max_acc
+ramp0.max_dec = conf0.max_acc
+ramp0.en_delay = 0.01
+fault0.en = ramp0.en_out
+pid0.pos_en = 0
+# load: id_sys 9 Oct on the encoder, 30 to 300
+# rad/s (idm0.max_vel 300, +-1000 rad). The fit
+# holds over that range; above 300 rad/s d is
+# extrapolated (0.88 Nm at 300 rad/s). conf0.j
+# already holds the belt driven spindle.
+conf0.j_sys = 0
+conf0.f = 0.499160
+conf0.d = 0.001283
+conf0.o = 0.003052
+pid0.vel_ext_cmd = ramp0.vel_cmd
+pid0.acc_ext_cmd = 0
+conf0.pos_bw = 10
+conf0.vel_bw = 40 # 58 from id_pid: more ripple
+conf0.vel_d = 1
