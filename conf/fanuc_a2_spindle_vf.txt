@@ -1,0 +1,62 @@
+# Fanuc alpha 2 induction spindle motor, fan cooled
+# [plate] A06B-0852-B190#3000, delta, 4 poles
+#   (2 pole pairs), S1 2.2 kW 19 A rms (26.9 pk),
+#   S2 15 min / S3 60 % 3.7 kW 27 A rms, 14.0 Nm,
+#   base 1500 rpm, max 8000 rpm, J 0.0078 kgm2,
+#   110-216 V, overload 120 % of 30 min, 1 min
+# idacim input: 155 V at 78.4 Hz (2352 rpm)
+# original Fanuc amp: SPM-5.5 A06B-6078-H206#H500,
+#   27 A rms, 200-230 V in; parameters (FS16i,
+#   B-65160E/02 app. C, units not recorded):
+#   4020 max speed 8000, 4100 power base 1750,
+#   4101 100, 4102 base speed 2352, 4103 flux
+#   down start 2352, 4104/4105 cur P 1300,
+#   4106/4107 cur I 1500, 4108 300, 4110 585,
+#   4111 22, 4112 783, 4113 slip 450, 4114 high
+#   speed slip comp 10, 4115 dead time comp 2,
+#   motor model code 103
+# [id] idacim 9 Oct 2026, 16 A, standstill +
+#   rotating test, motor at about 30 C
+# checked 9 Oct 2026, no cutting load:
+# 20 to 838 rad/s (8000 rpm) and back, peak 22 A,
+# no fault, with the speed estimate damping below.
+# Without it the rotor hunts at ~9 Hz from about
+# 75 rad/s (fault 15); k_damp alone holds to 75,
+# k_vel 1.5 hunts at 50, 1.0 runs the whole range.
+# variant: open loop V/f, no encoder needed.
+# speed: vf0.vel_cmd [rad/s mech]; enable: fault0.en
+# V/f set from the standstill idacim (plate pins)
+link vf
+# drive: STMBL on a water cooled IM06B50GC1 bridge
+# (600 V 50 A) in place of the stock IKCM30F60GD;
+# ocdac map, current limits and ipm model are for
+# this board and cooling, redo them for another one
+link ipm_im06b50gc1
+link ocdac
+ocdac0.dac0 = 128 # 0xC break filter map, 6 Oct
+ocdac0.k = 6.48
+ocdac0.cur = 36 # above the F3 software trips
+conf0.max_ac_cur = 32 # S2 peak; F3 trips 33.25
+conf0.max_dc_cur = 30
+iit0.cur_boost = 1.1896 # S1 26.9 A pk
+iit0.max_time = 1452 # S2 32 A for 30 min
+conf0.polecount = 2 # [plate]
+conf0.out_rev = 1
+conf0.r = 0.197839 # [id] idacim, drive chord
+conf0.l = 0.000750 # [id] leakage sigma*Ls
+conf0.j = 0.012063 # [id] rotor + belt, idacim
+conf0.max_vel = 838 # [plate] 8000 rpm
+vf0.u_n = 126.556976 # [id] phase peak V at vel_n
+vf0.vel_n = 246.300873 # [id] base speed
+vf0.u_boost = 12 # [id] 12.2: dead time + r id
+vf0.boost_vel = 21.640516 # [id]
+vf0.slip_n = 5.678947 # [id] slip comp at cur_n
+vf0.cur_n = 19.269098 # [id] active I at plate I
+vf0.acc = 97.5 # 65% of the belt's 150
+vf0.dec = 97.5
+vf0.r = conf0.r
+vf0.j = conf0.j
+# damping from the estimated rotor swing
+vf0.vel_src = 1 # estimate, no encoder
+vf0.k_vel = 1.0
+fault0.en = 0 # set 1 to run
