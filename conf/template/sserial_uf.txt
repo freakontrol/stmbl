@@ -3,8 +3,11 @@ sserial0.rt_prio = 2.0
 sserial0.frt_prio = 2.0
 fault0.en = sserial0.enable
 sserial0.fault = fault0.fault
+sserial0.fault_code = fault0.last_fault
 fault0.cmd_error = sserial0.error
 sserial0.vel_fb = avg0.out
+# no position feedback: report pos_fb 0, not vel_fb extrapolated
+sserial0.pos_extrap = 0
 io0.cmdy = sserial0.error
 io0.cmdg = 1
 sserial0.in0 = io0.ind0

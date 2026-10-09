@@ -71,11 +71,18 @@ void TIM_SLAVE_HANDLER(void) {
 // runs whichever fb0 component is loaded.
 volatile uint32_t fb0_cnt_latch;
 volatile uint32_t fb0_idr_latch;
+// rt periods started, counted with the DMA TC flag clear (sserial ages its
+// position by it, see there)
+volatile uint32_t rt_tick;
 
 void DMA2_Stream0_IRQHandler(void) {
   fb0_cnt_latch = FB0_ENC_TIM->CNT;
   fb0_idr_latch = FB0_A_PORT->IDR;
+  // the frt (higher priority) reads rt_tick and the TC flag together
+  __disable_irq();
+  rt_tick++;
   LL_DMA_ClearFlag_TC0(DMA2);
+  __enable_irq();
   hal_run_rt();
   if(LL_DMA_IsActiveFlag_TC0(DMA2)) {
     hal_stop();

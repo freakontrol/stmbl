@@ -41,12 +41,15 @@ HAL_PIN(abs_en);
 HAL_PIN(abs_rev);
 HAL_PIN(abs_pos);    // angle of the abs_rev source, same tick as abs_rev (e.g. encf0.pos)
 HAL_PIN(abs_state);  // state of the abs_rev source, 3 = absolute (fb_switch mot_state convention)
+HAL_PIN(abs_neg);    // 1: fb_in counts against the source (link conf0.mot_fb_rev)
 
 HAL_PIN(pos_offset);
 
 struct linrev_ctx_t {
-  int lastq;    //last quadrant
-  int32_t rev;  //current multiturn
+  int lastq;             //last quadrant
+  int32_t rev;           //current multiturn
+  int32_t last_abs_rev;  //abs_rev (sign applied) of the last absolute tick
+  int last_abs_ok;       //last tick was absolute
 };
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -69,29 +72,46 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   int q = quadrant(PIN(fb_in));
 
-  // Incremental: count the wraps of fb_in through +-pi.
-  // Absolute (abs_en, abs_state 3): rev is the source's turn count, taken
-  // every tick. fb_in can lag abs_rev by a tick or two (in the sserial
-  // template fb_in comes through fb_switch and idx_home, which run after
-  // linrev), so rev is aligned to fb_in: the whole number of turns that
-  // puts fb_in + rev nearest the source's position abs_rev + abs_pos. That
-  // is exact while the lag is under half a turn of motion, and follows an
-  // encoder re-referencing at its index at once. abs_rev must step where
-  // abs_pos wraps at +-pi (encf does). With abs_pos unlinked (0) this is
-  // rev = abs_rev, fb_in = -pi included.
-  if(PIN(abs_en) > 0 && PIN(abs_state) == 3.0) {
-    float d   = PIN(abs_pos) - PIN(fb_in);
-    ctx->rev = (int32_t)PIN(abs_rev) + (d > M_PI) - (d < -M_PI);
-  } else {
-    if(q == 3 && ctx->lastq == 2) {
-      ctx->rev++;
-    }
-    if(q == 2 && ctx->lastq == 3) {
-      ctx->rev--;
-    }
+  // rev counts the wraps of fb_in through +-pi.
+  if(q == 3 && ctx->lastq == 2) {
+    ctx->rev++;
   }
-
+  if(q == 2 && ctx->lastq == 3) {
+    ctx->rev--;
+  }
   ctx->lastq = q;
+
+  // Absolute (abs_en, abs_state 3): rev is taken from the source's turn
+  // count once, when the source becomes absolute or its count jumps by more
+  // than one turn (an encoder re-referencing at its index), and counted from
+  // fb_in's wraps after that. The take aligns rev to fb_in: the whole number
+  // of turns that puts fb_in + rev nearest the source's position abs_rev +
+  // abs_pos, so fb_in may lag the source by a tick or two (in the sserial
+  // template it comes through fb_switch and idx_home, which run after
+  // linrev). Taken every tick instead, rev flipped by a turn while fb_in
+  // and abs_pos differed by about half a turn (abs_pos = encf0.pos with
+  // pos_offset near 32768 against fb_in = encf0.abs_pos after index
+  // homing), and with abs_neg it was wrong outright. abs_rev must step
+  // where abs_pos wraps at +-pi (encf does). Link abs_state: left at its
+  // default 3, the take happens on the first tick, before the source may
+  // have a valid count. rev_clear (index homing) zeroes rev for good.
+  int abs_ok = PIN(abs_en) > 0 && PIN(abs_state) == 3.0;
+  if(abs_ok) {
+    int32_t ar = (int32_t)PIN(abs_rev);
+    float ap   = PIN(abs_pos);
+    if(PIN(abs_neg) > 0) {
+      // -(ap + 2 pi ar) = -ap + 2 pi (-ar), -ap still within +-pi
+      ar = -ar;
+      ap = -ap;
+    }
+    int32_t dr = ar - ctx->last_abs_rev;
+    if(!ctx->last_abs_ok || dr > 1 || dr < -1) {
+      float d  = ap - PIN(fb_in);
+      ctx->rev = ar + (d > M_PI) - (d < -M_PI);
+    }
+    ctx->last_abs_rev = ar;
+  }
+  ctx->last_abs_ok = abs_ok;
 
   if(PIN(rev_clear) > 0) {
     ctx->rev = 0;
