@@ -30,11 +30,15 @@
 * at 6.7 A (idacim sweep, 6 Oct). With `i_dip` > 0 both fall below it:
 *
 *     y       = (i_dip - |i_mr|) / i_dip, clamped 0..1
-*     tr_act  = ... * (1 - lmr_dip * y)
 *     lmr_act = ... * (1 - lmr_dip * y)
+*     tr_act  = ... * (1 - tr_dip * y)
 *
-* tr is Lr / Rr and Lr moves with Lm, so the same factor applies to both.
-* i_dip 0 (default) or lmr_dip 0 leaves it out.
+* tr has its own coefficient: Lr follows Lm, but Rr does not stay put at
+* low flux. On the spindle tr rose instead, about 0.10 at 8 A and 0.11 at
+* 5 A against 0.089 rated (6 and 9 Oct), so tr_dip is negative there
+* (-0.45); with lmr_dip on tr, tr_act read 0.074 at 5 A and sensorless rang
+* at the speed loop bandwidth in deep field weakening.
+* i_dip 0 (default) leaves both out; lmr_dip 0 or tr_dip 0 one of them.
 *
 * The model, slip, psi and torque run on tr_act and lmr_act. tr changes about
 * twice as much as the secant lmr, so the two gains are separate; 0 (default)
@@ -130,8 +134,9 @@ HAL_PIN(lmr_ki);     // *parameter*, lmr trim rate from the q voltage [1/s], 0 =
 HAL_PIN(r);          // *parameter*, stator resistance [ohm], conf0.r, for the lmr trim
 HAL_PIN(lmr_est);    // *output*, lmr at rated flux, lmr or trimmed
 HAL_PIN(u_res);      // *output*, q voltage residual [V]
-HAL_PIN(i_dip);      // *parameter*, lmr and tr fall below this i_mr [A], 0 = no dip; keep below i_knee
-HAL_PIN(lmr_dip);    // *parameter*, fraction lmr and tr lose at zero flux, (1 - lmr_dip * y)
+HAL_PIN(i_dip);      // *parameter*, lmr and tr change below this i_mr [A], 0 = no dip; keep below i_knee
+HAL_PIN(lmr_dip);    // *parameter*, fraction lmr loses at zero flux, (1 - lmr_dip * y)
+HAL_PIN(tr_dip);     // *parameter*, fraction tr loses at zero flux, (1 - tr_dip * y), negative = tr rises
 
 struct acim_flux_ctx_t {
   float w;    // last synchronous speed
@@ -189,7 +194,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
   PIN(lmr_est) = lmr_r;
   float lmr  = lmr_r * k_l;
-  float k_tr = MAX(1.0 + PIN(tr_sat) * x, 0.1) * k_d;
+  float k_tr = MAX(1.0 + PIN(tr_sat) * x, 0.1) * MAX(1.0 - PIN(tr_dip) * y, 0.1);
 
   float tr = tr_n;
   if(PIN(tr_ki) > 0.0 || PIN(tr_ks) > 0.0) {
