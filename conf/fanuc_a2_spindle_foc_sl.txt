@@ -63,6 +63,7 @@ acim_flux0.tr_sat = 0.021708
 acim_flux0.lmr_sat = 0.021708
 acim_flux0.i_dip = 10.48
 acim_flux0.lmr_dip = 0.3488
+acim_flux0.tr_dip = -0.45 # tr rises, 9 Oct
 acim_flux0.r_w = 0.00025 # iron loss, ud slope
 acim_flux0.tr_ki = 0 # tr MRAS off
 # field weakening above base, up to 8000 rpm
