@@ -233,7 +233,7 @@ hv_update: SEND_TO_APP
 hv_update: SLAVE_IN_APP
 ```
 
-If the update fails, it prints `hv_update: FLASH_FAILED`, after "the f3 bootloader says the app CRC is wrong" or "no answer to CRC_CHECK" when that was the cause. The `hv_verify` command reads the F3 app area back from the F3 bootloader and compares it with the image embedded in the F4 firmware. If this fails multiple times, go to the [Flashing the HV board with no bootloader](/docs/introduction/#flashing-the-hv-board-with-no-bootloader) section.
+If the update fails, it prints `hv_update: FLASH_FAILED`, after "the f3 bootloader says the app CRC is wrong" or "no answer to CRC_CHECK" when that was the cause. The `hv_verify` command reads the F3 app area back from the F3 bootloader and compares it with the image embedded in the F4 firmware. It only runs with the drive disabled (otherwise it prints `hv_verify: refused, the drive is enabled`). If this fails multiple times, go to the [Flashing the HV board with no bootloader](/docs/introduction/#flashing-the-hv-board-with-no-bootloader) section.
 
 The boards can also be flashed with an stlink programmer over SWD: `make flash` (F4 app), `make boot_flash` (F4 bootloader), `make all_flash` (f4.bin: bootloader, festo.txt config and app), `make f3_boot_flash` (F3 bootloader) and `make f3_all_flash` (f3.bin: F3 bootloader and app).
 

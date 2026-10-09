@@ -138,7 +138,7 @@ The `help` command prints the live list of commands in the running firmware. Som
 * `show`: show comps in flash
 * `list`: show comp instances
 * `hv FOOBAR XYZ`: send "FOOBAR XYZ" to the HV board
-* `hv_verify`: read the F3 firmware back from its bootloader and compare it with the image embedded in the F4 firmware
+* `hv_verify`: read the F3 firmware back from its bootloader and compare it with the image embedded in the F4 firmware (refused while the drive is enabled)
 * `enable` / `disable`: set `fault0.en` to 1 or 0 (this removes its link, see the warning above)
 * `jogl` / `jogr` / `jogx`: jog left, jog right, stop jog (only with `link jog_cmd`)
 * `linked`: show linked pins

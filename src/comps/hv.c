@@ -47,7 +47,7 @@
 * 5. **Feedback (rt)**:
 * - A received packet is only used if it is complete, its CRC matches, `slave_addr` is 0 and its length is that of `packet_from_hv_t`. Then `id_fb`, `iq_fb`, `ud_fb`, `uq_fb`, `fault` are copied, `abs_cur = sqrt(id_fb^2 + iq_fb^2)`, `abs_volt = sqrt(ud_fb^2 + uq_fb^2)` and `duty = abs_volt / pwm_volt` (only while `pwm_volt > 0`). `ud_fb`/`uq_fb` are the F3 `curpid0` output, which limits the voltage as one vector (d first, q gets what is left of the circle), so `abs_volt` stays at or below `pwm_volt`. The F3 computes `pwm_volt` from the DC link voltage and its usable duty `hv0.duty_max` (what the min on/off times leave, about 0.91), or 0.95 if that is not wired.
 * - One state word per packet fills `u_fb`, `v_fb`, `w_fb`, `hv_temp`, `mot_temp`, `core_temp`, `dc_volt`, `pwm_volt`, `y`, `emf_val`, two unused words, `pwm_freq`, `link_to`, `hv_temp_ok` (`f3_state_data_t`, 15 words, so each is refreshed every 15 periods). A word address past this layout (from a newer F3 image) is ignored.
-* - `pwm_freq` is the PWM and rt rate the F3 image was built for; an older F3 that does not report it reads as 15000 Hz. `link_to` counts the F3 rt ticks spent in link timeout since the F3 booted (`ls0.timeout`); every rise is a dropout that disabled the gates. A rise while `en` > 0 counts in `link_drops` and holds `fault` at `HV_TIMEOUT_ERROR` (9) until `en` drops, because the F3 times out after 2 packets (400 us) but the F4 only after 3 ticks, so a short dropout could otherwise stop the bridge without the F4 ever faulting. A fall in `link_to` (F3 reboot) is taken as the new baseline.
+* - `pwm_freq` is the PWM and rt rate the F3 image was built for; an older F3 that does not report it reads as 15000 Hz. `link_to` counts the F3 rt ticks spent in link timeout since the F3 booted (`ls0.timeout`); every rise is a dropout that disabled the gates. A rise while `en` > 0 counts in `link_drops` and holds `fault` at `HV_TIMEOUT_ERROR` (9) until `en` drops (a fault code the F3 reports itself wins over it), because the F3 times out after 2 packets (400 us) but the F4 only after 3 ticks, so a short dropout could otherwise stop the bridge without the F4 ever faulting. A fall in `link_to` (F3 reboot) is taken as the new baseline.
 * - `power` and `dc_cur` are not measured, they are estimated from the commanded dq voltages, so they leave out inverter losses and read low:
 * ```c
 * power  = 0.5 * power + 0.5 * 1.5 * (ud_fb * id_fb + uq_fb * iq_fb);
@@ -75,7 +75,7 @@
 * - While updating, every second rt period sends nothing, to give the bootloader time to answer.
 *
 * 9. **F3 flash read back (`hv_verify`)**:
-* - Accepted in state 0 or 6 (otherwise it prints `hv_verify: busy`). Meant for an F3 that sits in its bootloader after a failed `hv_update`: it reads the app area back word by word from 0x08004000 with the bootloader READ opcode and compares it with the embedded image, plus 8 words past its end, which must read as erased (0xFFFFFFFF).
+* - Accepted in state 0 or 6 (otherwise it prints `hv_verify: busy`). In state 0 only with the drive disabled: a running F3 app ignores the READ packets, so it would see a link loss, gate off and fault 9. While enabled it prints `hv_verify: refused, the drive is enabled`. Meant for an F3 that sits in its bootloader after a failed `hv_update`: it reads the app area back word by word from 0x08004000 with the bootloader READ opcode and compares it with the embedded image, plus 8 words past its end, which must read as erased (0xFFFFFFFF).
 * - `nrt` prints the progress every 10 %, then the number of differing words, the first 8 differences (address, F3 value, image value) and the `version_info` image CRC and size of the F3 flash next to those of the embedded image.
 * - Without an answer for 200 periods (40 ms) it stops with `the f3 is not in its bootloader` and goes back to state 0.
 *
@@ -209,6 +209,7 @@ static uint32_t crc_nak;  // the f3 answered NAK: its CRC over the image is not 
 #define VERIFY_EXTRA 8
 #define VERIFY_LIST 8
 static uint32_t send_verify;
+static volatile uint32_t verify_refused;
 // FLASH_FAILED: a failed update can leave the f3 in its bootloader (it only
 // starts the app after a reset with a valid CRC), in its app if it never got
 // there, or without power. Sends alternate between a bootloader NOP and an
@@ -430,7 +431,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
                 PIN(link_drops)++;
               }
               ctx->link_to_last = PIN(link_to);
-              if(ctx->link_err) {
+              if(ctx->link_err && PIN(fault) == 0.0) {  // a real F3 fault code wins
                 PIN(fault) = HV_TIMEOUT_ERROR;
               }
 
@@ -612,6 +613,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
       ctx->conf_addr %= sizeof(f3_config_data_t) / 4;
 
+      if(send_verify && e > 0.0) {
+        // bootloader READ packets are a link loss to a running F3 app: it
+        // gates off or short-brakes and fault 9 latches. Only from disabled
+        // (the F3 may be sitting in its bootloader after an F4 reset).
+        send_verify    = 0;
+        verify_refused = 1;
+      }
       if(send_verify) {
         send_verify    = 0;
         ctx->addr      = 0;
@@ -885,6 +893,11 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   char c;
   while(rb_getc(&hv_rx_buf, &c)) {
     printf("%c", c);
+  }
+
+  if(verify_refused) {
+    verify_refused = 0;
+    printf("hv_verify: refused, the drive is enabled\n");
   }
 
   static uint32_t verify_shown = 0, verify_tenth = 0;
