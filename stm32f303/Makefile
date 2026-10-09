@@ -1,7 +1,7 @@
 # Optimization level, can be [0, 1, 2, 3, s].
 #     0 = turn off optimization. s = optimize for size.
 #
-OPT = -O3
+OPT = -O2  # -O3 only added 2.4 KB of flash and 40 B of CCM (2026-10-03)
 # OPT = -O1         # for debugging
 
 # Object files directory

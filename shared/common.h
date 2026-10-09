@@ -113,6 +113,8 @@ typedef union {
     float emf_sel;    // emf0 result returned in emf_val
     float emf_pp;     // emf0 pole pairs
     float drop_knee;  // dead time compensation curve knee [A], 0 = latched sign
+    float obs_mode;   // f3 obs: 0 off, 1 shadow, 2 commutate from it
+    float obs_bw;     // f3 obs loop bandwidth [rad/s]
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;
@@ -130,6 +132,8 @@ typedef union {
     float pwm_volt;
     float y;
     float emf_val;  // emf0 result number emf_sel
+    float obs_err;  // f3 obs angle minus the frame it commutated with [rad]
+    float obs_vel;  // f3 obs speed [rad/s electrical]
   } pins;
   float data[sizeof(struct f3_state_data_temp) / 4];
 } f3_state_data_t;

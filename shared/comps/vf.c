@@ -41,7 +41,8 @@
 *   faster than the motor can follow just slows down. It replaces the slip compensation and the damping
 *   (k_damp, k_vel): the field is tied to the rotor. vel_fb must have the
 *   field's sign and mechanical scale; a reversed encoder runs away against
-*   the clamp, so check vel_fb in open loop first. enc 0 = off.
+*   the clamp, so check vel_fb in open loop first. enc 0 = off; with
+*   slip_n and slip_max both 0 it runs open loop.
 * - `vel_e` = (vel + slip) * polecount, synchronous electrical speed for
 *   angle0.vel_cmd, so hv0.vel is right and the f3 extrapolates between packets.
 * - Damping (optional): open loop V/f on a lightly loaded motor hunts, the
@@ -215,7 +216,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // encoder path: the field runs at the rotor speed plus a slip from a speed
   // PI, so the speed follows vel without the slip model and the rotor
   // cannot pull out of the field
-  int enc    = PIN(enc) > 0.0;
+  // without slip_n or slip_max the slip clamp is 0: the field would sit on
+  // the rotor with no torque, so that runs open loop instead
+  int enc    = PIN(enc) > 0.0 && (PIN(slip_max) > 0.0 || PIN(slip_n) > 0.0);
   float base = vel;  // field speed less slip: the reference open loop, the rotor with the encoder
   if(enc && PIN(en) > 0.0) {
     float s_max = PIN(slip_max) > 0.0 ? PIN(slip_max) : 2.0 * PIN(slip_n);
