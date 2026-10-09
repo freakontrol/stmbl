@@ -174,21 +174,17 @@ void tim8_init(void) {
   // dac goes up: 0xC at 255 trips where 0xF did at 215 (19.5-21 A); 0xA
   // tripped at 1 A at 150. RM0316 20.3.16: "BRK2 must only be used with OSSR =
   // OSSI = 1" (outputs to their idle level, all switches off, when MOE
-  // drops), and BK2P and BK2E must not be set in the same BDTR write, so
-  // BK2E follows on its own.
-  LL_TIM_OC_SetDeadTime(TIM8, PWM_DEADTIME);
-  LL_TIM_SetOffStates(TIM8, LL_TIM_OSSI_ENABLE, LL_TIM_OSSR_ENABLE);
-  LL_TIM_DisableAutomaticOutput(TIM8);
-  LL_TIM_ConfigBRK(TIM8, LL_TIM_BREAK_POLARITY_HIGH, LL_TIM_BREAK_FILTER_FDIV16_N8);
-  LL_TIM_EnableBRK(TIM8);
-  LL_TIM_ConfigBRK2(TIM8, LL_TIM_BREAK2_POLARITY_HIGH, LL_TIM_BREAK2_FILTER_FDIV16_N8);
-  LL_TIM_EnableBRK2(TIM8);
-  __DSB();  // BK2E takes an APB cycle to act
-  // LOCK level 1 (RM0316 20.3.16/20.4.21): DTG, BKE/BKP/BKF, BK2E/BK2P/BK2F,
-  // AOE and OISx are read-only until reset, so no read-modify-write of BDTR
-  // can change the break setup. MOE, which io0 toggles, stays writable. LL
-  // has no LOCK setter outside LL_TIM_BDTR_Init().
-  SET_BIT(TIM8->BDTR, LL_TIM_LOCKLEVEL_1);
+  // drops).
+  // One write for all of BDTR (RM0316 20.4.18): the LOCK bits are frozen by
+  // the first write after reset, so a lock set by a later write never takes.
+  // LOCK level 1: DTG, BKE/BKP/BKF, BK2E/BK2P/BK2F, AOE and OISx are then
+  // read-only until reset, so no read-modify-write of BDTR can change the
+  // break setup. MOE, which io0 toggles, stays writable. AOE and OISx are 0.
+  WRITE_REG(TIM8->BDTR, (PWM_DEADTIME << TIM_BDTR_DTG_Pos) | LL_TIM_OSSI_ENABLE | LL_TIM_OSSR_ENABLE |
+                          LL_TIM_BREAK_POLARITY_HIGH | LL_TIM_BREAK_FILTER_FDIV16_N8 | TIM_BDTR_BKE |
+                          LL_TIM_BREAK2_POLARITY_HIGH | LL_TIM_BREAK2_FILTER_FDIV16_N8 | TIM_BDTR_BK2E |
+                          LL_TIM_LOCKLEVEL_1);
+  __DSB();  // BKE/BK2E take an APB cycle to act
   for(volatile int i = 0; i < 4; i++) {  // "wait 4 timer clocks" before B2IF
   }
   // Clears only what the setup itself raised: the comparators come up later

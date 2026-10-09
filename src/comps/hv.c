@@ -55,6 +55,7 @@ HAL_PIN(dc_cur);  // dc link current [A], estimated from power balance, negative
 
 // state data to LS
 HAL_PIN(hv_temp);
+HAL_PIN(hv_temp_ok);  // 0 never read (or an f3 that does not send it), 1 live, 2 held while the bridge is off
 HAL_PIN(mot_temp);
 HAL_PIN(core_temp);
 HAL_PIN(fault);  //fault from hv
@@ -290,7 +291,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.emf_pp  = PIN(emf_pp);
   ctx->config.pins.drop_knee = PIN(drop_knee);
   ctx->config.pins.unused0   = 0.0;  // an older f3 reads its observer off here
-  ctx->config.pins.unused1   = 0.0;
+  // the trip limit stays at the rated current: following scale, an overshoot
+  // past max_cur cut oc_lim below the current and tripped fault 15
+  ctx->config.pins.oc_cur    = PIN(max_cur);
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - LL_DMA_GetDataLength(UART_DRV_DMA, UART_DRV_RX_DMA_STREAM);
 
@@ -335,6 +338,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               PIN(v_fb)      = ctx->state.pins.v_fb;
               PIN(w_fb)      = ctx->state.pins.w_fb;
               PIN(hv_temp)   = ctx->state.pins.hv_temp;
+              PIN(hv_temp_ok) = ctx->state.pins.hv_temp_ok;
               PIN(mot_temp)  = ctx->state.pins.mot_temp;
               PIN(core_temp) = ctx->state.pins.core_temp;
               PIN(y)         = ctx->state.pins.y;
