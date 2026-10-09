@@ -15,8 +15,13 @@ hv0.rev = idacim0.out_rev
 hv0.r = idacim0.r
 hv0.l = idacim0.l
 hv0.lq = 0
+# identify with the dead time compensation off
+hv0.drop_k = 0
 idacim0.ud_fb = hv0.ud_fb
 idacim0.id_fb = hv0.id_fb
+idacim0.uq_fb = hv0.uq_fb
+idacim0.iq_fb = hv0.iq_fb
 idacim0.pwm_volt = hv0.pwm_volt
 idacim0.dc_volt = hv0.dc_volt
+idacim0.loop_bw = conf0.cur_bw
 idacim0.vel_fb = vel1.vel
