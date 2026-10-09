@@ -29,7 +29,7 @@
  * mode 0, free axis: the three fixed angles, so all three comparators.
  *
  * Expect one comparator trip per ramp, a few dozen in all.
- * hv0.max_cur (conf0.max_ac_cur) must be over 1.05 x cur, 1.2 x in mode 1
+ * max_cur (conf0.max_ac_cur) must be over 1.05 x cur, 1.2 x in mode 1
  * (the vector goes up to 1.155 x cur); otherwise the run stops at once with
  * fail 1 and leaves hv0.dac at dac_lo.
  */
@@ -44,7 +44,7 @@ HAL_PIN(pos);       // to hv0.pos
 HAL_PIN(dac);       // to hv0.dac
 HAL_PIN(hv_fault);  // in, hv0.fault
 HAL_PIN(hv_error);  // out, to fault0.hv_error: hv0.fault without the trips we cause
-HAL_PIN(max_cur);   // in, hv0.max_cur
+HAL_PIN(max_cur);   // in, conf0.max_ac_cur
 HAL_PIN(com_pos);   // in, rotor electrical angle (fb_switch0.com_fb), mode 1
 HAL_PIN(mode);      // *parameter*, 0 free axis, 1 loaded or blocked axis
 
@@ -318,7 +318,7 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
   switch((int)PIN(fail)) {
     case 1:
-      printf("<font color='red'>iddac failed</font>: cur %.1f A must be over %.1f A, at most cur_max %.1f A and under hv0.max_cur / 1.05, / 1.2 in mode 1 (%.1f A)\n", PIN(cur), ALIGN, PIN(cur_max), PIN(max_cur));
+      printf("<font color='red'>iddac failed</font>: cur %.1f A must be over %.1f A, at most cur_max %.1f A and under conf0.max_ac_cur / 1.05, / 1.2 in mode 1 (%.1f A)\n", PIN(cur), ALIGN, PIN(cur_max), PIN(max_cur));
       break;
     case 2:
       printf("<font color='red'>iddac failed</font>: hv fault %i during a ramp\n", (int)PIN(hv_fault));

@@ -8,7 +8,7 @@ fault0.sat = 0
 pid0.en = 0
 fault0.hv_error = iddac0.hv_error
 iddac0.hv_fault = hv0.fault
-iddac0.max_cur = hv0.max_cur
+iddac0.max_cur = conf0.max_ac_cur
 iddac0.com_pos = fb_switch0.com_fb
 hv0.en = iddac0.en_out
 hv0.cmd_mode = iddac0.cmd_mode
@@ -19,3 +19,18 @@ hv0.dac = iddac0.dac
 # 0 free axis (three angles), 1 loaded or blocked axis (rotor d axis)
 iddac0.mode = 1
 iddac0.cur = 20
+# fast ramp: a slow one heats ipm0's junction model at a fixed angle and
+# clamps the current before high trips (Z, 25 A at 20 A/s, 21 Oct)
+iddac0.ramp = 200
+# scope: current command and feedback (4/A), dac under test (0.25/count),
+# hv fault code (4/code, 16 = HW overcurrent trip), search state (20/state)
+term0.wave0 = iddac0.d_cmd
+term0.gain0 = 4
+term0.wave1 = hv0.id_fb
+term0.gain1 = 4
+term0.wave2 = iddac0.dac
+term0.gain2 = 0.25
+term0.wave3 = hv0.fault
+term0.gain3 = 4
+term0.wave4 = iddac0.state
+term0.gain4 = 20
