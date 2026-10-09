@@ -7,6 +7,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 
 HAL_COMP(siserial);
@@ -45,8 +46,7 @@ static int rxpos;
 
 static void sendSimpleSerial(uint8_t len) {
   DMA_SetCurrDataCounter(DMA1_Stream4, len);
-  DMA_Cmd(DMA1_Stream4, DISABLE);
-  DMA_ClearFlag(DMA1_Stream4, DMA_FLAG_TCIF4);
+  dma_stream_stop(DMA1_Stream4);
   DMA_Cmd(DMA1_Stream4, ENABLE);
 }
 
@@ -103,7 +103,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //RX DMA
 
-  DMA_Cmd(DMA2_Stream5, DISABLE);
+  dma_stream_stop(DMA2_Stream5);
   DMA_DeInit(DMA2_Stream5);
 
   // DMA2-Config
@@ -130,7 +130,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   //TX DMA
 
-  DMA_Cmd(DMA1_Stream4, DISABLE);
+  dma_stream_stop(DMA1_Stream4);
   DMA_DeInit(DMA1_Stream4);
 
   // DMA2-Config

@@ -9,6 +9,10 @@
 #include "main.h"
 #include "common.h"
 
+// TIM9 is on APB2 (84 MHz, prescaler 2), so it counts at 2 x 84 MHz
+// (RM0090 6.2, Figure 21 note 2); it was assumed to be 186 MHz
+#define TIM9_CLK 168000000
+
 HAL_COMP(io);
 
 HAL_PIN(fan);
@@ -192,8 +196,8 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   RCC->APB2ENR |= RCC_APB2ENR_TIM9EN;
 
-  TIM9->ARR   = 186000000 / 300 / 15000;                                                    // 15000Hz
-  TIM9->PSC   = 300 - 1;                                                                    // 186e6 / 300 = 620000Hz max freq
+  TIM9->ARR   = TIM9_CLK / 300 / 15000;  // 15000Hz
+  TIM9->PSC   = 300 - 1;  // 168e6 / 300 = 560000Hz max freq
   TIM9->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;  // pwm mode 1
   TIM9->CCER  = TIM_CCER_CC1E | TIM_CCER_CC2E;                                              // cc1, cc2 enable
   TIM9->CCR1  = 0;
@@ -256,6 +260,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 }
 
 #include "../shared/hw_math.h"
+
 #define ARES 4096.0
 #define AREF 3.3
 
@@ -401,7 +406,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // else
   //   GPIO_ResetBits(GPIOE, GPIO_Pin_6);
 
-  TIM9->ARR  = 186000000 / 300 / MAX(PIN(out_freq), 10);
+  TIM9->ARR  = TIM9_CLK / 300 / MAX(PIN(out_freq), 10);
   TIM9->CCR1 = CLAMP(PIN(out1), 0, 1) * TIM9->ARR;
   TIM9->CCR2 = CLAMP(PIN(out2), 0, 1) * TIM9->ARR;
 

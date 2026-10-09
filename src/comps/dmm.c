@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 
 HAL_COMP(dmm);
@@ -168,7 +169,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   USART_HalfDuplexCmd(USART6, ENABLE);
 
   // DMA-Disable
-  DMA_Cmd(DMA2_Stream1, DISABLE);
+  dma_stream_stop(DMA2_Stream1);
   DMA_DeInit(DMA2_Stream1);
 
   // DMA2-Config

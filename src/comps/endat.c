@@ -236,12 +236,30 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   } else {
     SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
   }
-  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi
+  (void)SPI3->DR;  // drop a byte left over from the last frame (RXNE, OVR)
+  (void)SPI3->SR;
+  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi, BIDIOE = 0 starts the clock
 
-  df.data = 0;
-  for(int i = 0; i < MIN(sizeof(df.data), PIN(bytes)); i++) {
-    while(!(SPI3->SR & SPI_SR_RXNE))
-      ;
+  // RM0090 28.3.8, master bidirectional receive: the clock runs as long as
+  // SPE is set, so after RXNE n-1 wait one SPI clock and clear SPE; the last
+  // byte then completes and no further one is clocked. It used to run on
+  // until the end of this function, clocking the encoder and leaving a stale
+  // byte and OVR for the next frame.
+  df.data   = 0;
+  int nbytes = MIN(sizeof(df.data), PIN(bytes));
+  for(int i = 0; i < nbytes; i++) {
+    if(i == nbytes - 1) {
+      for(volatile int d = 0; d < 64; d++) {  // > 1 SPI clock (32 PCLK1 cycles)
+      }
+      SPI3->CR1 &= ~SPI_CR1_SPE;
+    }
+    uint32_t t = 0;
+    while(!(SPI3->SR & SPI_SR_RXNE) && ++t < 20000) {  // a byte is ~6 us
+    }
+    if(t >= 20000) {  // never happens with SPE set; don't hang the rt if it does
+      df.data = 0;
+      break;
+    }
     df.dataa[i] = SPI3->DR;
   }
 
