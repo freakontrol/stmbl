@@ -51,6 +51,12 @@ HAL_PIN(hv_temp);
 HAL_PIN(mot_temp);
 HAL_PIN(core_temp);
 HAL_PIN(fault_in);  //fault code send to f4
+
+// short-circuit braking request for io0: follows the f4's flag, and on a
+// link loss brakes for sbrake_time if the f4 last sent sbrake_arm
+HAL_PIN(sbrake);
+HAL_PIN(sbrake_arm);
+HAL_PIN(sbrake_time);  // [s], default 1
 HAL_PIN(ignore_fault_pin);
 HAL_PIN(y);
 HAL_PIN(u_fb);
@@ -75,6 +81,7 @@ HAL_PIN(window);
 
 struct ls_ctx_t {
   uint32_t timeout;
+  uint32_t sbrake_loss;  // brake for this link loss
   uint32_t tx_addr;
   uint8_t send;
   volatile packet_to_hv_t packet_to_hv;
@@ -171,11 +178,15 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   ctx->timeout     = 0;
+  ctx->sbrake_loss = 0;
   ctx->tx_addr     = 0;
   ctx->send        = 0;
   PIN(crc_error)   = 0.0;
   PIN(crc_ok)      = 0.0;
   PIN(timeout)     = 0.0;
+  PIN(sbrake)      = 0.0;
+  PIN(sbrake_arm)  = 0.0;
+  PIN(sbrake_time) = 1.0;
   PIN(idle)        = 0.0;
   PIN(dma_pos_cmd) = 4;
   PIN(inc)         = 5;
@@ -236,6 +247,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(phase_mode)       = ctx->packet_to_hv.flags.phase_type;
       PIN(cmd_mode)         = ctx->packet_to_hv.flags.cmd_type;
       PIN(ignore_fault_pin) = ctx->packet_to_hv.flags.ignore_fault_pin;
+      PIN(sbrake)           = ctx->packet_to_hv.flags.sbrake;
+      PIN(sbrake_arm)       = ctx->packet_to_hv.flags.sbrake_arm;
       PIN(d_cmd)            = ctx->packet_to_hv.d_cmd;
       PIN(q_cmd)            = ctx->packet_to_hv.q_cmd;
       PIN(pos)              = ctx->packet_to_hv.pos;
@@ -340,14 +353,21 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     //ctx->send = 0;
   }
 
+  if(ctx->timeout == 6) {
+    // brake on the loss only if the motor was driven or already braking
+    ctx->sbrake_loss = PIN(sbrake_arm) > 0.0 && (PIN(en) > 0.0 || PIN(sbrake) > 0.0);
+  }
   if(ctx->timeout > 5) {  //disable driver
-    PIN(en)  = 0.0;
-    PIN(vel) = 0.0;
+    PIN(en)     = 0.0;
+    PIN(vel)    = 0.0;
+    PIN(sbrake) = ctx->sbrake_loss && (float)(ctx->timeout - 5) * period < PIN(sbrake_time);
     PIN(timeout)
     ++;
     fault = 1;
   }
-  ctx->timeout++;
+  if(ctx->timeout < 0x7FFFFFFF) {  // saturate: a wrap would re-enable for a few ticks
+    ctx->timeout++;
+  }
 
   PIN(fault) = MAX(fault, PIN(fault_in));
 

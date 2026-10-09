@@ -35,3 +35,5 @@ conf0.vel_g = 0.1
 conf0.torque_g = 1
 conf0.cur_bw = 1000
 conf0.max_sat = 0.2
+conf0.high_ipm_temp = 125
+conf0.max_ipm_temp = 140

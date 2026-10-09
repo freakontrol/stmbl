@@ -40,6 +40,10 @@ HAL_PIN(wr);
 
 //driver temoerature
 HAL_PIN(hv_temp);
+// The IPM's NTC shares VFO, which the module pulls low while the bridge is
+// disabled. hv_temp is read only while enabled and held otherwise (the IPM
+// only heats while switching). hv_temp_ok: 0 never read, 1 live, 2 held.
+HAL_PIN(hv_temp_ok);
 //motor temperature
 HAL_PIN(mot_temp);
 
@@ -66,6 +70,15 @@ HAL_PIN(ignore_fault_pin);
 HAL_PIN(brk_present);
 HAL_PIN(brk);
 
+// Short-circuit braking while disabled: all three low sides on, so the back
+// emf drives current round the windings and the energy stays in the motor.
+// Refused after any trip since the last enable (a failed switch plus three
+// low sides on is another short). Chopped: a tick with iabs above the limit
+// turns the bridge off for the next tick.
+HAL_PIN(sbrake);      // request, in
+HAL_PIN(sbrake_cur);  // chop threshold [A]; 0 = max_cur, or 10 A without it
+HAL_PIN(sbrake_on);   // braking now, out; hv0 holds all compares at 0 on it
+
 
 volatile uint32_t adc_12_buf[6];
 volatile uint32_t adc_34_buf[6];
@@ -83,6 +96,9 @@ struct io_ctx_t {
   uint32_t mot_temp;
   uint32_t fault;
   uint32_t enabled;
+  uint32_t en_ticks;  // rt ticks since the enable edge, saturating
+  uint32_t sbrake_ok;     // no trip since the last enable edge
+  uint32_t sbrake_ticks;  // ticks since braking started
 };
 
 #define ARES 4096.0  // analog resolution, 12 bit
@@ -90,6 +106,8 @@ struct io_ctx_t {
 
 #define HV_TEMP_PULLUP 3900
 #define HV_R(a) (HV_TEMP_PULLUP / (AREF / (a)-1))
+#define HV_TEMP_SETTLE 75  // rt ticks after enable before VFO counts as released, 5 ms
+#define HV_TEMP_MIN_V 0.3  // below this the pin is held low, not an NTC reading [V]
 
 #define MOT_TEMP_PULLUP 10000
 #define MOT_TEMP_PULLMID 51000
@@ -181,6 +199,10 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->hv_temp           = 0;
   ctx->mot_temp          = 0;
   ctx->enabled           = 0;
+  ctx->en_ticks          = 0;
+  PIN(hv_temp_ok)        = 0.0;
+  ctx->sbrake_ok         = 0;
+  ctx->sbrake_ticks      = 0;
 
 
 #ifdef HV_EN_PIN
@@ -198,6 +220,9 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   HAL_GPIO_Init(HV_FAULT_PORT, &GPIO_InitStruct);
 #endif
   PIN(dac) = 0;
+  PIN(sbrake)     = 0.0;
+  PIN(sbrake_cur) = 0.0;
+  PIN(sbrake_on)  = 0.0;
   PIN(oc_k)   = 1.3;
   PIN(oc_min) = 5.0;
 }
@@ -251,6 +276,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(udc)      = (float)(adc_34_buf[5] >> 16) * VOLT_K * 0.05 + PIN(udc) * 0.95;
     PIN(iabs)     = MAX3(ABS(PIN(iu)), ABS(PIN(iv)), ABS(PIN(iw)));
     ctx->hv_temp  = adc_34_buf[0];
+    if(!ctx->enabled) {
+      ctx->en_ticks = 0;
+    } else if(ctx->en_ticks < 0xFFFF) {
+      ctx->en_ticks++;
+    }
     ctx->mot_temp = adc_34_buf[3];
 
     if(err_filter(&(ctx->overtemp_error), 5.0, 0.001, PIN(hv_temp) > ABS_MAX_TEMP)) {
@@ -277,6 +307,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(fault) = ctx->fault;
 
     if(PIN(hv_en) > 0.0) {
+      PIN(sbrake_on)    = 0.0;
+      ctx->sbrake_ticks = 0;
       if(!ctx->enabled) {  //rising edge of enable
         //set timer master out enable
         TIM8->BDTR |= TIM_BDTR_MOE;
@@ -284,7 +316,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         //clear driver enable pin
         HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
 #endif
-        ctx->enabled = 1;
+        ctx->enabled   = 1;
+        ctx->sbrake_ok = ctx->fault == NO_ERROR;
+      }
+      if(ctx->fault != NO_ERROR) {
+        ctx->sbrake_ok = 0;
       }
       if(ctx->fault == NO_ERROR) {
 #ifdef HV_FAULT_PIN
@@ -305,9 +341,62 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
 #endif
       }
+    } else if(PIN(sbrake) > 0.0 && ctx->sbrake_ok && ctx->offset_count > 200) {
+      ctx->enabled = 0;
+      if(ctx->sbrake_ticks == 0) {
+        // a break flag left from before braking is not ours to judge
+        TIM8->SR = ~(TIM_SR_BIF | TIM_SR_B2IF);
+      }
+      if(ctx->fault == NO_ERROR) {
+#ifdef HV_FAULT_PIN
+        if(PIN(ignore_fault_pin) <= 0.0 && HAL_GPIO_ReadPin(HV_FAULT_PORT, HV_FAULT_PIN) == HV_FAULT_POLARITY) {
+          ctx->fault = HV_FAULT_ERROR;
+        }
+#endif
+        // the comparators clear MOE and set a break flag even while this
+        // code holds MOE off for a chop, so the flag is the trip signal here
+        if(TIM8->SR & (TIM_SR_BIF | TIM_SR_B2IF)) {
+          ctx->fault = HV_OVERCURRENT_HW;
+        }
+      }
+
+      if(ctx->fault != NO_ERROR) {
+        // tripped while braking: off for good, and the fault goes to the f4
+        ctx->sbrake_ok    = 0;
+        ctx->sbrake_ticks = 0;
+        PIN(sbrake_on)    = 0.0;
+        TIM8->BDTR &= ~TIM_BDTR_MOE;
+#ifdef HV_EN_PIN
+        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
+#endif
+      } else {
+        float lim = PIN(sbrake_cur) > 0.0 ? PIN(sbrake_cur) : (PIN(max_cur) > 0.0 ? PIN(max_cur) : 10.0);
+        lim       = MIN(lim, 0.8 * PIN(oc_lim));
+
+        PIN(sbrake_on) = 1.0;
+#ifdef HV_EN_PIN
+        HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_RESET);
+#endif
+        // two ticks for hv0's zero compares to reach the timer
+        if(ctx->sbrake_ticks < 2) {
+          ctx->sbrake_ticks++;
+          TIM8->BDTR &= ~TIM_BDTR_MOE;
+        } else if(PIN(iabs) > lim) {
+          TIM8->BDTR &= ~TIM_BDTR_MOE;
+        } else {
+          TIM8->BDTR |= TIM_BDTR_MOE;
+        }
+      }
     } else {
       ctx->enabled = 0;
-      ctx->fault   = NO_ERROR;
+      // a trip during braking stays reported until the request goes away,
+      // so the f4 sees it and drops the request instead of retrying
+      if(PIN(sbrake) <= 0.0) {
+        ctx->fault = NO_ERROR;
+      }
+      ctx->sbrake_ticks = 0;
+      PIN(sbrake_on)    = 0.0;
+      TIM8->BDTR &= ~TIM_BDTR_MOE;
 #ifdef HV_EN_PIN
       //set driver enable pin
       HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
@@ -343,7 +432,15 @@ void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, BLINK(led) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 
-  PIN(hv_temp)  = r2temp(HV_R(ADC(ctx->hv_temp >> 16))) * 0.01 + PIN(hv_temp) * 0.99;
+  float hv_v = ADC(ctx->hv_temp >> 16);
+  if(ctx->enabled && ctx->en_ticks > HV_TEMP_SETTLE && hv_v > HV_TEMP_MIN_V) {
+    float t = r2temp(HV_R(hv_v));
+    // first reading since power up: start from it, not from 0
+    PIN(hv_temp)    = PIN(hv_temp_ok) > 0.0 ? t * 0.01 + PIN(hv_temp) * 0.99 : t;
+    PIN(hv_temp_ok) = 1.0;
+  } else if(PIN(hv_temp_ok) > 0.0) {
+    PIN(hv_temp_ok) = 2.0;
+  }
   PIN(mot_temp) = r2temp(MOT_R(MOT_REF(ADC(ctx->mot_temp >> 16)))) * 0.01 + PIN(mot_temp) * 0.99;
 }
 

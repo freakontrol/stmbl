@@ -358,6 +358,8 @@ int main(void) {
   hal_parse("dq0.pos = ls0.pos");
   hal_parse("dq0.mode = ls0.phase_mode");
   hal_parse("io0.hv_en = ls0.en");
+  hal_parse("io0.sbrake = ls0.sbrake");
+  hal_parse("hv0.sbrake = io0.sbrake_on");
   hal_parse("io0.dac = ls0.dac");
 
   //ADC TEST

@@ -67,6 +67,9 @@ HAL_PIN(cur_ff);    // current loop resistance feedforward gain
 HAL_PIN(cur_ind);   // current loop BEMF feedforward gain
 HAL_PIN(max_sat);   // max velocity, acceleration and torque saturation time [s]
 
+HAL_PIN(high_ipm_temp);  // lower ipm junction overtemperature limit [°C]
+HAL_PIN(max_ipm_temp);   // upper ipm junction overtemperature limit [°C]
+
 hal_comp_t conf_comp_struct = {
     .name      = "conf",
     .nrt       = 0,
