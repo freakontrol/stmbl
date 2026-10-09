@@ -35,18 +35,13 @@ HAL_PIN(iq_fb);
 
 //U V W input in Volt: idq0's phase voltages, before the common mode. The
 //dead-time compensation is added to them and the space vector offset is
-//taken after that, so it sees the compensated phases (svm0 is not used).
+//taken after that, so it sees the compensated phases (svm is not built here).
 HAL_PIN(u);
 HAL_PIN(v);
 HAL_PIN(w);
 
 //dclink in, to scale pwm
 HAL_PIN(udc);
-
-//TODO: half bridge enable in
-HAL_PIN(enu);
-HAL_PIN(env);
-HAL_PIN(enw);
 
 HAL_PIN(min_on);    // min on time [s], floored at dead time + 0.5 us
 HAL_PIN(min_off);   // min off time [s], floored at dead time + 0.5 us
@@ -85,9 +80,6 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->drop_sv = 0;
   ctx->drop_sw = 0;
 
-  PIN(enu)       = 1.0;
-  PIN(env)       = 1.0;
-  PIN(enw)       = 1.0;
   PIN(min_on)    = 0.000003;
   PIN(min_off)   = 0.000003;
   PIN(arr)       = PWM_RES;

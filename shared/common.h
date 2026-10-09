@@ -114,7 +114,7 @@ typedef union {
     float emf_pp;     // emf0 pole pairs
     float drop_knee;  // dead time compensation curve knee [A], 0 = latched sign
     float unused0;    // was the f3 observer's obs_mode, kept for the layout
-    float unused1;    // was the f3 observer's obs_bw
+    float oc_cur;     // hv0.max_cur before fault0.scale [A], the f3 trip reference (was obs_bw)
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;
@@ -136,6 +136,7 @@ typedef union {
     float unused1;  // was the f3 observer's obs_vel
     float pwm_freq;  // PWM and rt rate the image was built for [Hz]
     float link_to;  // f3 rt ticks spent in link timeout since its boot (ls0.timeout)
+    float hv_temp_ok;  // io0.hv_temp_ok: 0 never read, 1 live, 2 held (decaying)
   } pins;
   float data[sizeof(struct f3_state_data_temp) / 4];
 } f3_state_data_t;
@@ -171,7 +172,7 @@ typedef enum {
   HV_VOLT_ERROR,
   HV_FAULT_ERROR,
   HV_CURRENT_OFFSET_FAULT,
-  HV_OVERCURRENT_RMS,
+  HV_OVERCURRENT_FILTERED,
   HV_OVERCURRENT_PEAK,
   HV_OVERCURRENT_HW,
   IPM_TEMP_ERROR,

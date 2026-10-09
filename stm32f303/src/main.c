@@ -309,7 +309,9 @@ int main(void) {
   //link LS
   hal_parse("ls0.mot_temp = io0.mot_temp");
   hal_parse("ls0.dc_volt = io0.udc");
+  hal_parse("ls0.udc_duty = io0.udc_duty");  // pwm_volt on the link hv0 divides by
   hal_parse("ls0.hv_temp = io0.hv_temp");
+  hal_parse("ls0.hv_temp_ok = io0.hv_temp_ok");
   hal_parse("ls0.fault_in = io0.fault");
   hal_parse("io0.led = ls0.fault");
   hal_parse("curpid0.id_cmd = ls0.d_cmd");
@@ -356,7 +358,7 @@ int main(void) {
   hal_parse("curpid0.ff = ls0.cur_ff");
   hal_parse("curpid0.kind = ls0.cur_ind");
   hal_parse("curpid0.max_cur = ls0.max_cur");
-  hal_parse("io0.max_cur = ls0.max_cur");
+  hal_parse("io0.max_cur = ls0.oc_cur");  // the trip and the short brake chop on the rated current, not the derated one
   hal_parse("curpid0.pwm_volt = ls0.pwm_volt");
   hal_parse("curpid0.vel = ls0.vel");
   hal_parse("curpid0.en = ls0.en");

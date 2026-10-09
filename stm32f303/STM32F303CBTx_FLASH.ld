@@ -103,8 +103,8 @@ SECTIONS
     *comps/hv.o(.text.rt_func)
     *(.text.TIM8_UP_IRQHandler .text.hal_run_rt .text.hal_get_systick_value .text.hal_get_systick_reload .text.hal_reset_watchdog)
     *(.text.sincos_fast .text.err_filter)
-    /* from flash, CCM is full: dq0 and svm0 (short passes per tick),
-       rb_read/rb_write (terminal chars). Moving small functions out does not
+    /* CCM is full: dq0 runs from SRAM (.ramfunc below), rb_read/rb_write
+       (terminal chars) from flash. Moving small functions out does not
        help: each call from CCM to flash adds a long-branch stub in CCM. */
     . = ALIGN(4);
     _eccmram = .;       /* create a global symbol at ccmram end */

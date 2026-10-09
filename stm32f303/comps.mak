@@ -6,7 +6,6 @@ HV_SRC_COMPS += stm32f303/src/comps/emf.c
 HV_SHARED_COMPS = shared/comps/sim.c
 HV_SHARED_COMPS += shared/comps/term.c
 HV_SHARED_COMPS += shared/comps/curpid.c
-HV_SHARED_COMPS += shared/comps/svm.c
 HV_SHARED_COMPS += shared/comps/dq.c
 HV_SHARED_COMPS += shared/comps/idq.c
 # HV_SHARED_COMPS += shared/comps/vel.c
