@@ -136,9 +136,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct enc_fb_pin_ctx_t *pins = (struct enc_fb_pin_ctx_t *)pin_ptr;
 
   // timer value and timer pins, sampled together at the start of the rt
-  // interrupt, a few us after the last sin/cos sample. Read here, after
-  // adc0's rt, they were 10-20 us later, and at 8000 rpm with 128 lines a
-  // quadrant lasts about 15 us, so qdiff could reach 2 and go uncorrected.
+  // interrupt, about 4 us after the last sin/cos sample. Read here they were
+  // about 50 us later (spindle bench, 128 lines): qdiff reached 2 from
+  // 220 rad/s and went uncorrected. Latched, no qdiff 2 up to 838 rad/s.
   int32_t tim     = fb0_cnt_latch;
   uint32_t scgpio = fb0_idr_latch;
 

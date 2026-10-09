@@ -45,8 +45,8 @@ static volatile uint8_t txbuf[128];  //tx dma buffer
 static int rxpos; 
 
 static void sendSimpleSerial(uint8_t len) {
+  dma_stream_stop(DMA1_Stream4);  // NDTR is read-only while the stream runs
   LL_DMA_SetDataLength(DMA1, LL_DMA_STREAM_4, len);
-  dma_stream_stop(DMA1_Stream4);
   LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_4);
 }
 
@@ -146,7 +146,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   DMA_InitStructure.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
   DMA_InitStructure.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
   DMA_InitStructure.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_BYTE;
-  DMA_InitStructure.Mode               = LL_DMA_PRIORITY_LOW;
+  DMA_InitStructure.Mode               = LL_DMA_MODE_NORMAL;
   DMA_InitStructure.Priority           = LL_DMA_PRIORITY_HIGH;
   DMA_InitStructure.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
   DMA_InitStructure.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;

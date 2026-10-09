@@ -196,7 +196,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   RCC->APB2ENR |= RCC_APB2ENR_TIM9EN;
 
-  TIM9->ARR   = TIM9_CLK / 300 / 15000;  // 15000Hz
+  TIM9->ARR   = TIM9_CLK / 300 / 15000 - 1;  // 15000Hz
   TIM9->PSC   = 300 - 1;  // 168e6 / 300 = 560000Hz max freq
   TIM9->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;  // pwm mode 1
   TIM9->CCER  = TIM_CCER_CC1E | TIM_CCER_CC2E;                                              // cc1, cc2 enable
@@ -406,9 +406,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // else
   //   LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_6);
 
-  TIM9->ARR  = TIM9_CLK / 300 / MAX(PIN(out_freq), 10);
-  TIM9->CCR1 = CLAMP(PIN(out1), 0, 1) * TIM9->ARR;
-  TIM9->CCR2 = CLAMP(PIN(out2), 0, 1) * TIM9->ARR;
+  // the period is ARR + 1 counts; CCR = ARR + 1 is 100 % duty
+  uint32_t pwm_ticks = MAX(TIM9_CLK / 300 / MAX(PIN(out_freq), 10), 2);
+  TIM9->ARR  = pwm_ticks - 1;
+  TIM9->CCR1 = CLAMP(PIN(out1), 0, 1) * pwm_ticks;
+  TIM9->CCR2 = CLAMP(PIN(out2), 0, 1) * pwm_ticks;
 
   PIN(out_cnt)  = TIM9->CNT;
   PIN(out_arr)  = TIM9->ARR;
