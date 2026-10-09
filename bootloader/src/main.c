@@ -81,6 +81,8 @@ int main(void) {
   int ok = app_ok();
   LL_AHB1_GRP1_DisableClock(LL_AHB1_GRP1_PERIPH_CRC);  // AN2606: peripheral clocks off before the jump
 
+  IWDG->KR = 0xAAAA;  // hardware watchdog (WDG_SW = 0): a full period for the app's start-up or the ROM
+
   void (*SysMemBootJump)(void);
   if((*((unsigned long *)0x2001C000) == 0xDEADBEEF) || pin || !ok) {  //Memory map, datasheet
     *((unsigned long *)0x2001C000) = 0xCAFEFEED;                      //Reset bootloader trigger

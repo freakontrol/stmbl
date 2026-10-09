@@ -49,7 +49,7 @@
 * 4. **Brake chopper, fans and brake**:
 * - `dc_brake` ramps from 0 at `high_dc_volt` to 1 at `max_dc_volt`.
 * - `hv_fan` switches on at `fan_hv_temp` and off below 90 % of it; `mot_fan` likewise with `mot_temp` / `fan_mot_temp`.
-* - `brake_release > 0` forces `mot_brake` to 1 in every state.
+* - `brake_release > 0` forces `mot_brake` to 1 in every state except SOFT_FAULT and HARD_FAULT, where the brake stays engaged.
 *
 * 5. **Stopping: regenerative stop, then short brake**:
 * - A stop is the edge from a powered state (ENABLED, DELAYED_ENABLED, DELAYED_DISABLED, PHASING) to DISABLED or SOFT_FAULT, i.e. a disable or a fault.
@@ -125,7 +125,7 @@ HAL_PIN(mot_fan);  // *output*, Motor fan
 
 HAL_PIN(print);  // *input/output*, Set > 0 to print the current state once, reset to 0
 
-HAL_PIN(brake_release);  // *input*, > 0 forces the brake released
+HAL_PIN(brake_release);  // *input*, > 0 forces the brake released, except in SOFT_FAULT and HARD_FAULT
 
 HAL_PIN(warn_timer);   // *output*, Warning message rate limit timer (s)
 HAL_PIN(error_timer);  // *output*, Counts down to 0, otherwise unused (s)
@@ -523,7 +523,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(state) = ctx->state;
   PIN(scale) = scale;
 
-  if(PIN(brake_release) > 0.0) {
+  // not in a fault: the bridge is off and nothing would hold the axis
+  if(PIN(brake_release) > 0.0 && ctx->state != SOFT_FAULT && ctx->state != HARD_FAULT) {
     PIN(mot_brake) = 1.0;
   }
 

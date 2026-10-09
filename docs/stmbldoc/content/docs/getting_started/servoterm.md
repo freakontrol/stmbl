@@ -129,7 +129,8 @@ The `help` command prints the live list of commands in the running firmware. Som
 
 * `bootloader`: enter bootloader
 * `reset`: reset STMBL
-* `about`: show system infos
+* `about`: show system infos, the watchdog mode and the cause of the last reset (IWDG, WWDG, software, power-on, brown-out, pin, low-power, or none after an entry without a reset such as a DFU leave).
+* `wdg`: show the watchdog mode. The F4 watchdog (IWDG) only runs in hardware mode, set once per board with `wdg_hw`; it is kicked by the nrt, so `stop` does not reset the F4.
 * `help`: print this
 * `link`: load config template
 * `hal`: print HAL stats
@@ -161,12 +162,13 @@ Commands for internal use:
 * `load`: load comp from flash
 * `start`: start rt system
 * `stop`: stop rt system
-* `fault`: crashes the F4 on purpose to test the fault handler. It does not raise a drive fault code. The drive needs a power cycle or `reset` afterwards.
+* `fault`: crashes the F4 on purpose to test the fault handler. It does not raise a drive fault code. The fault handler stops the hal and resets the F4.
 * `show_hal`: show the HAL structure
 * `relink`: relink all HAL pins (a = b, b = c gives a = c, b = c)
 * `debug_level`: set the HAL debug level, 0 = print all, 1 = print errors, 2 = no output
 * `sleep`: wait for the given number of seconds
 * `hv_pause <ms>`: stops sending to the F3 for 1 to 2000 ms, to test link loss. While the drive is enabled this raises fault 9. This is a test command, do not use it on a running machine.
+* `wdg_hw` / `wdg_sw`: write the WDG_SW option bit (0 = hardware watchdog from power-up, 1 = off) and reset. It stays set across flashing. Needs firmware v0.10.0 or newer: an older firmware without watchdog kicks reset-loops on a board in hardware mode; BOOT0 DFU still works there. Any STMBL bootloader works, but update a bootloader older than v0.10.0 first (`make boot_btburn`): its own DFU entry (bad CRC or PA13) crashes and would reset-loop in hardware mode.
 * `hardboot`: **do not use.** It clears the app's reset vector, so the bootloader's CRC check fails from then on, and enters the ROM DFU bootloader. The drive must be flashed again.
 
 ## Saving a config

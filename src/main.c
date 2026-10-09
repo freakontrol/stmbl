@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "main.h"
+#include "f4_clock.h"
+#include "f4_wdg.h"
 #include "commands.h"
 #include "hw/hw.h"
 
@@ -44,6 +46,7 @@ uint32_t hal_get_systick_freq() {
 }
 
 volatile uint64_t systime = 0;
+static uint32_t reset_flags;  // RCC_CSR reset flags of the last reset, see f4_clock.h
 
 void SysTick_Handler(void) {
   systime++;
@@ -167,6 +170,7 @@ void bootloader(char *ptr) {
   // No SYSCFG->MEMRMP = 1: it never took effect before SYSCFG got its clock,
   // and the jump works on the ROM's own vectors without the remap (AN2606
   // names the remap only for dual-bank parts).
+  wdg_kick();  // the ROM DFU feeds a hardware watchdog from here on (AN2606 Table 73)
   SysMemBootJump = (void (*)(void))(*((uint32_t *)(addr + 4)));
   __set_MSP(*(uint32_t *)addr);
   SysMemBootJump();
@@ -202,6 +206,14 @@ void about(char *ptr) {
   printf("HAL lib... TODO: print version\n");
 #endif
   printf("CPU ID     %lx %lx %lx\n",U_ID[0], U_ID[1], U_ID[2]);
+  if(hse_failed) {
+    printf("clock      HSE failed, running on HSI, hal not started\n");
+  }
+  printf("watchdog   %s\n", wdg_is_hw() ? "hardware IWDG (WDG_SW = 0)" : "off (WDG_SW = 1)");
+  printf("reset      0x%08lx%s%s%s%s%s%s%s\n", reset_flags, reset_flags ? ":" : " (none: entered without a reset)",
+         (reset_flags & RCC_CSR_LPWRRSTF) ? " low-power" : "", (reset_flags & RCC_CSR_WWDGRSTF) ? " WWDG" : "",
+         (reset_flags & RCC_CSR_IWDGRSTF) ? " IWDG" : "", (reset_flags & RCC_CSR_SFTRSTF) ? " software" : "",
+         (reset_flags & RCC_CSR_PORRSTF) ? " power-on" : ((reset_flags & RCC_CSR_BORRSTF) ? " brown-out" : ""), (reset_flags & RCC_CSR_PINRSTF) ? " pin" : "");
   printf("size: %lu crc:%lx\n", version_info.image_size, version_info.image_crc);
   volatile const version_info_t *bt_version_info = (void *)0x08000188;
   printf("######## Bootloader info ########\n");
@@ -256,6 +268,8 @@ int main(void) {
     *p = 0;
   }
 
+  reset_flags = reset_flags_take();
+  wdg_init();
   setup();
   hal_init(0.0002, 0.00005);
   // hal load comps
@@ -263,7 +277,13 @@ int main(void) {
   hal_parse("flashloadconf");
   hal_parse("loadconf");
   hal_parse("relink");
-  hal_parse("start");
+  if(hse_failed) {
+    // on the HSI the rt runs 5x slow and the F3 link and USB cannot work;
+    // leave the hal stopped rather than run it at the wrong rate
+    hal.hal_state = MISC_ERROR;
+  } else {
+    hal_parse("start");
+  }
 
   LL_TIM_EnableCounter(TIM_MASTER);
   LL_TIM_EnableIT_UPDATE(TIM_SLAVE);
@@ -279,5 +299,6 @@ int main(void) {
 void Wait(uint32_t ms) {
   uint64_t t = systime + ms;
   while(t >= systime) {
+    wdg_kick();  // the nrt kicks the watchdog, see f4_wdg.c
   }
 }

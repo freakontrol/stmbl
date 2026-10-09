@@ -24,6 +24,7 @@
 #include "commands.h"
 #include "stm32f4xx_conf.h"
 #include "main.h"
+#include "f4_wdg.h"
 
 // Flash sector erase and byte program on registers (RM0090 3.6; LL has no
 // flash API on F4). 2.7-3.6 V supply, so erase runs at PSIZE x32. The CPU
@@ -122,6 +123,7 @@ COMMAND("flashloadconf", flashloadconf, "load config from flash");
 void flashsaveconf(char *ptr) {
   printf("erasing flash page...\n");
   flash_unlock();
+  wdg_kick();  // a full watchdog period for the erase (500 ms max)
   if(flash_erase_sector(2)) {  // 0x08008000, 16 KB: config_ro
     printf("error!\n");
     flash_lock();
@@ -131,6 +133,7 @@ void flashsaveconf(char *ptr) {
   int i   = 0;
   int ret = 0;
   do {
+    wdg_kick();  // up to 15 k bytes at up to 100 us each (DS8626 Table 40)
     ret = flash_program_byte((uint32_t)(config_ro + i), config[i]) != 0;
     if(ret) {
       printf("error writing %i\n", ret);

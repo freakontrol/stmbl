@@ -27,6 +27,7 @@ INCDIRS += shared
 SOURCES += src/main.c
 SOURCES += src/stm32f4xx_it.c
 SOURCES += src/f4_clock.c
+SOURCES += src/f4_wdg.c
 SOURCES += src/setup.c
 SOURCES += src/config.c
 # SOURCES += src/hal_conf.c

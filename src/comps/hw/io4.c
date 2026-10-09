@@ -13,6 +13,8 @@
 // (RM0090 6.2, Figure 21 note 2)
 #define TIM9_CLK 168000000
 
+extern volatile uint32_t rt_tick;  // main.c, DMA2_Stream0_IRQHandler
+
 /**
 * ## Brief
 * `io` (file src/comps/hw/io4.c) is the board I/O driver of the F4 logic board, hardware version 4: status LEDs, fan, digital output `out0`, PWM outputs `out1`/`out2`, the two 24 V inputs, analog reads of the feedback connectors, the raw logic levels of the command and feedback connector lines and the RJ45 LEDs. Templates load it as `io0` and typically wire `io0.state = fault0.state`, `io0.fault = fault0.fault`, `io0.fan = fault0.hv_fan`, `io0.out0 = fault0.mot_brake` (brake) and the feedback templates drive `io0.fb0g`/`io0.fb0y`.
@@ -33,6 +35,9 @@
 * - `out0` is a plain digital output (PE4).
 * - `out1` and `out2` are PWM outputs on TIM9 CH1/CH2 (PE5/PE6); their value is the duty cycle, clamped to 0..1. `out_freq` sets the PWM frequency for both.
 * - `fbsd` > 0 switches off the 5 V supply of the feedback connectors (on by default).
+* - `out0` drives a low side MOSFET with a gate pull-down: after a reset, a fault handler or a bootloader jump the pin floats and the output is off (brake engaged).
+* - When the hal stops while the core keeps running (`stop` command, rt or frt too long, ADC overrun, error handler), `out0` goes off and `out1`/`out2` go to 0 % duty. The fault component holds the brake engaged in the fault states, so a motor brake on `out0` closes in every stop the F4 can see.
+* - The frt watches the rt: if no rt period starts for 2 rt periods (rt stuck in a component), it switches `out0`, `out1` and `out2` off every frt period. They follow their pins again once the rt runs again. A stuck frt (priority 0) starves the nrt, which feeds the hardware watchdog (WDG_SW = 0, see f4_wdg.c): the IWDG resets the F4 and PE4 floats (output off). Without the hardware watchdog option a stuck frt is not covered.
 *
 * 3. **24 V inputs (rt)**:
 * - ADC3 reads both inputs by software triggered injected conversions; the conversion started at the end of one rt period is read in the next.
@@ -126,6 +131,18 @@ HAL_PIN(fbsd);       // *input*, > 0 switches off the 5 V feedback supply
 
 HAL_PIN(master_arr); // *parameter*, master timer TIM3 reload value, read at load time
 HAL_PIN(clock_scale);// *input*, > 1.01 slows, < 0.99 speeds up the master timer by one count, default 1
+
+struct io_ctx_t {
+  uint32_t last_tick;  // rt_tick seen by the frt
+  float stall_time;    // time without a new rt period (s)
+};
+
+// out0 off, out1/out2 at 0 % duty
+static void outputs_off(void) {
+  LL_GPIO_ResetOutputPin(GPIOE, LL_GPIO_PIN_4);
+  TIM9->CCR1 = 0;
+  TIM9->CCR2 = 0;
+}
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
@@ -307,8 +324,28 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 #define ARES 4096.0
 #define AREF 3.3
 
+static void frt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+  struct io_ctx_t *ctx = (struct io_ctx_t *)ctx_ptr;
+  ctx->last_tick       = rt_tick;
+  ctx->stall_time      = 0.0;
+}
+
 static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+  struct io_ctx_t *ctx      = (struct io_ctx_t *)ctx_ptr;
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
+
+  // the frt preempts the rt: a stuck rt leaves rt_tick standing
+  uint32_t tick = rt_tick;
+  if(tick != ctx->last_tick) {
+    ctx->last_tick  = tick;
+    ctx->stall_time = 0.0;
+  } else {
+    ctx->stall_time += period;
+  }
+  if(ctx->stall_time > 2.0 * hal.rt_period) {
+    outputs_off();
+  }
+
   if(PIN(clock_scale) > 1.01) {
     TIM3->ARR = PIN(master_arr) + 1;
   } else if(PIN(clock_scale) < 0.99) {
@@ -565,6 +602,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(fb1z) = LL_GPIO_IsInputPinSet(FB1_Z_PORT, FB1_Z_PIN);
 }
 
+// hal_stop() with the core still running: nothing writes the outputs again
+static void rt_stop(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+  outputs_off();
+}
+
 hal_comp_t io_comp_struct = {
     .name      = "io",
     .nrt       = 0,
@@ -573,9 +615,9 @@ hal_comp_t io_comp_struct = {
     .nrt_init  = nrt_init,
     .hw_init   = hw_init,
     .rt_start  = 0,
-    .frt_start = 0,
-    .rt_stop   = 0,
+    .frt_start = frt_start,
+    .rt_stop   = rt_stop,
     .frt_stop  = 0,
-    .ctx_size  = 0,
+    .ctx_size  = sizeof(struct io_ctx_t),
     .pin_count = sizeof(struct io_pin_ctx_t) / sizeof(struct hal_pin_inst_t),
 };
