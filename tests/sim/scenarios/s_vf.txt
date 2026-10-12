@@ -1,0 +1,15 @@
+# Spindle open loop V/f (vel_src 1 damping): 0 -> 838 rad/s and back. The
+# plant carries the spindle's identified flux shape (the V/f config has none).
+title Spindle V/f open loop, 0 -> 838 -> 0 rad/s
+config conf/fanuc_a2_spindle_vf.txt
+plant lmr=0.012432 tr=0.090593 i_n=19.48 i_knee=14.4 lmr_sat=0.021708 tr_sat=0.021708 i_dip=10.48 lmr_dip=0.3488 tr_dip=-0.45 f=0.499 d=0.00128
+f4 vf0.vel_cmd = 0
+at 0.1 f4 fault0.en = 1
+at 0.2 f4 vf0.vel_cmd = 838
+at 10.0 f4 vf0.vel_cmd = 0
+trace plant.vel vf0.vel vf0.stall hv0.id_fb hv0.iq_fb plant.i_mr vf0.u_cmd vf0.slip
+expect max fault0.last_fault < 0.5 from 0.15
+expect final plant.vel > 825 from 9.9 to 10.0
+expect max hv0.iq_fb < 30
+expect absmax plant.vel < 5 from 19.5
+run 19.6

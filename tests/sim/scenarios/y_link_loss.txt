@@ -1,0 +1,14 @@
+# Link loss while enabled and holding: hv_pause stops the F4's packets for
+# 5 ms. The F3 takes the gates off after two missed packets and counts the
+# dropout; the F4 faults HV_TIMEOUT_ERROR (9).
+title Y link loss 5 ms
+config conf/fanuc_a3-3000.txt
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 0.1 f4 hv_pause 5
+trace fault0.state fault0.last_fault hv0.link_drops f3:ls0.en f3:ls0.timeout plant.moe fault0.sbrake f3:io0.sbrake_on
+expect max fault0.last_fault < 0.5 from 0.06 to 0.1
+expect max fault0.last_fault > 8.5 from 0.1 to 0.12
+expect max fault0.last_fault < 9.5 from 0.1 to 0.12
+expect min plant.moe < 0.5 from 0.1 to 0.106
+run 0.15

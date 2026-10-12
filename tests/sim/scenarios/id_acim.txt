@@ -1,0 +1,38 @@
+# Identification regression: idacim (standstill r, l, tr, lmr, then the
+# rotating flux sweep and inertia) against an induction motor plant with
+# known values, on the spindle's FOC config.
+title idacim against a known induction motor plant
+config conf/fanuc_a2_spindle_foc_enc.txt
+f4 link id_acim
+f4 fault0.en = 0
+f4 idacim0.test_cur = 16
+f4 idacim0.n_volt = 155
+f4 idacim0.n_freq = 78.4
+f4 idacim0.n_cur = 19
+f4 idacim0.n_pp = 2
+f4 idacim0.spin = 1
+plant r=0.19 ld=0.0008 lmr=0.0124 tr=0.09 i_knee=0 lmr_sat=0 tr_sat=0 i_dip=0 lmr_dip=0 tr_dip=0 jm=0.0118 f=0.5 d=0.0013 dt_shape=1 dt_i0=0.85 dt_eff=1.77e-6
+at 0.1 f4 fault0.en = 1
+at 0.2 f4 idacim0.state = 1.2
+at 21 f4 idacim0.state = 4.2
+trace idacim0.state hv0.id_fb hv0.iq_fb plant.vel plant.i_mr
+# Results on 10 Oct against the plant's truth (no saturation):
+#   r 0.143 (0.19, -25%: the chord less drop_slope's dead-time bias; with
+#   idacim0.r_known 0.19 the rest barely moves), l 0.734 mH (0.8, -8%),
+#   tr 0.0857 (0.09, -5%), lmr 11.85 mH standstill / 12.60 mH rotating
+#   (12.4), j 0.01119 (0.0118, -5%). pp is not checked (idacim takes it from n_pp).
+# The windows below hold those values, so a change in idacim shows up here.
+expect max fault0.last_fault < 0.5 from 0.15
+expect final idacim0.r > 0.13
+expect final idacim0.r < 0.16
+expect final idacim0.l > 0.00070
+expect final idacim0.l < 0.00077
+expect final idacim0.tr > 0.082
+expect final idacim0.tr < 0.090
+expect final idacim0.rot_lmr > 0.0121
+expect final idacim0.rot_lmr < 0.0131
+expect final idacim0.rot_id_n > 18.5
+expect final idacim0.rot_id_n < 20.0
+expect final idacim0.rot_j > 0.0106
+expect final idacim0.rot_j < 0.0124
+run 120
