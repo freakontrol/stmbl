@@ -10,11 +10,16 @@
 # to adapt at no load)
 # acim_flux0.lmr_sat from idacim; i_knee, tr_sat from a tr map
 # acim_flux0.lmr_ki 0.5: lmr trim, for checking lmr_sat
+# fluxopt0.min 0.5: light-load flux reduction (1 = off,
+# default); lower flux at idle, less torque on a
+# sudden load until the flux is back (tr)
 load acim_fw
 load acim_flux
 load acim_foc
+load fluxopt
 acim_fw0.rt_prio = 8.5
 acim_flux0.rt_prio = 8.6
+fluxopt0.rt_prio = 8.65
 acim_foc0.rt_prio = 8.7
 acim_fw0.en = fault0.en_out
 acim_fw0.vel = angle0.vel
@@ -39,7 +44,12 @@ acim_flux0.r = conf0.r
 acim_flux0.max_acc = conf0.max_acc
 acim_foc0.en = fault0.en_out
 acim_foc0.torque = pid0.torque_cmd
-acim_foc0.scale = acim_fw0.scale
+fluxopt0.torque = pid0.torque_cmd
+fluxopt0.scale_in = acim_fw0.scale
+fluxopt0.id_n = acim_foc0.id_n
+fluxopt0.lmr = acim_flux0.lmr_act
+fluxopt0.polecount = conf0.polecount
+acim_foc0.scale = fluxopt0.scale
 acim_foc0.t_lim = acim_fw0.t_lim
 acim_foc0.i_mr = acim_flux0.i_mr
 acim_foc0.lmr = acim_flux0.lmr_act

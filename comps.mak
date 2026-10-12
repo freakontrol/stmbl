@@ -26,6 +26,7 @@ LV_SHARED_COMPS += shared/comps/svm.c
 
 LV_SHARED_COMPS += shared/comps/vel.c
 LV_SHARED_COMPS += shared/comps/rev.c
+LV_SHARED_COMPS += shared/comps/fluxopt.c
 LV_SHARED_COMPS += shared/comps/hal_test.c
 # LV_SHARED_COMPS += shared/comps/dc.c
 LV_SHARED_COMPS += shared/comps/ypid.c
