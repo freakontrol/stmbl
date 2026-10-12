@@ -1,0 +1,16 @@
+# Spindle sensorless FOC: I/f start, observer handover at w_hand, up to
+# 838 rad/s, reverse to -300, stop. The plant's flux shape is the config's.
+title Spindle sensorless FOC, I/f start, 0 -> 838 -> -300 -> 0
+config conf/fanuc_a2_spindle_foc_sl.txt
+f4 ramp0.vel_ext_cmd = 0
+at 0.02 f4 ramp0.en = 1
+at 0.4 f4 ramp0.vel_ext_cmd = 838
+at 10.0 f4 ramp0.vel_ext_cmd = -300
+at 22.0 f4 ramp0.vel_ext_cmd = 0
+trace plant.vel ramp0.vel_cmd obs0.vel_m sl_seq0.state hv0.id_fb hv0.iq_fb acim_flux0.i_mr plant.i_mr
+expect max fault0.last_fault < 0.5 from 0.5
+expect final plant.vel > 830 from 9.9 to 10.0
+expect final plant.vel < -295 from 21.9 to 22.0
+expect absmax plant.vel < 5 from 26.5
+expect min sl_seq0.state > 2.5 from 1 to 18
+run 26.6

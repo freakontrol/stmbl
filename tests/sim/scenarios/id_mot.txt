@@ -1,0 +1,25 @@
+# Identification regression: id_mot (idm) against a rigid load with known
+# inertia, coulomb and viscous friction and a constant offset torque.
+title id_mot against a known inertia and friction
+config conf/fanuc_a3-3000.txt
+f4 link id_mot
+f4 fault0.en = 0
+# The bridge's dead-time curve matches hv0.drop_k/drop_knee, so the check is
+# the algorithm. With the default tanh curve f reads 0.137 (+14%) and j +8%:
+# curpid's predictor (ksp 1) regulates the predicted current, so the dead-time
+# compensation's error becomes a steady iq error (0.25 A cmd -> 0.217 A);
+# with f3 curpid0.ksp = 0 f reads 0.1207 on the tanh curve too.
+plant jm=0.0020 jl=0 f=0.12 d=0.0004 load=0.05 dt_shape=1 dt_i0=0.975 dt_eff=1.876e-6
+at 0.1 f4 fault0.en = 1
+at 0.2 f4 idm0.state = 1.2
+trace idm0.state idm0.inertia idm0.friction idm0.damping idm0.offset plant.vel
+expect max fault0.last_fault < 0.5 from 0.15
+expect final idm0.inertia > 0.0019
+expect final idm0.inertia < 0.00212
+expect final idm0.friction > 0.114
+expect final idm0.friction < 0.126
+expect final idm0.damping > 0.00030
+expect final idm0.damping < 0.00046
+expect final idm0.offset > -0.0525
+expect final idm0.offset < -0.0475
+run 200

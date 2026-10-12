@@ -1,0 +1,31 @@
+# Identification regression: idpmsm against a PMSM plant with known values
+# that differ from the config's (r, Ld, Lq, psi), on the Y motor's config.
+title idpmsm against a known PMSM plant
+config conf/fanuc_a3-3000.txt
+f4 link id_pmsm
+f4 idpmsm0.test_cur = 6
+f4 fault0.en = 0
+# dt_shape 1: the dead-time loss has the curve idpmsm fits (hv.c's), so the
+# check is the algorithm. With the default tanh shape r reads 0.46 (i0 0.3)
+# or 0.22 (i0 0.6): r trades against the shape of the dead-time curve.
+plant r=0.70 ld=0.0030 lq=0.0045 psi=0.068 jl=0 f=0.02 d=0.00005 dt_shape=1 dt_i0=0.6
+at 0.1 f4 fault0.en = 1
+at 0.2 f4 idpmsm0.state = 1.2
+trace idpmsm0.state hv0.id_fb hv0.iq_fb plant.vel
+expect max fault0.last_fault < 0.5 from 0.15
+expect final idpmsm0.state > 3.35
+expect final idpmsm0.r > 0.679
+expect final idpmsm0.r < 0.721
+expect final idpmsm0.ld > 0.00285
+expect final idpmsm0.ld < 0.00315
+expect final idpmsm0.lq > 0.00427
+expect final idpmsm0.lq < 0.00473
+expect final idpmsm0.psi > 0.0673
+expect final idpmsm0.psi < 0.0687
+expect final idpmsm0.pp > 3.99
+expect final idpmsm0.pp < 4.01
+expect final idpmsm0.dt_k > 0.92
+expect final idpmsm0.dt_k < 0.96
+expect final idpmsm0.com_offset > 0.5178
+expect final idpmsm0.com_offset < 0.5278
+run 100

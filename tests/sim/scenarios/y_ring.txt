@@ -1,0 +1,19 @@
+# The same move with the screw as a second mass: Y's coupling ring
+# (bench: 18.8-21.3 Hz, zeta 0.15-0.23) at 20 Hz, zeta 0.2. pid0 filters
+# the inertia feedforward at conf0.j_lpf (17.55 Hz).
+title Y move with a 20 Hz load ring
+config conf/fanuc_a3-3000.txt
+plant ring_hz=20 ring_zeta=0.2
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 0.1 lcnc move 20 200 1500
+trace lcnc.pos plant.pos_mm plant.vel plant.load_vel plant.twist plant.shaft pid0.pos_error pid0.torque_cmd hv0.iq_fb
+expect max fault0.last_fault < 0.5 from 0.06
+expect absmax pid0.pos_error < 0.2
+# settled: no ring left (friction may hold some twist in the screw)
+expect std plant.twist < 0.002 from 0.5
+expect absmax plant.load_vel < 0.05 from 0.5
+expect final linrev0.fb_out > 19.99
+expect final linrev0.fb_out < 20.01
+expect final plant.pos_mm > 19.9
+run 0.7

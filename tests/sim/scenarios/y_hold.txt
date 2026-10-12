@@ -1,0 +1,12 @@
+# Y axis config (Kira, fanuc_a3-3000) boots, enables from LinuxCNC and holds.
+# Plant: the config's own motor and load (conf0.r/l/lq/psi/j/j_sys/f/d).
+title Y enables and holds
+config conf/fanuc_a3-3000.txt
+lcnc scale 10
+at 0.05 lcnc enable 1
+trace fault0.state fault0.last_fault hv0.iq_fb hv0.id_fb pid0.pos_error plant.vel
+# fault 11 (link volts) while the F3 has not reported yet is the normal boot transient
+expect max fault0.last_fault < 0.5 from 0.06
+expect final fault0.state > 0.5
+expect absmax pid0.pos_error < 0.001 from 0.1
+run 0.3

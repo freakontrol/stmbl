@@ -1,0 +1,17 @@
+# Spindle, rotor flux FOC on the encoder: magnetize, ramp to 300 rad/s,
+# 6 Nm load, ramp back down.
+title Spindle FOC (encoder), 0 -> 300 rad/s, 6 Nm load
+config conf/fanuc_a2_spindle_foc_enc.txt
+f4 ramp0.vel_ext_cmd = 0
+at 0.02 f4 ramp0.en = 1
+at 0.4 f4 ramp0.vel_ext_cmd = 300
+at 4.0 plant load=-6
+at 5.0 plant load=0
+at 5.2 f4 ramp0.vel_ext_cmd = 0
+trace plant.vel ramp0.vel_cmd hv0.id_fb hv0.iq_fb acim_flux0.i_mr plant.i_mr plant.torque pid0.torque_cmd
+expect max fault0.last_fault < 0.5 from 0.5
+expect final plant.vel > 299 from 3.9 to 4.0
+expect absmax pid0.vel_error < 3 from 4.6 to 5.0
+expect absmax pid0.vel_error < 1.5 from 1 to 3
+expect absmax plant.vel < 2 from 8.6
+run 8.7

@@ -1,0 +1,12 @@
+# Holding position, a 2 Nm load step on the screw (a cut starting): the
+# position loop and the velocity integrator take it up.
+title Y holding, 2 Nm load step
+config conf/fanuc_a3-3000.txt
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 0.2 plant load=2
+trace pid0.pos_error pid0.torque_cmd hv0.iq_fb plant.vel plant.pos
+expect max fault0.last_fault < 0.5 from 0.06
+expect absmax pid0.pos_error < 0.05
+expect absmax pid0.pos_error < 0.002 from 0.45
+run 0.5
