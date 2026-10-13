@@ -94,6 +94,7 @@ HAL_PIN(lmr);         // *input*, magnetizing inductance [H], acim_flux0.lmr, fo
 HAL_PIN(e_min);       // *input*, obs0.e_min [V], for w_hand 0
 HAL_PIN(align);       // *output*, align time in use [s]
 HAL_PIN(hand);        // *output*, handover speed in use [rad/s mech]
+HAL_PIN(obs_bw);      // *output*, observer bandwidth for obs0.bw [rad/s]: 5 x the handover speed, electrical
 
 struct sl_seq_ctx_t {
   float time;
@@ -134,6 +135,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float align  = PIN(align_time) > 0.0 ? PIN(align_time) : (PIN(tr) > 0.0 ? 3.0 * PIN(tr) : 0.3);
   PIN(align)   = align;
   PIN(hand)    = w_hand;
+  PIN(obs_bw)  = 5.0 * w_hand * pp;  // the template's rule (sl_acim), was set by hand (spindle 300)
   float ov     = PIN(obs_vel);
   float tol    = PIN(enc_tol) > 0.0 ? PIN(enc_tol) * MAX(PIN(slip_max), 1.0) / MAX(PIN(polecount), 1.0) : 0.0;
   float ve     = PIN(vel_enc);
