@@ -11,6 +11,8 @@
 // Mechanical: motor inertia jm and load inertia jl, joined by a spring k and
 // damper c (k = 0: one rigid body jm + jl). Coulomb f and viscous d act on
 // the load, fm and dm on the motor; load is an external torque on the load.
+// fs is static friction on top of the coulomb value: a body at rest only
+// breaks loose above f + fs (Stribeck step), then slides against f.
 //
 // The firmware's electrical angle is sigma * pp * (encoder + offset), with
 // sigma = +-1 from out_rev and mot_fb_rev and the offset from
@@ -64,10 +66,19 @@ static param_t P[] = {
     {"fm", 0, 0, "coulomb friction on the motor [Nm]"},
     {"dm", 0, 0, "viscous friction on the motor [Nm s/rad]"},
     {"w_s", 0.01, 0, "below this speed coulomb friction sticks [rad/s]"},
+    {"fs", 0, 0, "static friction on top of f (and fm) at breakaway [Nm], may be negative"},
+    {"f_n", -1, 0, "coulomb friction moving negative [Nm], < 0 = f"},
+    {"fs_n", -1e9, 0, "static friction on top of f_n breaking loose negative [Nm], -1e9 = fs"},
+    {"fst", 0, 0, "Stribeck: extra friction at low speed, fst exp(-(v/vs)^2) [Nm]"},
+    {"vs", 0.5, 0, "Stribeck speed [rad/s]"},
+    {"fh", 0, 0, "friction rising with speed, fh (1 - exp(-v/vh)) [Nm]"},
+    {"fh_n", -1, 0, "fh moving negative [Nm], < 0 = fh"},
+    {"vh", 5, 0, "speed of the fh rise [rad/s]"},
     {"load", 0, 0, "external torque on the load [Nm]"},
     {"lead", 10, 0, "screw lead for pos_mm [mm/rev]"},
     {"off_err", 0, 0, "commutation error [rad el]"},
     {"enc_delay", 0, 0, "encoder sample age at the F4 rt [s]"},
+    {"enc_noise", 0, 0, "encoder angle noise per read [rad rms, mech] (magnetic sin/cos)"},
     {"enc_bits", 22, 0, "encoder bits per turn"},
     {"hv_temp", 40, 0, "IPM case temperature [C]"},
     {"substeps", 16, 0, "integration steps per PWM period"},
@@ -258,19 +269,44 @@ static double leg(uint32_t cmp, uint32_t arr, double i, double udc) {
   return v - PV(vdrop) * soft;
 }
 
-// Coulomb friction f on a body at speed v with the other torques tn on it.
-// Moving (|v| > w_s): f against v. Inside w_s it is stiction (Karnopp): it
-// cancels tn up to f and takes out the remaining speed within one step h, so
-// a body held by friction stays put instead of creeping.
-static double coulomb(double f, double v, double tn, double j, double h) {
-  if(f <= 0.0) {
+// Friction on the load while sliding at speed v (sign ignored), positive
+// (neg 0) or negative (neg 1) direction: coulomb f (f_n), the Stribeck rise
+// fst at low speed and fh rising with speed. d is viscous, added apart.
+static double slide(int neg, double v) {
+  double f  = neg && PV(f_n) >= 0.0 ? PV(f_n) : PV(f);
+  double fh = neg && PV(fh_n) >= 0.0 ? PV(fh_n) : PV(fh);
+  double a  = fabs(v) / fmax(PV(vs), 1e-6);
+  return f + PV(fst) * exp(-a * a) + fh * (1.0 - exp(-fabs(v) / fmax(PV(vh), 1e-6)));
+}
+
+// Friction on a body at speed v with the other torques tn on it. fm is the
+// motor's own coulomb friction, ld 1 adds the load friction (slide()).
+// Moving (|v| > w_s): the sliding friction against v. Inside w_s it is
+// stiction (Karnopp): it cancels tn up to the breakaway level, f + fs
+// positive and f_n + fs_n negative, and takes out the remaining speed within
+// one step h, so a body held by friction stays put instead of creeping.
+// Beyond that it breaks loose and slides.
+static double coulomb(double fm, int ld, double v, double tn, double j, double h) {
+  double fp = fm + (ld ? slide(0, v) : 0.0);
+  double fn = fm + (ld ? slide(1, v) : 0.0);
+  double f  = fm + (ld ? PV(f) : 0.0);
+  double f_n = fm + (ld ? (PV(f_n) >= 0.0 ? PV(f_n) : PV(f)) : 0.0);
+  if(f <= 0.0 && f_n <= 0.0) {
     return 0.0;
   }
   if(fabs(v) > PV(w_s)) {
-    return v > 0.0 ? f : -f;
+    return v > 0.0 ? fp : -fn;
   }
   double need = tn + j * v / h;
-  return need > f ? f : need < -f ? -f : need;
+  double sp   = fmax(f + PV(fs), 0.0);
+  double sn   = fmax(f_n + (PV(fs_n) > -1e8 ? PV(fs_n) : PV(fs)), 0.0);
+  if(need > sp) {
+    return ld ? fm + slide(0, PV(w_s)) : fm;
+  }
+  if(need < -sn) {
+    return ld ? -(fm + slide(1, PV(w_s))) : -fm;
+  }
+  return need;
 }
 
 static void deriv(const double *x, double *dx, double h) {
@@ -312,15 +348,15 @@ static void deriv(const double *x, double *dx, double h) {
     double tm_n = tq - sh - PV(dm) * x[3];
     double tl_n = sh + PV(load) - PV(d) * x[5];
     dx[2]     = x[3];
-    dx[3]     = (tm_n - coulomb(PV(fm), x[3], tm_n, jm, h)) / jm;
+    dx[3]     = (tm_n - coulomb(PV(fm), 0, x[3], tm_n, jm, h)) / jm;
     dx[4]     = x[5];
-    dx[5]     = (tl_n - coulomb(PV(f), x[5], tl_n, jl, h)) / jl;
+    dx[5]     = (tl_n - coulomb(0.0, 1, x[5], tl_n, jl, h)) / jl;
     ts        = sh;
   } else {
     double j  = jm + jl;
     double tn = tq + PV(load) - (PV(dm) + PV(d)) * x[3];
     dx[2]     = x[3];
-    dx[3]     = (tn - coulomb(PV(fm) + PV(f), x[3], tn, j, h)) / j;
+    dx[3]     = (tn - coulomb(PV(fm), 1, x[3], tn, j, h)) / j;
     dx[4]     = dx[2];
     dx[5]     = dx[3];
     ts        = tq - jm * dx[3];
@@ -468,7 +504,15 @@ void plant_sample_adc(void) {
   sim_f3_adc.hv_temp = PV(hv_temp);
 }
 
+static void plant_encoder_clean(double delay, double *mech);
 void plant_encoder(double delay, double *mech) {
+  plant_encoder_clean(delay, mech);
+  if(PV(enc_noise) > 0.0) {
+    *mech += PV(enc_noise) * gauss();
+  }
+}
+
+static void plant_encoder_clean(double delay, double *mech) {
   if(hist_n == 0 || delay <= 0.0) {
     *mech = thm;
     return;

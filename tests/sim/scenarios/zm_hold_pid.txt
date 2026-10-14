@@ -1,0 +1,28 @@
+# Z plant with the friction measured on the bench 22 Oct (warm, 0.2-10 rad/s
+# plus id_sys 5-50 rad/s): Stribeck rise below 1 rad/s, more friction moving
+# up, gravity 4.48 Nm, breakaway 2.4 Nm up / 1.6 Nm down from rest (id_brk).
+# Up, down, up 20 mm at 73 mm/s and 1000 mm/s2, 3 s apart; the current is
+# read at the end of each dwell (after up 2.95-3.1 s, after down 5.95-6.1 s).
+# pid0.hold_en 1 slews the torque to conf0.o at rest (17.9 / 3.3 A ->
+# 10.8 / 10.8 A). The axis creeps back from the stop overshoot for about
+# 0.9 s before the error is inside hold_arm and the hold starts, so a 0.9 s
+# dwell ends before the hold; the rest error is then about hold_arm.
+title Z standstill hold in pid (hold_en 1), no dob, all feedforwards
+config conf/fanuc_a6-3000.txt
+plant f=2.195 fst=0.894 vs=0.539 fh=0.701 fh_n=0.285 vh=4.66 d=0.0089 fs=0.2 fs_n=-0.6
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 0.06 plant load=-4.48
+f4 pid0.hold_en = 1
+f4 pid0.hold_o = 4.59
+at 0.1 lcnc move 20 73 1000
+at 3.1 lcnc move -20 73 1000
+at 6.1 lcnc move 20 73 1000
+trace lcnc.pos plant.pos_mm plant.vel pid0.pos_error pid0.torque_cmd pid0.torque_sum pid0.ff_torque_cmd pid0.hold hv0.iq_fb
+expect max fault0.last_fault < 0.5 from 0.06
+expect mean hv0.iq_fb > 9.5 from 2.95 to 3.1
+expect mean hv0.iq_fb < 12 from 2.95 to 3.1
+expect mean hv0.iq_fb > 9.5 from 5.95 to 6.1
+expect mean hv0.iq_fb < 12 from 5.95 to 6.1
+expect absmax pid0.pos_error < 0.0002 from 2.95 to 3.1
+run 9.1

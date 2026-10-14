@@ -36,6 +36,30 @@
  * vel_bw is capped at conf0.cur_bw / bw_ratio (7.5: 400 at 3000). Below
  * the noise limit the cost keeps falling a little with each raise, while
  * the hiss and the torque peaks grow, so the cap is what stops vel_bw.
+ *
+ * When vel_bw's first raise already fails, its start value is past where
+ * gain pays, and the search turns down: vel_bw is cut by step while the
+ * cost stays within kg of the start value's, down to 4 pos_bw. More gain
+ * there only buys feedback noise (spindle, magnetic encoder, 13 Oct: the
+ * default 250 kept the speed noise of 40 at 2.5 to 3 times the current
+ * noise). A vel_bw that climbs (a servo axis) never takes this branch, and
+ * vel_d and pos_bw search as before.
+ *
+ * Speed mode (pos_en 0, pid0.pos_en: a spindle) has no position to track,
+ * so state 1.5 replaces the profile: each cycle runs to +-max_vel
+ * (alternating), settles, measures the speed noise (vel_error rms over
+ * SP_NOISE s), then puts a load torque step of dist x max_torque against the
+ * motion through pid0.torque_ext_cmd (torque_dist) and takes the speed dip.
+ * vel_bw falls while the dip stays under dip_max x max_vel (rises until
+ * it does, when the start value is already too soft; a raise stops at the
+ * smallest dip once more gain makes the dip grow or saturates, and a raise to
+ * the cap is scored there; a saturated start value is cut), with the speed noise
+ * as a coarse guard (within 3 kg of the start value's): the lowest gain
+ * that still takes the load step. The hold's speed noise does not steer it:
+ * on the spindle (magnetic encoder, belt, 13 Oct) it was the same from
+ * vel_bw 40 to 250 and read +-10 % from score to score even over 4 x 2 s,
+ * while the current noise grew 3 x with the gain.
+ * vel_d and pos_bw stay at their start values.
  */
 HAL_COMP(ids);
 
@@ -101,6 +125,11 @@ HAL_PIN(skipped);  // saturated cycles not scored, for the whole run
 
 #define NOISE_HZ 50.0  // fb_torque above this counts as noise [Hz]
 #define SAT_MAX 5      // saturated cycles in a row before a step fails
+#define SP_SETTLE 0.5  // speed mode: settle at speed before the noise window [s]
+#define SP_NOISE 2.0   // speed mode: speed noise window [s]
+#define SP_REP 4       // speed mode: cycles per score (the bench spindle read +-10 % from 2 x 1 s)
+#define SP_STEP 0.5    // speed mode: load step on, then off [s]
+#define SP_MIN_BW 5.0  // speed mode: lowest vel_bw [rad/s]
 #define WARM_MAX 25    // warm-up cycles at most while pid saturates
 #define CUT_MAX 5      // kd cuts of a saturating start value before moving on
 #define RING_VEL_B 1.5 // second cruise speed, x ring_vel
@@ -138,6 +167,12 @@ HAL_PIN(skipped);  // saturated cycles not scored, for the whole run
 // with ids0.lpf = 1 (link id_lpf), and touches nothing the gain search uses, so
 // it is safe to run on a machine that is already tuned.
 HAL_PIN(lpf);    // 1 = measure the ring (2.x) instead of tuning (1.x), set by id_lpf
+HAL_PIN(pos_en);      // *input*, pid0.pos_en: 0 = speed mode, the vel_bw search of state 1.5
+HAL_PIN(torque_dist); // *output*, load torque step for pid0.torque_ext_cmd (speed mode) [Nm]
+HAL_PIN(dist);        // *parameter*, speed mode: load step, fraction of max_torque
+HAL_PIN(dip_max);     // *parameter*, speed mode: largest speed dip on the load step, fraction of max_vel
+HAL_PIN(sp_noise);    // speed mode: last speed noise, vel_error rms [rad/s]
+HAL_PIN(dip);         // speed mode: last speed dip on the load step [rad/s]
 HAL_PIN(j_mot);  // *input*, motor inertia [kgm^2], conf0.j
 HAL_PIN(j_sys);  // *input*, load inertia [kgm^2], conf0.j_sys
 
@@ -197,6 +232,24 @@ struct ids_ctx_t {
   struct ring_t r;  // ring down estimator, state 2.x
   float pos0;       // where the gain search started: the stroke is centred on it
   int home;         // the search is done, the axis drives back to pos0
+  int kept;         // scores kept for this parameter (1 = only the start)
+  int down;         // vel_bw is searching down from its start value
+  float cost0;      // the start value's cost, the down search's reference
+  // speed mode (1.5)
+  int sp_dir;        // +1 / -1, this cycle's direction
+  int sp_up;         // 1 = raising vel_bw, 0 = lowering
+  int sp_n;          // cycles in this score
+  float sp_t;        // time in this cycle [s]
+  float sp_sq, sp_tq;  // speed error squared integral, its time
+  float sp_dip;      // largest dip in this score
+  float sp_best;     // the start value's speed noise, the guard's reference
+  float sp_bw;       // last kept vel_bw
+  int sp_kept;       // scores kept
+  int sp_sat;        // this score saturated
+  float sp_dmin;     // raising: the smallest dip so far
+  float sp_bwmin;    // raising: the vel_bw that gave it
+  int sp_cap;        // raising: this score is at the cap
+  int sp_capbad;     // the cap was kept although it misses dip_max
 };
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -228,6 +281,9 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(step)  = 0.1;
   PIN(rep)   = 2.0;
   PIN(fb_max) = 0.05;
+  PIN(pos_en)  = 1.0;
+  PIN(dist)    = 0.2;
+  PIN(dip_max) = 0.05;
 
   PIN(auto_step) = 1.0;
 
@@ -249,7 +305,7 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 }
 
 static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
-  //struct ids_ctx_t * ctx = (struct ids_ctx_t *)ctx_ptr;
+  struct ids_ctx_t *ctx      = (struct ids_ctx_t *)ctx_ptr;
   struct ids_pin_ctx_t *pins = (struct ids_pin_ctx_t *)pin_ptr;
 
   switch((int)(PIN(state) * 10.0 + 0.5)) {
@@ -259,7 +315,10 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     case 10:
       PIN(state)  = 1.1;
 
-      if(PIN(auto_step) >= 1) {
+      if(PIN(pos_en) <= 0.0) {
+        printf("<font color='green'># speed mode (pid0.pos_en 0): vel_bw from the speed noise at +-%f rad/s and a %f Nm load step (dip under %f rad/s)</font>\n", PIN(max_vel), PIN(dist) * PIN(max_torque), PIN(dip_max) * PIN(max_vel));
+        PIN(state) = 1.5;
+      } else if(PIN(auto_step) >= 1) {
         PIN(state) = 1.2;
       } else {
         printf("Tune PPI bandwidth and damping\n");
@@ -346,7 +405,14 @@ static void nrt(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       printf("conf0.pos_bw = %f <font color='green'># append to config</font>\n", PIN(pos_bw));
       printf("conf0.vel_bw = %f <font color='green'># append to config</font>\n", PIN(vel_bw));
       printf("conf0.vel_d = %f <font color='green'># append to config</font>\n", PIN(vel_d));
-      printf("<font color='green'># last score: noise %f Nm rms, peak %f Nm, of conf0.max_force %f Nm</font>\n", PIN(noise), PIN(peak), PIN(max_torque));
+      if(PIN(pos_en) <= 0.0) {
+        printf("<font color='green'># speed mode: last score speed noise %f rad/s rms, load step dip %f rad/s</font>\n", PIN(sp_noise), PIN(dip));
+        if(ctx->sp_capbad) {
+          printf("<font color='red'>the kept vel_bw misses ids0.dip_max or saturates</font>: the raise hit the cap or the loop began to oscillate; lower ids0.dist or ids0.max_acc, or check the feedback\n");
+        }
+      } else {
+        printf("<font color='green'># last score: noise %f Nm rms, peak %f Nm, of conf0.max_force %f Nm</font>\n", PIN(noise), PIN(peak), PIN(max_torque));
+      }
       if(PIN(skipped) > 0.0) {
         printf("<font color='green'># %i saturated cycles were not scored</font>\n", (int)PIN(skipped));
       }
@@ -403,6 +469,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(min_cost) = 0.0;  // the cost to beat: the last kept score
       ctx->first    = 1;
       ctx->cuts     = 0;
+      ctx->kept     = 0;
+      ctx->down     = 0;
       PIN(cost)     = 0.0;
       ctx->warm     = 0;
       ctx->n        = 0;
@@ -413,6 +481,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ctx->sat_n     = 0;
       PIN(skipped)   = 0.0;
       ctx->peak     = 0.0;
+      ctx->sp_dir   = 1;
+      ctx->sp_up    = 1;
+      ctx->sp_n     = 0;
+      ctx->sp_t     = 0.0;
+      ctx->sp_sq = ctx->sp_tq = ctx->sp_dip = 0.0;
+      ctx->sp_best  = 0.0;
+      ctx->sp_bw    = PIN(vel_bw);
+      ctx->sp_kept  = 0;
+      ctx->sp_sat   = 0;
+      ctx->sp_cap   = 0;
+      ctx->sp_capbad = 0;
+      PIN(torque_dist) = 0.0;
 
       if(PIN(en) > 0.0) {
         PIN(state) = PIN(lpf) > 0.0 ? 2.0 : 1.0;
@@ -682,7 +762,130 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       break;
     }
 
-    case 12:
+    case 15: {
+      // speed mode: ramp, settle, speed noise, load step, release; see top
+      float p_acc = PIN(acc_lim) > 0.0 ? MIN(PIN(max_acc), PIN(acc_lim)) : PIN(max_acc);
+      float p_vel = PIN(vel_lim) > 0.0 ? MIN(PIN(max_vel), PIN(vel_lim)) : PIN(max_vel);
+      p_acc       = MAX(p_acc, 1.0);
+      float v_t   = ctx->home ? 0.0 : ctx->sp_dir * p_vel;
+      float dv    = v_t - PIN(vel);
+      PIN(acc)    = ABS(dv) > p_acc * period ? SIGN(dv) * p_acc : dv / period;
+      PIN(vel) += PIN(acc) * period;
+      PIN(pos) += PIN(vel) * period;
+      PIN(pos_cmd)     = mod(PIN(pos));
+      PIN(vel_cmd)     = PIN(vel) * PIN(ff);
+      PIN(acc_cmd)     = PIN(acc) * PIN(ff);
+      PIN(torque_dist) = 0.0;
+      if(ctx->home) {
+        if(ABS(PIN(vel)) < 1e-3) {
+          PIN(vel) = PIN(vel_cmd) = PIN(acc_cmd) = 0.0;
+          PIN(state) = 1.3;
+        }
+        break;
+      }
+      float t_ramp = 2.0 * p_vel / p_acc;  // from the other direction
+      float t0 = t_ramp + SP_SETTLE, t1 = t0 + SP_NOISE, t2 = t1 + SP_STEP, t3 = t2 + SP_STEP;
+      ctx->sp_t += period;
+      if(ctx->sp_t > t_ramp && (PIN(sat) > 0.0 || (PIN(max_torque) > 0.0 && ABS(PIN(torque)) >= 0.99 * PIN(max_torque)))) {
+        ctx->sp_sat = 1;
+      }
+      ctx->peak = MAX(ctx->peak, ABS(PIN(torque)));
+      if(ctx->sp_t > t0 && ctx->sp_t <= t1) {
+        ctx->sp_sq += PIN(vel_error) * PIN(vel_error) * period;
+        ctx->sp_tq += period;
+      } else if(ctx->sp_t > t1 && ctx->sp_t <= t2) {
+        // load against the motion: the rotor slows, vel_error (cmd - fb) goes
+        // the direction's way
+        PIN(torque_dist) = -ctx->sp_dir * PIN(dist) * PIN(max_torque);
+        ctx->sp_dip      = MAX(ctx->sp_dip, ctx->sp_dir * PIN(vel_error));
+      }
+      if(ctx->sp_t > t3) {
+        ctx->sp_t   = 0.0;
+        ctx->sp_dir = -ctx->sp_dir;
+        if(++ctx->sp_n >= SP_REP) {
+          // score: speed noise and dip over rep cycles
+          float nz      = ctx->sp_tq > 0.0 ? sqrtf(ctx->sp_sq / ctx->sp_tq) : 0.0;
+          PIN(sp_noise) = nz;
+          PIN(dip)      = ctx->sp_dip;
+          int sat       = ctx->sp_sat;
+          int bad       = sat || ctx->sp_dip > PIN(dip_max) * p_vel;
+          PIN(peak)     = ctx->peak;
+          ctx->peak     = 0.0;
+          ctx->sp_n     = 0;
+          ctx->sp_sq = ctx->sp_tq = ctx->sp_dip = 0.0;
+          ctx->sp_sat = 0;
+          float bw    = PINA(params, 0);
+          // saturation is too much gain (the loop oscillates) or a profile the
+          // drive cannot follow, never a soft loop: it lowers vel_bw or stops
+          // the raise. Only a dip over dip_max raises it.
+          if(ctx->sp_kept == 0) {  // the start value: the noise reference
+            if(sat) {  // not a usable reference: cut and score the start again
+              bw /= 1.0 + PIN(step);
+              ctx->sp_bw     = MAX(bw, SP_MIN_BW);
+              ctx->sp_up     = 0;
+              ctx->sp_capbad = 1;  // cleared once a start value scores clean
+            } else {
+              ctx->sp_capbad = 0;
+              ctx->sp_best  = nz;
+              ctx->sp_bw    = bw;
+              ctx->sp_kept  = 1;
+              ctx->sp_up    = bad;  // too soft already: up until the dip passes
+              ctx->sp_dmin  = PIN(dip);
+              ctx->sp_bwmin = bw;
+              bw            = bad ? bw * (1.0 + PIN(step)) : bw / (1.0 + PIN(step));
+            }
+          } else if(ctx->sp_up) {
+            if(sat || PIN(dip) > ctx->sp_dmin * (1.0 + 3.0 * PIN(kg))) {
+              // more gain, more dip or saturation: the loop oscillates (on
+              // an observer, whose lag sets the margin), it is not soft.
+              // Keep the vel_bw with the smallest dip.
+              ctx->sp_bw     = ctx->sp_bwmin;
+              ctx->sp_capbad = 1;
+              bw             = -1.0;
+            } else if(bad) {
+              if(PIN(dip) < ctx->sp_dmin) {
+                ctx->sp_dmin  = PIN(dip);
+                ctx->sp_bwmin = bw;
+              }
+              ctx->sp_bw = bw;
+              if(ctx->sp_cap) {  // scored at the cap and still soft
+                ctx->sp_capbad = 1;
+                bw             = -1.0;
+              } else {
+                bw *= 1.0 + PIN(step);
+              }
+            } else {
+              ctx->sp_bw = bw;
+              bw         = -1.0;  // the first that takes the step
+            }
+          } else {
+            if(!bad && nz <= ctx->sp_best * (1.0 + 3.0 * PIN(kg))) {  // takes the step with less gain
+              ctx->sp_bw = bw;
+              ctx->sp_kept++;
+              bw /= 1.0 + PIN(step);
+            } else {
+              bw = -1.0;  // done: the last kept
+            }
+          }
+          if(ctx->sp_up && bw > PINA(max_params, 0)) {  // the cap: score it once more there
+            bw          = PINA(max_params, 0);
+            ctx->sp_cap = 1;
+          }
+          if(bw < 0.0 || (!ctx->sp_up && bw < SP_MIN_BW)) {
+            PINA(params, 0) = ctx->sp_bw;
+            ctx->home       = 1;
+          } else {
+            PINA(params, 0) = bw;
+          }
+        }
+      }
+      PIN(vel_bw) = PINA(params, 0);
+      PIN(vel_d)  = 1.0 / PINA(params, 1);
+      PIN(pos_bw) = PINA(params, 2);
+      break;
+    }
+
+    case 12: {
       // the profile stays inside the drive's own limits, conf0.max_acc and max_vel
       float p_acc = PIN(acc_lim) > 0.0 ? MIN(PIN(max_acc), PIN(acc_lim)) : PIN(max_acc);
       float p_vel = PIN(vel_lim) > 0.0 ? MIN(PIN(max_vel), PIN(vel_lim)) : PIN(max_vel);
@@ -784,24 +987,50 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         PINA(max_params, 2) = PINA(params, 0) * 2.0;
 
         int k = (int)PIN(param);
-        if(PINA(params, k) > PINA(max_params, k)) {
+        if(ctx->down) {
+          // down: keep cutting while the cost stays within kg of the start's
+          float lo = 4.0 * PINA(params, 2);
+          if(noisy || PIN(cost) > ctx->cost0 * (1.0 + PIN(kg)) || PINA(params, k) / (1.0 + PIN(step)) < lo) {
+            if(noisy || PIN(cost) > ctx->cost0 * (1.0 + PIN(kg))) {
+              PINA(params, k) *= 1.0 + PIN(step);  // back to the last kept value
+            }
+            ctx->down  = 0;
+            ctx->first = 1;
+            ctx->kept  = 0;
+            PIN(param)++;
+          } else {
+            PIN(min_cost) = PIN(cost);
+            PINA(params, k) /= 1.0 + PIN(step);
+          }
+        } else if(PINA(params, k) > PINA(max_params, k)) {
           PINA(params, k) = PINA(max_params, k);
           ctx->first      = 1;
+          ctx->kept       = 0;
           PIN(param)++;
         } else if(ctx->first && sat_fail && ++ctx->cuts < CUT_MAX) {
           PINA(params, k) *= PIN(kd);  // the start value saturates: cut it, try again
         } else if(ctx->first && noisy) {  // noisy at the start value: cut it
           PINA(params, k) *= PIN(kd);
           ctx->cuts = 0;
+          ctx->kept = 0;
           PIN(param)++;
         } else if(!ctx->first && (noisy || PIN(cost) > PIN(min_cost) * (1.0 - PIN(kg)))) {
           PINA(params, k) /= 1.0 + PIN(step);  // back to the last kept value
-          ctx->first = 1;
-          ctx->cuts  = 0;
-          PIN(param)++;
+          if(k == 0 && ctx->kept == 1 && PINA(params, 0) / (1.0 + PIN(step)) >= 4.0 * PINA(params, 2)) {
+            // vel_bw's first raise failed: search down from the start value
+            ctx->down  = 1;
+            ctx->cost0 = PIN(min_cost);
+            PINA(params, k) /= 1.0 + PIN(step);
+          } else {
+            ctx->first = 1;
+            ctx->cuts  = 0;
+            ctx->kept  = 0;
+            PIN(param)++;
+          }
         } else {
           PIN(min_cost) = PIN(cost);
           ctx->first    = 0;
+          ctx->kept++;
           PINA(params, k) *= 1.0 + PIN(step);
         }
 
@@ -818,6 +1047,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         PIN(target) = ctx->pos0;
       }
       break;
+    }
   }
 }
 

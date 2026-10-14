@@ -1,0 +1,33 @@
+# Y plant with the friction measured on the bench 22 Oct: 0.41 Nm at
+# 0.2 rad/s, 0.33 at 1-2 rad/s, rising to the id_sys fit at feed speeds, no
+# static excess. +-80 mm at 200 mm/s and 1500 mm/s2; the current is read at
+# the end of each dwell (1.15-1.3 s and 2.35-2.5 s).
+# The hold in dob takes the standing current to about 0, rest error 0.3 um.
+title Y standstill hold in dob (hold_en 2, dob0.hold), dob as on the bench
+config conf/fanuc_a3-3000.txt
+plant f=0.2786 fst=0.1189 vs=0.818 fh=0.2418 vh=8.55 d=0.0103 fs=0.05
+f4 link filters
+f4 dob0.j = 0.003935
+f4 dob0.bw = 30
+f4 dob0.max = 3
+f4 dob0.k = 1
+f4 conf0.f = 0
+f4 conf0.d = 0
+lcnc scale 10
+at 0.05 lcnc enable 1
+f4 pid0.hold_en = 2
+f4 dob0.hold = pid0.hold
+f4 pid0.hold_o = 0
+f4 dob0.hold_o = 0
+at 0.1 lcnc move 80 200 1500
+at 1.3 lcnc move -80 200 1500
+at 2.5 lcnc move 80 200 1500
+trace lcnc.pos plant.pos_mm plant.vel pid0.pos_error pid0.torque_cmd pid0.torque_sum pid0.ff_torque_cmd pid0.hold hv0.iq_fb dob0.d_est dob0.out
+expect max fault0.last_fault < 0.5 from 0.06
+expect mean hv0.iq_fb > -0.3 from 1.15 to 1.3
+expect mean hv0.iq_fb < 0.3 from 1.15 to 1.3
+expect mean hv0.iq_fb > -0.3 from 2.35 to 2.5
+expect mean hv0.iq_fb < 0.3 from 2.35 to 2.5
+expect absmax pid0.pos_error < 0.0002 from 1.15 to 1.3
+expect absmax pid0.pos_error < 0.0002 from 2.35 to 2.5
+run 3.7

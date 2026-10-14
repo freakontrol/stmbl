@@ -4,6 +4,7 @@
 # command; the frame clock (sync_k 0.05) keeps it a straight line.
 title Y cruise with jittered frames
 config conf/fanuc_a3-3000.txt
+f4 pid0.hold_en = 0
 # Y friction is the plant's: the config runs dob with friction ff 0
 plant f=0.526805 d=0.010228
 lcnc scale 10

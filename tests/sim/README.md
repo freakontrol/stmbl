@@ -33,15 +33,26 @@ signals: psi_r, i_mr, lm, tr_act, th_flux, slip. Dead-time loss shape: `dt_shape
 `1` hv.c's 1-1/(1+|i|/dt_i0)^2. Encoder: encf0 (fanuc) or enc_fb0 (sin/cos, res x ires counts).
 
 Plant defaults come from the config (conf0.r, l, lq, psi, polecount, j, j_sys, f, d). Two-mass via
-`k`/`c` or `ring_hz`/`ring_zeta`; Karnopp friction; `enc_delay` defaults to hv0.adv minus the
+`k`/`c` or `ring_hz`/`ring_zeta`; Karnopp friction with `fs` (static friction on top of `f`,
+the axis breaks loose above f + fs and slides against f; `f_n`, `fs_n` for the negative
+direction, `fs` may be negative), a Stribeck rise `fst exp(-(v/vs)^2)` at low speed and a rise
+with speed `fh (1 - exp(-v/vh))` (`fh_n` negative direction) on top of the sliding friction; `load` as a constant torque (gravity:
+the plant has no brake, so set it once the loop holds); `enc_delay` defaults to hv0.adv minus the
 packet-to-F3 time.
 
 ## Scenarios
 
 - `y_*`: Y axis (fanuc_a3-3000): hold, current step, move, ring, load step, link loss.
+- `z_*`: Z axis (fanuc_a6-3000, vertical, stiction): an up and a down move, the hold torque
+  after each (feedforward config and the bench's dob config): the stop ends wherever inside the
+  stiction band the move left it, 17 A after up against 4.5 A after down, as the bench reads.
+- `zm_*`, `ym_*`: Z and Y with the friction measured on the bench 22 Oct (Stribeck rise,
+  per-direction friction): the current at rest after an up and a down stop today (`_hold_off`,
+  `_dob`) and with the standstill hold in pid (`_hold_pid`, pid0.hold_en 1) or in dob
+  (`_hold_dob`, hold_en 2 + dob0.hold).
 - `s_*`: spindle: FOC encoder with load, FOC field weakening to 838 rad/s, sensorless FOC
   (I/f start, reverse), V/f open loop, V/f encoder.
-- `id_*`: identification regression against plants with known values: idpmsm, id_mot (idm),
+- `id_*`: identification regression against plants with known values: idpmsm, id_mot (idm), id_sys on Z with the breakaway test, id_brk (idm brk_only), id_brk_limit (current limited below the breakaway torque: brk_res -2),
   idacim (standstill + rotating). Each file's comments give the result against the truth.
 
 ## Limits

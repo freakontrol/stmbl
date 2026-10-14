@@ -23,6 +23,9 @@ ids0.sat = pid0.sat
 ids0.pos_bw0 = conf0.pos_bw
 ids0.vel_bw0 = conf0.vel_bw
 ids0.vel_d0 = conf0.vel_d
+# speed mode (pid0.pos_en 0): vel_bw from speed noise and a load step
+ids0.pos_en = pid0.pos_en
+pid0.torque_ext_cmd = ids0.torque_dist
 ids0.acc_lim = conf0.max_acc
 ids0.vel_lim = conf0.max_vel
 

@@ -1,0 +1,20 @@
+# Identification regression: id_brk when the current cannot follow the
+# command. conf0.max_ac_cur 14 A caps the torque near 6 Nm, below the 7.68 Nm
+# the Z plant needs to break loose upward (on the bench the ipm junction
+# derate did this at standstill). The test must stop with brk_res -2 instead
+# of reading the commanded torque, and brk_tq must show the torque the
+# current makes.
+title id_brk with the current limited below the breakaway torque
+config conf/fanuc_a6-3000.txt
+f4 pid0.hold_en = 0
+plant f=2.691968 fs=0.4 d=0.008362
+f4 link id_brk
+f4 fault0.en = 0
+f4 conf0.max_ac_cur = 14
+at 0.1 f4 fault0.en = 1
+at 0.15 plant load=-4.5907
+trace idm0.state idm0.torque_ext pid0.torque_cmd idm0.brk_tq hv0.q_cmd hv0.iq_fb plant.pos_mm
+expect max fault0.last_fault < 0.5 from 0.15
+expect final idm0.brk_res < -1.5
+expect max idm0.brk_tq < 6.5
+run 5

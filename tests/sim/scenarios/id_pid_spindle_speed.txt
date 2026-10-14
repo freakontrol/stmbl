@@ -1,0 +1,17 @@
+# id_pid in speed mode (the spindle config runs pid0.pos_en 0): vel_bw from
+# the speed noise at +-100 rad/s and a load step, magnetic encoder noise.
+title id_pid speed mode on the spindle config, from vel_bw 250
+config conf/fanuc_a2_spindle_foc_enc.txt
+plant enc_noise=0.001
+f4 fault0.en = 0
+f4 conf0.vel_bw = 250
+f4 conf0.vel_d = 5
+f4 link id_pid
+at 0.1 f4 fault0.en = 1
+trace ids0.state ids0.vel_bw ids0.sp_noise ids0.dip ids0.torque_dist pid0.vel_error plant.vel
+expect max fault0.last_fault < 0.5 from 0.15
+expect final ids0.state > 1.35
+expect final ids0.vel_bw > 0
+expect final ids0.sp_noise > -1
+expect final ids0.dip > -1
+run 300

@@ -20,10 +20,18 @@ idm0.li = 0.005
 
 pid0.pos_bw = idm0.pos_bw
 pid0.vel_bw = idm0.vel_bw
-pid0.vel_d = idm0.vel_d
+# vel_d_pid is vel_d, or 1e6 (velocity integrator parked) during the
+# breakaway test (id_brk, or id_sys with idm0.brk 1)
+pid0.vel_d = idm0.vel_d_pid
 
 idm0.torque = pid0.torque_cmd
 idm0.fb_torque = pid0.fb_torque_cmd
+# breakaway test: the ramp torque, limited to max_force
+pid0.torque_ext_cmd = idm0.torque_ext
+idm0.brk_max = conf0.max_force
+idm0.cur_cmd = hv0.q_cmd
+idm0.cur_fb = hv0.iq_fb
+idm0.scale = fault0.scale
 
 vel1.torque = 0
 vel2.torque = 0
