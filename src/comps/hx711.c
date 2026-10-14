@@ -26,17 +26,40 @@
 #include "stm32f4xx_conf.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `hx` (file src/comps/hx711.c) reads up to two HX711 24 bit load cell ADCs connected to the fb1 connector of the F4 logic board by bit-banging their clock and data lines, and outputs the scaled readings as `out0`/`out1`. conf/template/hx.txt loads it (`hx0.gain = 100`); conf/move.txt uses `hx0.out0` as force input for `fmove0`.
+*
+* ## Component Explanation
+*
+* 1. **Wiring (hw_init)**:
+* - Clock (PD_SCK of both chips): fb1 Z line, driven as an output with the Z transmitter enabled.
+* - Data: DOUT of chip 0 on fb1 line A, DOUT of chip 1 on fb1 line B. `data_inv` and `clk_inv` are for inverting line drivers/receivers.
+*
+* 2. **Reading (rt)**:
+* - `timer` counts up by the rt period. Once `timer > time` and chip 0 signals a finished conversion (data line low), the component clocks 24 bits out of both chips at the same time, MSB first, then one more clock pulse, which selects channel A with gain 128 for the next conversion. `timer` is then reset.
+* - Each clock half period is a busy loop of `sleep` NOPs, so a read blocks `rt` for roughly 50 clock half periods.
+* - Conversion to the outputs:
+* ```c
+* out = raw / 0x7fffff * gain + offset;
+* ```
+*
+* {{% hint warning %}}
+* The value is shifted once more after the last bit, so `raw` is twice the HX711 reading and the sign is taken from bit 22 of the reading instead of bit 23: readings are scaled by 2 (absorbed by `gain` when calibrating) and wrap around beyond half of the HX711 input range. Only chip 0 is checked for data ready; chip 1 is assumed to convert in sync. There is no plausibility or saturation check (see the TODO in the code).
+* {{% /hint %}}
+*/
+
 HAL_COMP(hx);
 
-HAL_PIN(out0);
-HAL_PIN(out1);
-HAL_PIN(gain);
-HAL_PIN(offset);
-HAL_PIN(sleep);
-HAL_PIN(clk_inv);
-HAL_PIN(data_inv);
-HAL_PIN(timer);
-HAL_PIN(time);
+HAL_PIN(out0);      // *output*, scaled reading of chip 0 (fb1 A)
+HAL_PIN(out1);      // *output*, scaled reading of chip 1 (fb1 B)
+HAL_PIN(gain);      // *parameter*, scale for full range (default 1), used for both outputs
+HAL_PIN(offset);    // *parameter*, offset added after scaling (default 0), used for both outputs
+HAL_PIN(sleep);     // *parameter*, NOPs per clock half period, default 20, clamped to 1..50
+HAL_PIN(clk_inv);   // *parameter*, > 0 inverts the clock line
+HAL_PIN(data_inv);  // *parameter*, > 0 inverts the data lines
+HAL_PIN(timer);     // *output*, time since the last reading (s)
+HAL_PIN(time);      // *parameter*, min. time between readings (s), default 0.01
 
 struct hx_ctx_t {
   uint32_t error;

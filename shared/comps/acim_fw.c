@@ -13,7 +13,7 @@
 * sits at 1 and there is no field weakening, which is stmbl's default; linking
 * `acim_fw0.duty = hv0.duty` is the machine builder's choice.
 *
-* `t_lim` = p_max * p_boost / mechanical speed, 0 = no limit (p_max 0).
+* `t_lim` = p_max * p_boost / mechanical speed.
 * p_max is the motor's continuous (S1) power; `p_boost` (iit0.cur_boost in
 * the acim_foc template) lets it the same overload the thermal model lets
 * the current, so field weakening uses the S2 headroom and iit0 limits how
@@ -29,8 +29,9 @@
 * (constant back emf above the corner, nothing motor specific), and the duty
 * regulator only trims it: scale = scale_ff * trim, trim 0.5 .. 1.2. trim
 * stops rising while scale is at 1, so it does not wind up below the corner.
-* Any of the three at 0 is the plain regulator above. `ls` 0 takes `l` +
-* `lmr` (conf0.l, acim_flux0.lmr_act), as the acim_foc template links them.
+* Any of the three at 0 is the plain regulator above (for `ls`, only when
+* `l` or `lmr` is 0 too). `ls` 0 takes `l` +
+* `lmr`, as the acim_foc template links them.
 *
 * `ki` 0 (default) = 2.5 / `tr` (acim_flux0.tr_act): the stator voltage
 * follows the flux command through the rotor flux lag tr, so integral gain
@@ -38,6 +39,10 @@
 * about 0.3 (spindle: 28; 150 limit cycled, 30 was clean). 50 without tr.
 * Do not slow ki below that: ki 5 leaves the flux low for seconds after an
 * acceleration (spindle). vel_bw 74 is clean at the base speed edge.
+*
+* Top speed: above the corner the flux goes as 1/speed, so scale_min (0.1)
+* allows about 10 times the corner speed. Torque falls as p_max * p_boost / speed,
+* and faster near the leakage voltage limit.
 */
 
 HAL_COMP(acim_fw);

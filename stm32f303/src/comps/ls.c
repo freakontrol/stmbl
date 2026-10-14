@@ -9,17 +9,77 @@
 #include "f3hw.h"
 #include "ringbuf.h"
 
+/**
+* ## Brief
+* `ls` is the F3 (HV board) end of the serial link to the F4 (3 Mbaud UART, USART3 with DMA, CRC checked packets). It receives the current or voltage command, rotor angle, velocity, enable, mode and braking flags, plus one word of configuration per packet, and puts them on pins for the current loop, ramping the d/q command between packets. It answers with the measured d/q currents, output voltages, the fault code and one word of state per packet. It also locks the F3's PWM period to the F4's packet timing (trimming one period per packet), carries the F3 terminal (one byte each way per packet), holds the enable off until the whole configuration has arrived, disables the bridge when packets stop and can then ask `io0` for a short-circuit brake. It is loaded by `stm32f303/src/main.c` as `ls0` (rt_prio 0.6, the first in the chain). The F4 end of the link is the `hv` component.
+*
+* The F4 sends a packet every 200 us (5 kHz). The F3 rt runs once per PWM period at `PWM_FREQ`, a build option (`stm32f303/Makefile`, 10, 15 or 20 kHz, default 15 kHz), so there are `PWM_TICKS_PER_PACKET` = `PWM_FREQ / 5000` rt ticks per packet (3 at 15 kHz). The timings below are given in packets and hold at every PWM frequency; tick counts are for 15 kHz.
+*
+* ## Component Explanation
+*
+* 1. **Wiring on the F3** (fixed in main.c):
+* - Commands out: `d_cmd`/`q_cmd` to `curpid0.id_cmd/iq_cmd` (and to `hv0` for the dead time compensation), `pos` to `dq0` and `emf0`, `pos_v` (see below) to `idq0`, `vel` to `curpid0`, `en` to `curpid0.en`, `io0.hv_en` and `emf0.en`, `cmd_mode` to `curpid0` and `hv0`, `phase_mode` to `dq0`, `idq0` and `hv0`, `sbrake` to `io0.sbrake`.
+* - Configuration out: `r`, `l` (as `ld`), `lq`, `psi`, `cur_bw`, `cur_ff`, `cur_ind`, `max_cur` and `pwm_volt` to `curpid0`, `oc_cur` (as `max_cur`), `dac` and `ignore_fault_pin` to `io0`, `drop_k`, `drop_knee` and `arr` to `hv0`, `emf_run`/`emf_sel`/`emf_pp` to `emf0.run/sel/pp`, `fault` to `io0.led`.
+* - Feedback in: `id_fb`/`iq_fb`/`y` from `dq0`, `ud_fb`/`uq_fb` from `curpid0`, `dc_volt` (`io0.udc`), `udc_duty` (`io0.udc_duty`), `hv_temp`, `hv_temp_ok`, `mot_temp`, `u_fb`/`v_fb`/`w_fb` and `fault_in` from `io0`, `emf_val` from `emf0.val`, `duty_max` from `hv0.duty_max`.
+*
+* 2. **Receiving** (rt):
+* - The RX DMA writes each 32 byte `packet_to_hv_t` into the context. When all 32 bytes have arrived, the packet is accepted if `slave_addr` is 0, `len` matches and the CRC is right.
+* - The header command is handled: `WRITE_CONF` stores the float into `f3_config_data_t` at `conf_addr`, `READ_CONF` sets the address of the next state word to send, `DO_RESET` resets the F3, `BOOTLOADER` sets a backup register flag and resets into the bootloader. Addresses past this image's config are ignored (the F4 may be newer than the F3 image; the layout is append only).
+* - The process data goes to `phase_mode`, `cmd_mode`, `ignore_fault_pin`, `sbrake`, `sbrake_arm`, `pos` and `vel`, the d/q command becomes the new ramp target (item 4), and all configuration words go to their pins (`r`, `l`, `psi`, `cur_bw`, `cur_ff`, `cur_ind`, `max_y`, `max_cur`, `dac`, `drop_k`, `lq`, `emf_run`, `emf_sel`, `emf_pp`, `drop_knee`, `oc_cur`). A nonzero terminal byte is pushed into the F3's terminal RX buffer (read by `term0`).
+* - Only one tick per packet sees a new one. In the others `pos` is extrapolated with `pos += vel * period` (not wrapped), until the timeout (`2 * PWM_TICKS_PER_PACKET - 1` ticks, 5 at 15 kHz).
+* - After a whole packet has been taken (good or bad), the RX DMA is re-armed in the same tick instead of waiting for the idle line: at 10 and 20 kHz the tick can come before the idle flag, and the old packet would have been taken a second time.
+*
+* 3. **Enable only after a full configuration** (rt):
+* - The F4 sends the 17 configuration words one per packet, so right after an F3 reset `r`, `l`, `max_cur`, `dac` etc. are still 0 for a while. `ls` keeps one bit per word written, and `conf_ok` becomes 1 once every word has been written at least once (the bits are cleared in rt_start, which also clears the ramp targets). Until then `en` stays 0 whatever the F4 asks; after that `en` follows the F4's enable flag.
+* - A link gap of 10 ms (`PWM_FREQ / 100` ticks) clears the bits and `conf_ok` again: a restarted F4 sends its configuration from word 0, and the bridge stays off until the whole set has come round once more.
+* - This assumes the F4 and F3 images come from the same build (same config layout): an older F4 that sends fewer words never gets `conf_ok`.
+*
+* 4. **Command ramp** (rt):
+* - Stepped straight in, the d/q command would reach the current loop as a 5 kHz staircase. With `ramp` = 1 (the default, set in hw_init) each new packet's command is reached in `PWM_TICKS_PER_PACKET` equal steps, starting in the packet's own tick, so the command is a linear ramp that lags the F4 by about half a packet:
+* ```c
+* d_step = (d_tgt - d_cmd) / PWM_TICKS_PER_PACKET;  // on each packet, q alike
+* d_cmd += d_step;                                  // in the first PWM_TICKS_PER_PACKET ticks after it
+* ```
+* - In any later tick (a late or missing packet), and always with `ramp` = 0, `d_cmd`/`q_cmd` are set to the last packet's command (which also cleans up the float sum).
+*
+* 5. **Voltage angle**:
+* - `dq0` transforms the currents at the angle of the current sample. The voltage computed from them is preloaded and applied over the next PWM period, so on average it lands 1.5 periods later. `ls` therefore outputs a second angle, `pos_v = pos + vel * v_lead * period` (wrapped by `sincos_fast`), for `idq0` (and, through `idq0.si_out/co_out`, for `hv0`'s dead time reference).
+* - With `v_lead`, the F4's `hv0.adv` only has to cover the encoder to sample latency.
+*
+* 6. **Answering** (rt):
+* - After each good packet, one `packet_from_hv_t` is sent by DMA: `fault_in`, `id_fb`, `iq_fb`, `ud_fb`, `uq_fb`, one byte from the terminal TX buffer, and one word of `f3_state_data_t` (in order `u_fb`, `v_fb`, `w_fb`, `hv_temp`, `mot_temp`, `core_temp`, `dc_volt`, `pwm_volt`, `y`, `emf_val`, two unused words (0), `pwm_freq` (the `PWM_FREQ` the image was built for, read by the F4 as `hv0.pwm_freq`), `link_to` (the `timeout` counter), `hv_temp_ok`), cycling through the 15 words one per packet.
+* - A UART receive timeout (16 bit times of idle line) after a partial packet or noise resets the RX DMA so the next packet starts at byte 0. The idle line that follows a whole packet is ignored, as the DMA was already re-armed (item 2) and the next packet may have started.
+*
+* 7. **PWM phase lock** (rt):
+* - On the first tick that finds a packet being received (more than `window` bytes from either end), `arr` is set to `PWM_RES - inc` if more than `dma_pos_cmd` bytes have arrived and to `PWM_RES + inc` if fewer. In every other tick it is `PWM_RES` (7200, 4800 or 3600 at 10, 15 or 20 kHz). So the period is trimmed at most once per packet (at 20 kHz several ticks fall inside one packet, and their votes would not cancel). `hv0` writes it to the PWM timer, so the F3's PWM and rt tick slide until they are in a fixed phase to the F4's packets.
+*
+* 8. **Timeout and braking on link loss** (rt):
+* - After two missed packets (0.4 ms, more than 5 rt ticks at 15 kHz without a good packet), `en` and `vel` are set to 0, `timeout` is counted up every tick and the communication fault is 1. The bridge is thus switched off by `io0` and `curpid0`. The internal tick counter saturates, so a long loss cannot wrap it and re-enable the bridge.
+* - On the first timeout tick `ls` decides whether to brake: only if the F4's last packet had `sbrake_arm` set and the motor was driven (`en`) or already braking (`sbrake`). If so, `sbrake` goes to 1 once four packets are missed (0.8 ms, so one or two packets lost to noise only take the gates off until the next one) and is held for `sbrake_time` from then, and `io0` short-circuit brakes the motor on its own; otherwise `sbrake` is 0.
+* - While packets arrive, `sbrake` simply follows the F4's flag (the F4 only sets it while `en` is 0).
+*
+* 9. **Faults and voltage limit** (rt):
+* - `fault` only drives the LED blink count (`io0.led`). The F4 gets `fault_in` (the `io0` fault code) and detects CRC errors and timeouts on its own side.
+* - `pwm_volt`, the largest voltage vector `curpid0` may output, depends on `phase_mode`: `udc_duty / sqrt(3) * duty` for 120 deg 3 phase, `udc_duty / sqrt(2) * duty` for 90 deg 3 phase, `udc_duty * duty` for 90 deg 4 phase and the 180 deg modes, else 0. `udc_duty` is the fast DC link value `hv0` divides by, so the ceiling follows link sag and regen. `duty` is `duty_max` from `hv0` (0.91 with the default 3 us minimum on and off times at 15 kHz).
+*
+* {{% hint warning %}}
+* - The communication fault codes 1 (timeout) and 3 (CRC) are not `fault_t` codes (they would read as `CMD_ERROR` and `COM_FB_ERROR`). They are only used for the LED blink count and never reach the F4.
+* - A config word still takes effect as soon as it arrives, one per packet; `conf_ok` only guards the first enable after a reset or a 10 ms link gap, not later changes while enabled.
+* - `sbrake_time` is reset to 1 s by rt_start and is not an F4 config word, so the F4's own braking time does not apply to a link loss.
+* {{% /hint %}}
+*/
+
 
 HAL_COMP(ls);
 
 //process data from LS
-HAL_PIN(d_cmd);
-HAL_PIN(q_cmd);
+HAL_PIN(d_cmd);  // *output*, D-axis command from the F4, current (A) or voltage (V) depending on cmd_mode, ramped between packets
+HAL_PIN(q_cmd);  // *output*, Q-axis command from the F4, current (A) or voltage (V) depending on cmd_mode, ramped between packets
 // The f4 sends d/q every PWM_TICKS_PER_PACKET ticks (3 at 15 kHz); stepped straight in, the command carries
 // a 5 kHz staircase into the current loop. ramp = 1 spreads each step over
 // the LS_RAMP_TICKS ticks to the next packet, a linear ramp that lags the
 // step by half an f4 period. 0 = step.
-HAL_PIN(ramp);
+HAL_PIN(ramp);  // *parameter*, 1 = ramp d_cmd/q_cmd to each new command over PWM_TICKS_PER_PACKET ticks, 0 = step, default 1
 #define LS_RAMP_TICKS PWM_TICKS_PER_PACKET
 // link loss after two missed packets (0.4 ms): 5 ticks at 15 kHz
 #define LS_TIMEOUT_TICKS (2 * PWM_TICKS_PER_PACKET - 1)
@@ -29,81 +89,81 @@ HAL_PIN(ramp);
 // a restarted f4 is silent far longer than 10 ms (boot, config load); a gap
 // that long must deliver the whole config again before the next enable
 #define LS_CONF_TICKS (PWM_FREQ / 100)
-HAL_PIN(pos);
-HAL_PIN(vel);
+HAL_PIN(pos);  // *output*, Electrical rotor angle at the current sample (rad), from the F4, extrapolated between packets, to angle0.pos_fb
+HAL_PIN(vel);  // *output*, Electrical velocity from the F4 (rad/s), 0 on timeout, to angle0.vel_fb
 // The angle the voltage computed this tick lands at, on average: the
 // compares are preloaded, so it is applied over the next period, 1.5
 // periods after the current sample that dq0 transforms at pos. idq0 and
 // hv0's dead-time reference use it; hv0.adv on the f4 is then the encoder
 // to sample latency alone. v_lead in periods, default 1.5, 0 = one
 // angle for both.
-HAL_PIN(pos_v);
-HAL_PIN(conf_ok);  // every config word received once since boot
-HAL_PIN(v_lead);
-HAL_PIN(en);
+HAL_PIN(pos_v);  // *output*, Voltage angle (rad), pos + v_lead periods of motion, for idq0 and hv0
+HAL_PIN(conf_ok);  // *output*, 1 once every config word has been received since rt_start or a 10 ms link gap, en stays 0 before
+HAL_PIN(v_lead);  // *parameter*, Voltage angle lead in PWM periods for angle0.v_lead, default 1.5, 0 = same angle as pos
+HAL_PIN(en);  // *output*, Enable from the F4, 0 until conf_ok and on timeout
 
 // config data from LS
-HAL_PIN(cmd_mode);
-HAL_PIN(phase_mode);
-HAL_PIN(r);
-HAL_PIN(l);
-HAL_PIN(lq);  // q axis inductance for curpid0.lq: config lq, or l when that is 0
-HAL_PIN(psi);
-HAL_PIN(cur_bw);
-HAL_PIN(cur_ff);
-HAL_PIN(cur_ind);
-HAL_PIN(max_y);  // the f4's hv0.max_y, not used on the f3
-HAL_PIN(max_cur);
-HAL_PIN(oc_cur);  // the f4's max_cur before fault0.scale, for io0's trip (0 from an older f4: io0 then trips at ABS_MAX_CURRENT only)
-HAL_PIN(dac);
-HAL_PIN(drop_k);
-HAL_PIN(emf_run);
-HAL_PIN(emf_sel);
-HAL_PIN(emf_pp);
-HAL_PIN(drop_knee);
+HAL_PIN(cmd_mode);  // *output*, Command mode from the F4, 0 = voltage, 1 = current
+HAL_PIN(phase_mode);  // *output*, Phase mode from the F4, 0 = 90 deg 3ph, 1 = 90 deg 4ph, 2 = 120 deg 3ph, 3 = 180 deg 2ph, 4 = 180 deg 3ph
+HAL_PIN(r);  // *output*, Motor resistance from the F4 config (Ohm)
+HAL_PIN(l);  // *output*, Motor inductance, d-axis, from the F4 config (H)
+HAL_PIN(lq);  // *output*, Q-axis inductance for curpid0.lq (H), config lq, or l when that is 0
+HAL_PIN(psi);  // *output*, Magnet flux linkage from the F4 config (Vs/rad)
+HAL_PIN(cur_bw);  // *output*, Current loop bandwidth from the F4 config (rad/s)
+HAL_PIN(cur_ff);  // *output*, Resistance feed forward factor from the F4 config
+HAL_PIN(cur_ind);  // *output*, Back EMF and cross coupling feed forward factor from the F4 config
+HAL_PIN(max_y);  // *output*, From the F4 config, not used on the F3
+HAL_PIN(max_cur);  // *output*, Maximum current from the F4 config (A), for curpid0 and io0
+HAL_PIN(oc_cur);  // *output*, The F4's max_cur before fault0.scale (A), for io0's software trip, 0 from an older F4 (io0 then trips at ABS_MAX_CURRENT only)
+HAL_PIN(dac);  // *output*, Overcurrent comparator DAC value from the F4 config, for io0
+HAL_PIN(drop_k);  // *output*, Dead time compensation factor from the F4 config, for hv0
+HAL_PIN(emf_run);  // *output*, emf0 control from the F4 config, 1 = sum, 0 = hold, -1 = clear
+HAL_PIN(emf_sel);  // *output*, emf0 result number to return in emf_val, from the F4 config
+HAL_PIN(emf_pp);  // *output*, Pole pairs for emf0's per pole bins, from the F4 config
+HAL_PIN(drop_knee);  // *output*, Dead time compensation curve knee (A) from the F4 config, 0 = latched sign, for hv0
 
 // process data to LS
-HAL_PIN(dc_volt);
-HAL_PIN(udc_duty);  // io0.udc_duty, the link hv0 divides by, for pwm_volt
-HAL_PIN(id_fb);
-HAL_PIN(iq_fb);
-HAL_PIN(ud_fb);
-HAL_PIN(uq_fb);
+HAL_PIN(dc_volt);  // *input*, DC link voltage (V), from io0.udc, sent to the F4
+HAL_PIN(udc_duty);  // *input*, io0.udc_duty, the fast DC link value hv0 divides by, used for pwm_volt (V)
+HAL_PIN(id_fb);  // *input*, Measured d-axis current (A), from dq0.d, sent to the F4
+HAL_PIN(iq_fb);  // *input*, Measured q-axis current (A), from dq0.q, sent to the F4
+HAL_PIN(ud_fb);  // *input*, D-axis output voltage (V), from curpid0.ud, sent to the F4
+HAL_PIN(uq_fb);  // *input*, Q-axis output voltage (V), from curpid0.uq, sent to the F4
 
 // state data to LS
-HAL_PIN(hv_temp);
-HAL_PIN(hv_temp_ok);  // io0.hv_temp_ok: 0 never read, 1 live, 2 held
-HAL_PIN(mot_temp);
-HAL_PIN(core_temp);  // not measured, sends 0
-HAL_PIN(fault_in);  //fault code send to f4
+HAL_PIN(hv_temp);  // *input*, Power stage temperature (degC), from io0, sent to the F4
+HAL_PIN(hv_temp_ok);  // *input*, io0.hv_temp_ok, 0 = never read, 1 = live, 2 = held, sent to the F4
+HAL_PIN(mot_temp);  // *input*, Motor temperature (degC), from io0, sent to the F4
+HAL_PIN(core_temp);  // *input*, Core temperature, not measured, sent to the F4 as 0
+HAL_PIN(fault_in);  // *input*, HV fault code from io0.fault, sent to the F4
 
 // short-circuit braking request for io0: follows the f4's flag, and on a
 // link loss brakes for sbrake_time if the f4 last sent sbrake_arm
-HAL_PIN(sbrake);
-HAL_PIN(sbrake_arm);
-HAL_PIN(sbrake_time);  // [s], default 1
-HAL_PIN(ignore_fault_pin);
-HAL_PIN(y);
-HAL_PIN(u_fb);
-HAL_PIN(v_fb);
-HAL_PIN(w_fb);
-HAL_PIN(emf_val);
+HAL_PIN(sbrake);  // *output*, Short-circuit braking request for io0.sbrake, the F4's flag, or 1 for sbrake_time after a link loss
+HAL_PIN(sbrake_arm);  // *output*, Flag from the F4, > 0 allows braking on a link loss
+HAL_PIN(sbrake_time);  // *parameter*, Braking time after a link loss (s), set to 1 in rt_start
+HAL_PIN(ignore_fault_pin);  // *output*, Ignore the driver fault pin, flag from the F4, for io0
+HAL_PIN(y);  // *input*, Zero sequence current, mean of the phase currents (A), from dq0.y, sent to the F4
+HAL_PIN(u_fb);  // *input*, U phase voltage (V), from io0.u, sent to the F4
+HAL_PIN(v_fb);  // *input*, V phase voltage (V), from io0.v, sent to the F4
+HAL_PIN(w_fb);  // *input*, W phase voltage (V), from io0.w, sent to the F4
+HAL_PIN(emf_val);  // *input*, emf0 result number emf_sel, from emf0.val, sent to the F4
 
 // misc
-HAL_PIN(pwm_volt);
-HAL_PIN(duty_max);  // from hv0: what min_on/min_off leave of the link, 0 = unwired
-HAL_PIN(crc_error);
-HAL_PIN(crc_ok);
-HAL_PIN(timeout);
-HAL_PIN(dma_pos);
-HAL_PIN(idle);
-HAL_PIN(fault);  //communication fault output
+HAL_PIN(pwm_volt);  // *output*, Maximum output voltage vector for curpid0 (V), from dc_volt, phase_mode and duty_max
+HAL_PIN(duty_max);  // *input*, Usable duty from hv0.duty_max, 0 = not wired (0.95 is used)
+HAL_PIN(crc_error);  // *output*, Counter of packets with a bad CRC, address or length
+HAL_PIN(crc_ok);  // *output*, Counter of good packets
+HAL_PIN(timeout);  // *output*, Counter of rt ticks spent in timeout, sent to the F4 as link_to
+HAL_PIN(dma_pos);  // *output*, Bytes received of the last partial packet ended by an idle line (debug)
+HAL_PIN(idle);  // *output*, Counter of UART idle line events
+HAL_PIN(fault);  // *output*, Max of the communication fault (1 = timeout, 3 = CRC) and fault_in, drives the LED
 
-HAL_PIN(dma_pos2);
-HAL_PIN(arr);
-HAL_PIN(dma_pos_cmd);
-HAL_PIN(inc);
-HAL_PIN(window);
+HAL_PIN(dma_pos2);  // *output*, Bytes of the current packet received at this rt tick (debug)
+HAL_PIN(arr);  // *output*, PWM timer reload value for hv0.arr, PWM_RES, or PWM_RES +- inc on the first tick inside a packet
+HAL_PIN(dma_pos_cmd);  // *parameter*, Phase lock target, bytes received at the rt tick, default 4
+HAL_PIN(inc);  // *parameter*, Phase lock step on arr (timer ticks), default PWM_RES * 5 / 4800 (5 at 15 kHz)
+HAL_PIN(window);  // *parameter*, Phase lock only acts more than this many bytes from either end of a packet, default 1
 
 _Static_assert(sizeof(f3_config_data_t) / 4 < 32, "conf_seen has a bit per config word");
 
@@ -157,7 +217,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   while(!LL_USART_IsActiveFlag_TEACK(USART3) || !LL_USART_IsActiveFlag_REACK(USART3)) {
   }
 
-  /**USART3 GPIO Configuration    
+  /*USART3 GPIO Configuration    
    PB10     ------> USART3_TX
    PB11     ------> USART3_RX 
    */

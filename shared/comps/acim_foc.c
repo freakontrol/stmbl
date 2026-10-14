@@ -25,7 +25,6 @@
 *   boost only takes current q does not need: |d| <= sqrt(max_cur^2 - q^2),
 *   and with `boost_max` > 0 never more than boost_max * id_n on top of d
 *   (0.3 keeps the enable peak near the current limit).
-*   k_boost 0 = off.
 * - t_max: torque the current limit allows at the present flux, capped by
 *   acim_fw's t_lim when that is nonzero. Link pid0.max_torque and
 *   pid0.neg_min_torque to it.

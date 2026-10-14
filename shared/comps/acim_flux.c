@@ -27,17 +27,17 @@
 *
 * At low induction the iron's permeability falls again (the foot of the B-H
 * curve): on the spindle the secant lmr was flat from 9 to 19 A and 11% lower
-* at 6.7 A (idacim sweep, 6 Oct). With `i_dip` > 0 both fall below it:
+* at 6.7 A (idacim sweep, 6 Oct). With `i_dip` > 0 both change below it:
 *
 *     y       = (i_dip - |i_mr|) / i_dip, clamped 0..1
 *     lmr_act = ... * (1 - lmr_dip * y)
 *     tr_act  = ... * (1 - tr_dip * y)
 *
-* tr has its own coefficient: Lr follows Lm, but Rr does not stay put at
-* low flux. On the spindle tr rose instead, about 0.10 at 8 A and 0.11 at
-* 5 A against 0.089 rated (6 and 9 Oct), so tr_dip is negative there
-* (-0.45); with lmr_dip on tr, tr_act read 0.074 at 5 A and sensorless rang
-* at the speed loop bandwidth in deep field weakening.
+* tr has its own coefficient, as Rr need not stay put at low flux. idacim
+* prints tr_dip = lmr_dip (tr = Lr / Rr follows the secant lmr), which its
+* rotating tr checks confirm on the spindle to a few %; the spindle examples
+* carry that (0.058). A hand value of -0.45 (9 Oct, from a tr that read
+* 0.10-0.11 at 5-8 A) is superseded.
 * i_dip 0 (default) leaves both out; lmr_dip 0 or tr_dip 0 one of them.
 *
 * The model, slip, psi and torque run on tr_act and lmr_act. tr changes about
@@ -45,8 +45,8 @@
 * or i_n 0 keeps both constant. `id`/`iq` are normally the measured
 * currents, so a current limit in curpid scales both and the slip stays right.
 *
-* `psi` = lmr * i_mr is the rotor flux seen from the stator. Sent as hv0.psi,
-* with hv0.l = hv0.lq = sigma*Ls (leakage), it turns curpid's PMSM decoupling
+* `psi` is the rotor flux seen from the stator. With hv0.l = hv0.lq =
+* sigma*Ls (leakage), it turns curpid's PMSM decoupling
 * psi_d = l * id + psi into the induction motor's stator flux, so the F3 needs
 * no ACIM code.
 *
@@ -63,7 +63,7 @@
 * Q does not depend on r, so neither does the estimate. A positive residual
 * (times sign(w)) means tr_est is too high; the plant gain is a few thousand VA per second of
 * tr, so tr_ki 0.0001 settles in a few seconds. It adapts only while
-* |iq| > `tr_iq_min` and |w| > `tr_vel_min` (slip must be large enough to
+* abs(iq) > `tr_iq_min` and abs(w) > `tr_vel_min` (slip must be large enough to
 * see) and, with `tr_flux_min` > 0, |i_mr| >= tr_flux_min * i_n (in deep
 * field weakening the residual is dominated by model errors, not tr; 0.95
 * keeps it to the base speed range), holds otherwise, and
@@ -86,9 +86,9 @@
 * In steady state the q voltage is uq = r iq + w (l id + lmr i_mr). With
 * `lmr_ki` > 0 the relative residual of that, (uq - r iq - w (l id + lmr
 * i_mr)) / (w lmr i_mr), trims lmr at lmr_ki [1/s], while |w| > tr_vel_min,
-* |i_mr| > 20 % of i_n (or 1 A) and the flux is settled (|id - i_mr| < 5 %
-* of i_mr). It needs `r` (conf0.r) and stays within 0.7 to 1.4 times `lmr`.
-* `lmr_est` is the trimmed rated value; saturation still applies on top.
+* abs(i_mr) > 20 % of i_n (or 1 A) and the flux is settled (abs(id - i_mr) < 5 %
+* of i_mr). It stays within 0.7 to 1.4 times `lmr`.
+* Saturation still applies on top.
 */
 
 HAL_COMP(acim_flux);
@@ -109,8 +109,8 @@ HAL_PIN(slip);       // *output*, slip [rad/s electrical]
 HAL_PIN(torque);     // *output*, estimated torque [Nm]
 
 HAL_PIN(tr_ki);      // *parameter*, tr adaptation gain [1/(VA s)], 0 = off
-HAL_PIN(tr_iq_min);  // *parameter*, adapt only above this |iq| [A]
-HAL_PIN(tr_vel_min); // *parameter*, adapt only above this |vel| [rad/s electrical]
+HAL_PIN(tr_iq_min);  // *parameter*, adapt only above this abs(iq) [A]
+HAL_PIN(tr_vel_min); // *parameter*, adapt only above this abs(vel) [rad/s electrical]
 HAL_PIN(l);          // *parameter*, leakage sigma*Ls [H], conf0.l
 HAL_PIN(r_w);        // *parameter*, speed dependent d loss [ohm per rad/s electrical], as obs0.r_w
 HAL_PIN(ud);         // *input*, hv0.ud_fb
@@ -124,7 +124,7 @@ HAL_PIN(tr_act);     // *output*, the tr the model runs on
 HAL_PIN(lmr_act);    // *output*, the lmr the model runs on, to acim_foc0.lmr
 HAL_PIN(q_res);      // *output*, reactive power residual Q - Q_m [VA]
 HAL_PIN(i_knee);     // *parameter*, tr and lmr flat below this i_mr [A], 0 = no knee
-HAL_PIN(tr_flux_min); // *parameter*, adapt only while |i_mr| >= this fraction of i_n, 0 = no limit
+HAL_PIN(tr_flux_min); // *parameter*, adapt only while abs(i_mr) >= this fraction of i_n, 0 = no limit
 HAL_PIN(tr_acc_max); // *parameter*, adapt only below this fraction of max_acc, 0 = no limit
 HAL_PIN(max_acc);    // *parameter*, conf0.max_acc [rad/s^2 mech]
 HAL_PIN(acc);        // *output*, synchronous acceleration, 5 Hz low pass [rad/s^2 mech]

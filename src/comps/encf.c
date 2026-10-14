@@ -9,30 +9,66 @@
 #include "hw/hw.h"
 #include <string.h>
 
+/**
+* ## Brief
+* `encf` reads Fanuc serial absolute encoders (tested with the Aa64 type, A860-360) on the FB0 connector of the F4 board. It is loaded by `conf/template/fanuc_fb0.txt` (used e.g. by `conf/fanuc_a6-2000.txt`), which links `encf0.pos`/`abs_pos`/`state` to `fb_switch0.mot_*` and `encf0.com_pos` to `fb_switch0.com_pos`/`com_abs_pos`, and sets `encf0.hold = fault0.en_out`.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (nrt_init)**:
+* - The request pulse is generated with SPI3 (MOSI on PC12, prescaler 32, 16 bit word): every rt cycle the word `req_len` is written to SPI3, which gives a request pulse of about 8.4 us. The FB0 line driver enable PD15 is switched on.
+* - The encoder answer is received on FB0 A (PD12): TIM4 channel 1 captures every edge (both polarities) and DMA1 stream 0 (channel 2) stores up to 160 capture times.
+*
+* 2. **Bit decoding (rt)**:
+* - TIM4 counts at 84 MHz, so the default `freq` of 1.024 MHz gives 82.03 ticks per bit. A bench sweep decoded CRC-clean frames for `freq` from about 986k to 1060k, so the default sits in the middle.
+* - The time between two edges is multiplied by `1 / bit_ticks` and rounded to get the number of equal bits; every even-numbered interval is written as 1s. The frame is built in three 32 bit words and the write is bounded to the 80 bit frame buffer, so a noisy frame with too many bits is cut off instead of overrunning memory. Bits after the last edge up to bit 76 are set to 1 (idle line).
+* - If fewer than 51 bits were decoded: `error = 1`, `state = 1` and the position pins keep their last value.
+*
+* 3. **Frame content and CRC (rt)**:
+* - A 5 bit CRC (ITU CRC-5, from the Mesa `fabsread` notes) over bits 76..1, MSB first and computed four bits at a time with a nibble table, must be 0. On success `crc_ok` is incremented, otherwise `crc_er` is incremented and `error = 1`, `state = 1` (the position pins keep their last value).
+* - Fields: battery fail bit -> `batt`, un-indexed bit -> `index` (1 = not yet indexed), 22 bit single-turn position (6 low bits + 16 high bits), 16 bit turn counter (used for `turns`, see 4), 10 bit commutation track -> `com_pos`.
+* - `abs_pos = pos22 * 2 * pi / 2^22` and `com_pos = com * 2 * pi / 1024` (rad), wrapped to [-pi, pi) by sign-extending the integer count (same result as `mod()` without the `fmodf`). According to the Mesa notes the commutation track has four 0..1023 cycles per turn and is always absolute.
+*
+* 4. **Position, turns and state (rt, on every valid frame)**:
+* - `pos` is the 22 bit count shifted by `pos_offset * 64` and wrapped as a 22 bit count to [-pi, pi). The offset applies in every state; `pos_offset` = 0 gives `pos = abs_pos`.
+* - The encoder steps its own turn count where its unsigned count wraps (`abs_pos` = 0), half a turn away from the +-pi wrap. `encf` keeps a turn count referenced to the +-pi wrap of `abs_pos` (the encoder's count, + 1 on the negative half) and takes it from the encoder only while `abs_pos` is more than a quarter turn from 0, so a few counts of mismatch at the encoder's own step cannot glitch it. `turns` is then shifted so that it steps exactly where `pos` wraps and equals the encoder's count at `pos = pos_offset`. `pos_offset` = 32768 puts the wrap of `pos` at the encoder's own step.
+* - The count is taken from the encoder at once, whatever the position, after more than 10 frames without a valid frame (and at start), for 3 frames after the un-indexed bit changes, and on a jump of `pos` of more than 1/32 turn between two frames. This follows the encoder when it re-references its position and turns at the first index after a battery loss (it clears the un-indexed bit one frame before the count jumps).
+* - `hold` > 0 (the template links `fault0.en_out`, so while the drive is enabled): a re-reference at the index would step `pos` and `turns` by up to a turn, and the position loop would pull the motor back by that much. Instead, a step that motion does not explain (more than 1/32 turn per frame, or during the re-take frames a change of more than 2^12 counts, 1/1024 turn, from the previous frame's motion) is added to an offset, output on `hold_off` in turns, which is added to `pos` and `turns` so they stay continuous. The offset is dropped when `hold` goes to 0, so the new reference shows while the drive is disabled. `abs_pos` and `com_pos` are never offset and stay true for commutation.
+* - `state = 1` while the encoder reports un-indexed, during those 3 re-take frames and for the frame in which a held offset is dropped (so `linrev` re-takes its turns), else 3. An encoder that is indexed at power up reads 3 from the first frame; after the first index crossing `state` reads 3 from the frame after the re-reference, so `fb_switch` does not switch commutation to `abs_pos` from the old count.
+* - Until then `fb_switch` commutates from the commutation track (`com_pos` + `conf0.com_fb_offset`, measured by `id_pmsm`), see `fanuc_fb0.txt`. For a multiturn position link `linrev0.abs_rev = encf0.turns`, `linrev0.abs_pos = encf0.pos`, `linrev0.abs_state = encf0.state`.
+*
+* 5. **Debug output (nrt)**:
+* - The raw 76 bit frame is printed as a string of 0/1.
+*
+* {{% hint warning %}}
+* The turn and re-take state is kept in file-static variables, so only one `encf` instance works. The TX enable (PD15), SPI3 and TIM4 pins are hard coded for the V4 board. The frame layout was only verified for Aa64 encoders; for Aa1000 (A860-370) the extra low resolution bits are not used.
+* {{% /hint %}}
+*/
+
 HAL_COMP(encf);
 
-HAL_PIN(error);
-HAL_PIN(dma);  //dma transfers
+HAL_PIN(error);       // *output*, 1 = no valid frame (too short or CRC error)
+HAL_PIN(dma);         // *output*, Number of captured edges in the last frame
 
-HAL_PIN(pos);
-HAL_PIN(abs_pos);
-HAL_PIN(state);
-HAL_PIN(turns);
-HAL_PIN(com_pos);
-HAL_PIN(index);
-HAL_PIN(batt);
-HAL_PIN(req_len);
+HAL_PIN(pos);         // *output*, Single-turn position shifted by pos_offset (rad, +-pi)
+HAL_PIN(abs_pos);     // *output*, Raw single-turn position from the encoder (rad, +-pi)
+HAL_PIN(state);       // *output*, 1 = not indexed, re-referencing or error, 3 = indexed and valid
+HAL_PIN(turns);       // *output*, Multiturn counter, steps where pos wraps (signed, -32768..32767)
+HAL_PIN(com_pos);     // *output*, Commutation track position (rad, +-pi per 1024 counts)
+HAL_PIN(index);       // *output*, Un-indexed bit, 1 = encoder not yet indexed
+HAL_PIN(batt);        // *output*, Battery fail bit
+HAL_PIN(req_len);     // *parameter*, 16 bit SPI word used as request pulse (default 2046)
 
-HAL_PIN(pos_offset);
-HAL_PIN(hold);      // link fault0.en_out: an index re-reference while 1 is held as an offset on pos/turns
-HAL_PIN(hold_off);  // held offset in turns, 0 when none
+HAL_PIN(pos_offset);  // *parameter*, Offset of pos and of the turns step, 1/65536 turn (default 0)
+HAL_PIN(hold);        // *input*, Template: fault0.en_out. While > 0, an index re-reference is held as an offset on pos/turns
+HAL_PIN(hold_off);    // *output*, Held re-reference offset (turns), 0 when none
 
-HAL_PIN(send_step);
-HAL_PIN(crc_ok);
-HAL_PIN(crc_er);
+HAL_PIN(send_step);   // *parameter*, Print the raw frame every send_step nrt calls (off below 50)
+HAL_PIN(crc_ok);      // *output*, Counter of frames with correct CRC
+HAL_PIN(crc_er);      // *output*, Counter of frames with CRC error
 
-HAL_PIN(freq);
-HAL_PIN(bit_ticks);
+HAL_PIN(freq);        // *parameter*, Encoder bit rate (Hz, default 1024000)
+HAL_PIN(bit_ticks);   // *output*, Timer ticks per bit (84e6 / freq)
 
 static volatile uint32_t sendf;
 static uint32_t send_counterf;

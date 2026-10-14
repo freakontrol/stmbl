@@ -5,12 +5,21 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `move` turns two direction bits into a signed value: `out = scale * (fwd - rev)`. F4 component, used in `conf/dual_dc_sserial.txt` to drive a DC motor from smart serial outputs (`move0.fwd = sserial0.out0`, `move0.rev = sserial0.out1`, `hv0.d_cmd = move0.out`).
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* - With both bits set the output is 0.
+*/
+
 HAL_COMP(move);
 
-HAL_PIN(fwd);
-HAL_PIN(rev);
-HAL_PIN(scale);
-HAL_PIN(out);
+HAL_PIN(fwd);    // *input*, Forward, typically 0 or 1
+HAL_PIN(rev);    // *input*, Reverse, typically 0 or 1
+HAL_PIN(scale);  // *input*, Output magnitude
+HAL_PIN(out);    // *output*, scale * (fwd - rev)
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct move_pin_ctx_t *pins = (struct move_pin_ctx_t *)pin_ptr;

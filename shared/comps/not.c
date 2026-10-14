@@ -1,10 +1,15 @@
 #include "not_comp.h"
 #include "hal.h"
 
+/**
+* ## Brief
+* `not` is a logic inverter. F4 component, e.g. used to invert an enable input (`not0.in = io0.C12`, `fault0.en = not0.out`).
+*/
+
 HAL_COMP(not);
 
-HAL_PIN(in);
-HAL_PIN(out);
+HAL_PIN(in);   // *input*, Logic input, true if > 0
+HAL_PIN(out);  // *output*, 1 if in <= 0, else 0
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct not_pin_ctx_t *pins = (struct not_pin_ctx_t *)pin_ptr;

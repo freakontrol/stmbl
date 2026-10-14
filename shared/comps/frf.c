@@ -5,91 +5,94 @@
 #include "defines.h"
 #include "angle.h"
 
-// Frequency response of the mechanics, measured with the loop running.
-// Stepped sine: a torque sine of amp Nm is added to the torque command at
-// points log-spaced frequencies from f_start to f_end. At each one it waits
-// settle cycles, then correlates over cycles whole periods:
-//   u   = out (torque command into the current loop, injection included)
-//   c   = in  (the controller's torque, pid0.torque_cmd)
-//   vel = (pos - last pos) / period, raw motor-side velocity (an observer
-//         such as vel1 would mix its own model into the result); the
-//         half-sample delay of the difference is taken out
-// plant      G = vel / u            (rad/s per Nm)
-// open loop  L = -c / u at the injection frequency (loop gain seen at the
-//              torque command: crossover and phase margin)
-// gj = |G| * w is 1 / inertia: the total inertia below the coupling ring,
-// the motor inertia above it, a dip at the anti-resonance and a peak at the
-// resonance. Results print in the terminal as they come in.
-//
-// Creep: friction sticks the motor at standstill and the low frequencies
-// then read wrong, so the axis has to move. With creep_vel > 0 frf drives
-// it itself (pos_cmd, vel_cmd, acc_cmd into pid0's ext commands, as ids
-// does): back and forth at creep_vel between start + min_pos and start +
-// max_pos, measuring only while it cruises (a point restarts after each
-// reversal), and back to the start at the end. creep_vel 0 leaves the
-// motion to someone else (a LinuxCNC jog).
-//
-// Two-mass fit: after the sweep the complex inertia J(jw) = 1 / (jw G) of
-// the points up to fit_max is fitted with
-//   J = j_mot + j_load * (2 z wa s + wa^2) / (s^2 + 2 z wa s + wa^2) + b / s
-// (motor and load inertia, anti-resonance wa, its damping z, viscous b),
-// after taking out a pure delay (current loop and feedback). The model is
-// linear in j_mot, j_load and b, so each (wa, z, delay) on a grid is one
-// small least squares; the best one wins. The fit replaces picking the
-// extremes of gj, which a second mode or noise moves. f_anti is the corner
-// for pid0.j_lpf (it is what ids' ring down measured).
-//
-// Wiring (between pid0 and the torque controller, after biquad0 if loaded),
-// conf/template/id_frf.txt:
-//   frf0.in = pid0.torque_cmd
-//   pmsm_ttc0.torque = frf0.out
-//   frf0.pos = fb_switch0.vel_fb
-//   vel1.torque = frf0.out (and vel2.torque: the observers must see the injection)
-//   frf0.rt_prio = 8.6
-// start: frf0.amp = 1 (Nm), frf0.start = 1; frf0.start = 0 aborts (with creep it first drives
-// back to the start), or resets state after a sweep. Losing the enable stops it where it is (state 3).
+/**
+* ## Brief
+* `frf` measures the frequency response of the mechanics with the position loop running (stepped sine) and fits a two-mass model to it, mainly to find the coupling anti-resonance for `conf0.j_lpf`. It is loaded by `conf/template/id_frf.txt`, which replaces `id_lpf`'s ring down and is run before `id_pid` (`j_lpf` changes the plant the gains are tuned against). It sits between `pid0` and the torque controller (after `biquad0` if that is loaded):
+* - `frf0.in = pid0.torque_cmd`, `pmsm_ttc0.torque = frf0.out`
+* - `frf0.pos = fb_switch0.vel_fb`
+* - `vel1.torque = frf0.out` and `vel2.torque = frf0.out`: the observers must see the injection
+* - `frf0.rt_prio = 8.6`
+* - creep: `frf0.en = fault0.en_out`, `frf0.pos_fb = fb_switch0.pos_fb`, `pid0.pos_ext_cmd = frf0.pos_cmd`, `pid0.vel_ext_cmd = frf0.vel_cmd`, `pid0.acc_ext_cmd = frf0.acc_cmd`
+* - `frf0.amp = 1`, `frf0.creep_vel = 3`, `frf0.creep_acc = 20`, `frf0.min_pos = -10`, `frf0.max_pos = 10`, `conf0.max_pos_error = 0`; `term0` shows `frf0.freq` and `frf0.inj`.
+*
+* Start with `frf0.start = 1`. `frf0.start = 0` aborts a running sweep (with creep it first drives back to the start position), or clears the state after a sweep; the result pins keep the last sweep. The table, the fit and a `conf0.j_lpf` line print in the terminal.
+*
+* ## Component Explanation
+* The sweep and the creep run in `rt`, printing and the fit in `nrt`.
+*
+* 1. **Stepped sine**:
+* - A torque sine of `amp` is added to the torque command, `out = in + inj`, at `points` log-spaced frequencies from `f_start` to `f_end`.
+* - At each frequency it waits `settle` cycles, then correlates over whole periods (`cycles`), so the correlation rejects DC and the other harmonics. The signals are `u = out` (torque into the current loop, injection included), `c = in` (the controller's torque) and `vel = minus(pos, last pos) / period`.
+* - `vel` is the raw motor-side velocity: an observer such as `vel1` would mix its own model into the result. The half sample delay of the difference is taken out of the phase.
+* - Plant `G = vel / u` (rad/s per Nm). Open loop `L = -c / u` at the injection frequency: the loop gain seen at the torque command.
+* - `gj = abs(G) * w` is 1 / inertia: the total inertia below the coupling ring, the motor inertia above it, a dip at the anti-resonance and a peak at the resonance.
+* - Each point prints as it comes in: `f`, `abs(G)`, G phase, `gj`, `abs(L)`, L phase.
+*
+* 2. **Creep**:
+* - Friction sticks the motor at standstill and the low frequencies then read wrong, so the axis has to move. With `creep_vel > 0` `frf` drives it itself through `pid0`'s ext commands (as `ids` does): trapezoid moves back and forth at `creep_vel` and `creep_acc` between start + `min_pos` and start + `max_pos`.
+* - It measures only while it cruises; after each reversal the current point starts over. When the sweep is done it drives back to the start, then `state` goes to 2.
+* - While `en <= 0` the profile follows `pos_fb`, so enabling never jumps. Losing `en` during a sweep stops it and its injection where it is (`state` 3), with or without creep.
+* - The lowest point has to fit in one cruise: `(max_pos - min_pos) / creep_vel - creep_vel / creep_acc` must exceed its settle plus measure time (the template: about 3 s at `f_start` 5 Hz). Otherwise, or with `max_pos <= 0`, `min_pos >= 0` or the drive disabled at the start, it stops at once (`state` 3).
+* - `creep_vel` 3 rad/s keeps the load sliding through the sine near the anti-resonance, where it swings most (1 rad/s read the mode 10 % low in the simulation).
+* - `creep_vel` 0 leaves the motion to someone else (a LinuxCNC jog) and measures all the time.
+*
+* 3. **Crossover**: after the sweep `f_cross` is the last point where `abs(L)` falls below 1, interpolated in log (`abs(L)` can dip under 1 around the anti-resonance and come back), and `pm = 180 + L phase` there. If `abs(L)` is still above 1 at the end of the band there is none (0).
+*
+* 4. **Two-mass fit**:
+* - The complex inertia `J(jw) = 1 / (jw G)` of the points up to `fit_max` is fitted with `J = j_mot + j_load * (2 z wa s + wa^2) / (s^2 + 2 z wa s + wa^2) + b / s` (motor and load inertia, anti-resonance `wa`, its damping `z`, viscous `b`), after taking out a pure delay (current loop and feedback).
+* - The model is linear in `j_mot`, `j_load` and `b`, so each (`wa`, `z`, delay) on a grid is one small weighted least squares (weight `1 / abs(J)`, so every point counts in proportion); the best one with positive inertias wins. Grid: 160 anti-resonances log-spaced from 0.7 times the lowest fitted frequency to the highest, 16 dampings from 0.02 to 0.8, 8 delays from 0 to 1.5 ms. One grid row runs per `nrt` pass, so `nrt` stays responsive.
+* - It needs at least 6 points. The fit replaces picking the extremes of `gj`, which a second mode or noise moves. `f_anti` is the corner for `pid0.j_lpf` (what `ids`' ring down measured).
+* - Verdict printed: no coupling resonance in the band (`f_anti` above 95 % of the band or `j_load < 0.1 j_mot`) gives `conf0.j_lpf = 0`; `f_anti` at the low end asks for a lower `f_start`; `fit_err > 0.15` is a poor fit (more than one mode or noise); otherwise it prints `conf0.j_lpf = f_anti`.
+*
+* 5. **Results** (commit message, Y axis bench): crossover 45 Hz, phase margin 47 deg, anti-resonance about 14 Hz, peak 26 Hz.
+*
+* {{% hint warning %}}
+* - `amp` defaults to 0 (no injection): set it (the template uses 1 Nm).
+* - Only one `frf` per drive: the fit arrays are shared (file statics), so a second instance stops at once (`state` 3) and prints that only the first frf instance can run.
+* {{% /hint %}}
+*/
 
 #define FRF_N 48
 
 HAL_COMP(frf);
 
-HAL_PIN(in);
-HAL_PIN(out);
-HAL_PIN(pos);  // motor-side position (rad)
-HAL_PIN(inj);
-HAL_PIN(start);
-HAL_PIN(amp);  // (Nm)
-HAL_PIN(f_start);
-HAL_PIN(f_end);
-HAL_PIN(points);
-HAL_PIN(settle);  // cycles before measuring (at least 0.05 s)
-HAL_PIN(cycles);  // cycles measured (at least 0.1 s)
-HAL_PIN(freq);    // current frequency (Hz), 0 when idle
-HAL_PIN(state);   // 0 idle, 1 running, 2 done, 3 stopped (en lost or stroke too short): start = 0 clears it
+HAL_PIN(in);       // *input*, Controller torque command (Nm), pid0.torque_cmd
+HAL_PIN(out);      // *output*, Torque command with the injection (Nm), to the torque controller
+HAL_PIN(pos);      // *input*, Motor-side position for the velocity (rad), fb_switch0.vel_fb
+HAL_PIN(inj);      // *output*, Injected torque sine (Nm)
+HAL_PIN(start);    // *input*, 1 = start the sweep, 0 = abort or clear
+HAL_PIN(amp);      // *parameter*, Injection amplitude (Nm, default 0)
+HAL_PIN(f_start);  // *parameter*, First frequency (Hz, default 5, min 0.5)
+HAL_PIN(f_end);    // *parameter*, Last frequency (Hz, default 60)
+HAL_PIN(points);   // *parameter*, Number of log-spaced frequencies (default 40, 1 to 48)
+HAL_PIN(settle);   // *parameter*, Cycles before measuring (default 5, at least 0.05 s)
+HAL_PIN(cycles);   // *parameter*, Cycles measured, whole periods (default 10, at least 0.1 s)
+HAL_PIN(freq);     // *output*, Current frequency (Hz), 0 when idle
+HAL_PIN(state);    // *output*, 0 idle, 1 running, 2 done, 3 stopped (en lost, stroke too short or not the first frf), start = 0 clears it
 
 // creep
-HAL_PIN(en);         // fault0.en_out: the profile follows pos_fb while disabled
-HAL_PIN(pos_fb);     // fb_switch0.pos_fb
-HAL_PIN(pos_cmd);    // -> pid0.pos_ext_cmd
-HAL_PIN(vel_cmd);    // -> pid0.vel_ext_cmd
-HAL_PIN(acc_cmd);    // -> pid0.acc_ext_cmd
-HAL_PIN(creep_vel);  // (rad/s), 0 = no motion of its own
-HAL_PIN(creep_acc);  // (rad/s^2)
-HAL_PIN(min_pos);    // stroke about the start position (rad)
-HAL_PIN(max_pos);
+HAL_PIN(en);         // *input*, Drive enable, fault0.en_out: the profile follows pos_fb while disabled (default 1 when unlinked)
+HAL_PIN(pos_fb);     // *input*, Position feedback (rad), fb_switch0.pos_fb
+HAL_PIN(pos_cmd);    // *output*, Creep position command (rad), to pid0.pos_ext_cmd
+HAL_PIN(vel_cmd);    // *output*, Creep velocity command (rad/s), to pid0.vel_ext_cmd
+HAL_PIN(acc_cmd);    // *output*, Creep acceleration command (rad/s^2), to pid0.acc_ext_cmd
+HAL_PIN(creep_vel);  // *parameter*, Creep velocity (rad/s, default 0 = no motion of its own)
+HAL_PIN(creep_acc);  // *parameter*, Creep acceleration (rad/s^2, default 20, min 0.1)
+HAL_PIN(min_pos);    // *parameter*, Lower end of the stroke about the start position (rad, default -10, must be below 0)
+HAL_PIN(max_pos);    // *parameter*, Upper end of the stroke about the start position (rad, default 10, must be above 0)
 
 // results
-HAL_PIN(fit_max);  // fit the points up to this (Hz), 0 = all
-HAL_PIN(f_anti);   // fitted anti-resonance (Hz): the pid0.j_lpf corner
-HAL_PIN(f_res);    // fitted resonance f_anti * sqrt(1 + j_load / j_mot) (Hz)
-HAL_PIN(zeta);     // damping of the anti-resonance
-HAL_PIN(j_mot);    // fitted inertia above the ring (kgm^2)
-HAL_PIN(j_load);   // fitted inertia behind the coupling (kgm^2)
-HAL_PIN(b);        // fitted viscous friction (Nm s/rad)
-HAL_PIN(delay);    // fitted delay (s)
-HAL_PIN(fit_err);  // rms fit error, fraction of |J|
-HAL_PIN(f_cross);  // |L| = 1 (Hz)
-HAL_PIN(pm);       // phase margin at f_cross (deg)
+HAL_PIN(fit_max);  // *parameter*, Fit the points up to this frequency (Hz, default 0 = all)
+HAL_PIN(f_anti);   // *output*, Fitted anti-resonance (Hz), the pid0.j_lpf corner
+HAL_PIN(f_res);    // *output*, Fitted resonance f_anti * sqrt(1 + j_load / j_mot) (Hz)
+HAL_PIN(zeta);     // *output*, Fitted damping of the anti-resonance
+HAL_PIN(j_mot);    // *output*, Fitted inertia above the ring (kgm^2)
+HAL_PIN(j_load);   // *output*, Fitted inertia behind the coupling (kgm^2)
+HAL_PIN(b);        // *output*, Fitted viscous friction (Nm s/rad)
+HAL_PIN(delay);    // *output*, Fitted delay (s)
+HAL_PIN(fit_err);  // *output*, RMS fit error, fraction of abs(J)
+HAL_PIN(f_cross);  // *output*, Crossover frequency where abs(L) = 1 (Hz), 0 = none in the band
+HAL_PIN(pm);       // *output*, Phase margin at f_cross (deg)
 
 #define FIT_FA 160  // anti-resonance grid, log-spaced over the fitted band
 #define FIT_Z 16

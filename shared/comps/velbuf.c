@@ -5,17 +5,31 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `velbuf` computes a velocity from a position signal by taking the difference over an adaptive time window from a ring buffer. This gives usable velocities from coarse or slowly changing positions. F4 component, see `conf/template/velbuf.txt` (velocity of the position command `rev0.out`, used as `pid0.vel_ext_cmd`). It needs both an `rt_prio` and an `frt_prio`: the frt part fills the buffer, without an `frt_prio` it never runs.
+*
+* ## Component Explanation
+* 1. **Sampling (frt)**:
+* - Every `frt` period `pos` is written into a ring buffer of 20 samples.
+*
+* 2. **Velocity (rt)**:
+* - Starting from the oldest sample, the component searches for the newest sample that still differs from the latest position by more than `min_pos_diff`. The window is therefore as short as possible, but long enough to see at least `min_pos_diff` of movement, and at most 19 frt periods (the oldest and newest of the 20 samples).
+* - `diff_pos = minus(pos_newest, pos_old)`, `diff_time` = window length (s), `vel = diff_pos / diff_time`, or 0 while `diff_time` is 0 (until the frt part has run).
+* - `vel_lp` is `vel` low pass filtered at `lpf` Hz (rt period).
+*/
+
 HAL_COMP(velbuf);
 
-HAL_PIN(pos);
-HAL_PIN(vel);
-HAL_PIN(vel_lp);
-HAL_PIN(min_pos_diff);
+HAL_PIN(pos);           // *input*, Position (rad)
+HAL_PIN(vel);           // *output*, Velocity (rad/s)
+HAL_PIN(vel_lp);        // *output*, Low pass filtered velocity (rad/s)
+HAL_PIN(min_pos_diff);  // *parameter*, Minimum position change for the window (rad), default 0.01
 
-HAL_PIN(lpf)
+HAL_PIN(lpf)  // *parameter*, Cutoff of the vel_lp filter (Hz), default 1000
 
-HAL_PIN(diff_time);
-HAL_PIN(diff_pos);
+HAL_PIN(diff_time);  // *output*, Length of the used window (s)
+HAL_PIN(diff_pos);   // *output*, Position change over the window (rad)
 
 #define velbuf_size 20
 

@@ -10,18 +10,52 @@
 #include "dma_util.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* The `smart_torque` component receives an enable word and a torque limit from an external controller over a UART link and sends one float value back. It was adapted from the spietari/stmbl fork. `conf/festo.txt` uses it: `fault0.en = smart_torque0.enable`, `pid0.max_torque = smart_torque0.torque_pos`, `pid0.min_torque = smart_torque0.torque_neg` and `smart_torque0.out0 = enc_fb0.pos`, so the external controller sets a symmetric torque limit and reads back the position.
+*
+* {{% hint danger %}}
+* Experimental and F4-only. It uses the same hardware as `sserial` and `siserial` (UART4 TX on PA0, USART1 RX on PA10, TX enable PB7 driven high, `DMA1_Stream4` TX, `DMA2_Stream5` RX), so only one of them can be loaded. The link runs at 115200 baud, 8N1.
+* {{% /hint %}}
+*
+* ## Component Explanation
+*
+* 1. **Sending** (`frt`):
+* - Every 1000 frt cycles (50 ms at 20 kHz) the component checks whether `out0` changed by more than 0.01 since the last frame. If so it sends a 10 byte frame:
+* ```c
+* 0xCA 0xFE out0[4] crc32[4]
+* ```
+* - `out0` is sent as raw little-endian IEEE-754 bytes; the CRC-32 (polynomial 0xEDB88320) covers the 4 float bytes.
+*
+* 2. **Receiving** (`frt`):
+* - The RX DMA writes into a 128 byte ring buffer. Each frt cycle, 34 bytes starting at the previous read position are copied out and the read position is moved to the current DMA position (also written to `rxpos`). The copied bytes are accepted as a frame if they look like:
+* ```c
+* 0xCA 0xFE payload[28] crc32[4]
+* ```
+* - The CRC-32 covers the 28 payload bytes. Only two payload fields are used: bytes 0..3 are the enable word, bytes 8..11 the torque as float.
+* - On a valid frame: `enable = 1` when the enable word equals `0xACDC6660`, else 0; `torque_pos = torque`, `torque_neg = -torque`.
+*
+* 3. **Defaults** (`nrt_init`):
+* - All pins are 0 except `debug0 = 123`, `debug1 = 124`.
+*
+* {{% hint warning %}}
+* The parser neither searches for the 0xCA 0xFE header nor waits until a whole frame has arrived: it checks the 34 bytes at the old read position, which are usually only partly received. A frame is accepted only when those bytes happen to hold a complete frame (possibly an older one still in the ring buffer), so updates can be delayed or skipped.
+* There is no timeout: if frames stop arriving, `enable` and the torque limits keep their last values, so a lost link leaves the drive enabled.
+* {{% /hint %}}
+*/
+
 HAL_COMP(smart_torque);
 
-HAL_PIN(error);
-HAL_PIN(crc_error);
-HAL_PIN(enable);
-HAL_PIN(out0);
-HAL_PIN(out1);
-HAL_PIN(torque_neg);
-HAL_PIN(torque_pos);
-HAL_PIN(rxpos);
-HAL_PIN(debug0);
-HAL_PIN(debug1);
+HAL_PIN(error);      // Unused, always 0
+HAL_PIN(crc_error);  // Unused, always 0
+HAL_PIN(enable);     // *output*, 1 when the last valid frame carried the enable word 0xACDC6660
+HAL_PIN(out0);       // *input*, Float sent to the external controller (e.g. position, rad)
+HAL_PIN(out1);       // Unused, not sent
+HAL_PIN(torque_neg); // *output*, Negative of the received torque (Nm), for pid0.min_torque
+HAL_PIN(torque_pos); // *output*, Received torque (Nm), for pid0.max_torque
+HAL_PIN(rxpos);      // *output*, Current read position in the 128 byte RX ring buffer
+HAL_PIN(debug0);     // Unused, set to 123 at init
+HAL_PIN(debug1);     // Unused, set to 124 at init
 
 struct smart_torque_ctx_t {
   float last_out0;

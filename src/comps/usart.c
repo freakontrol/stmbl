@@ -8,16 +8,42 @@
 #include "dma_util.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `usart` is an experimental test component for half-duplex serial absolute encoders on the fb0 connector of the F4 logic board: every rt period it sends a request byte and receives the answer by DMA, extracts a position from the answer and can print the raw bytes. No template loads it.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (hw_init)**:
+* - USART6 in half-duplex mode on PC6 (the fb0 UART TX line), PD15 switches the fb0 RS485 transmitter (FB0_Z_TXEN), DMA2 stream 1 receives up to 16 bytes.
+*
+* 2. **Request (rt)**:
+* - Each rt period the USART is re-initialised with baud rate `freq`, the transmitter is enabled, the byte `req` is sent, `rt` busy-waits until it is out, the transmitter is disabled and the RX DMA restarted. The answer is evaluated in the next rt period.
+*
+* 3. **Position (rt)**:
+* - Received bytes starting at byte `pos_offset` are copied into a 64 bit little endian integer, masked and scaled to `pos`:
+* ```c
+* pos = raw * 2 * pi / 2^pos_len - pi;
+* ```
+*
+* 4. **Debug print (rt/nrt)**:
+* - Setting `print` > 0 captures the 16 receive bytes (and clears the buffer) and makes `nrt` print the request byte, the DMA count and all bytes in binary, LSB first. The next capture is possible once the print is done.
+*
+* {{% hint danger %}}
+* Experimental and broken as it is: `pos_len` is used as a byte count for the copy loop but as a bit count for the mask. With the default the loop writes 20 bytes into an 8 byte variable and reads past the 16 byte receive buffer (stack corruption), and the mask `(2 << pos_len) - 1` keeps one bit more than `pos_len`. It only runs without memory corruption for `pos_len` <= 8, and then the position has at most 9 bits.
+* {{% /hint %}}
+*/
+
 HAL_COMP(usart);
 
-HAL_PIN(req);
-HAL_PIN(print);
-HAL_PIN(freq);
-HAL_PIN(dma);  //dma transfers left
+HAL_PIN(req);        // *parameter*, request byte sent every rt period, default 0x2A
+HAL_PIN(print);      // *input/output*, set > 0 to print one received packet, reset to 0 by the component
+HAL_PIN(freq);       // *parameter*, baud rate, default 2500000
+HAL_PIN(dma);        // *output*, dma transfers left (bytes not received of 16)
 
-HAL_PIN(pos_offset);
-HAL_PIN(pos_len);
-HAL_PIN(pos);
+HAL_PIN(pos_offset); // *parameter*, index of the first position byte in the answer, default 2
+HAL_PIN(pos_len);    // *parameter*, position length, default 20, see warning
+HAL_PIN(pos);        // *output*, position (rad), -pi..pi
 
 struct usart_ctx_t {
   uint8_t rxbuf[16];

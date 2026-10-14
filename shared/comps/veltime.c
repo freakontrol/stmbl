@@ -5,16 +5,29 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `veltime` measures velocity by timing how long it takes until a position changes (period measurement instead of frequency measurement). Useful for low resolution or slowly updating positions. F4 component, runs in `frt`. Used in `conf/template/mpid.txt`: `veltime0.pos = rev0.out`, `mpid0.vel_ext_cmd = veltime0.vel_lp`.
+*
+* ## Component Explanation
+* 1. **Measurement**:
+* - `timer` is incremented every frt period. When `pos` differs from `old_pos`, `vel = minus(pos, old_pos) / timer`, `old_pos` is updated and `timer` is reset.
+* - The velocity is held until the next change.
+*
+* 2. **Standstill**:
+* - If no change happens within `max_time`, `vel` is set to 0 and `timer` is clamped to `max_time`. The lowest measurable velocity is therefore about one position step per `max_time`.
+*/
+
 HAL_COMP(veltime);
 
-HAL_PIN(pos);
-HAL_PIN(old_pos);
-HAL_PIN(timer);
-HAL_PIN(vel);
-HAL_PIN(vel_lp);
+HAL_PIN(pos);      // *input*, Position (rad)
+HAL_PIN(old_pos);  // *output*, Position at the last change (internal state, rad)
+HAL_PIN(timer);    // *output*, Time since the last position change (internal state, s)
+HAL_PIN(vel);      // *output*, Velocity (rad/s)
+HAL_PIN(vel_lp);   // *output*, Low pass filtered velocity (rad/s)
 
-HAL_PIN(max_time);
-HAL_PIN(lpf)
+HAL_PIN(max_time);  // *parameter*, Time without change after which vel is 0 (s), default 0.1
+HAL_PIN(lpf)        // *parameter*, Cutoff of the vel_lp filter (Hz), default 100
 
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {

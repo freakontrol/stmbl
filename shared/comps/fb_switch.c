@@ -5,58 +5,96 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `fb_switch` combines up to three feedback sources (motor, commutation and joint feedback) into the position feedback for the position loop, the position used for velocity estimation and the commutation angle for the current loop. If no absolute source is available it performs autophasing. F4 component, loaded by the `pid`/`mpid` templates; e.g. `fb_switch0.mot_pos = enc_fb0.ipos`, `fb_switch0.com_state = uvw0.state`, `pid0.pos_fb = fb_switch0.pos_fb`, `vel1.pos_in = fb_switch0.vel_fb`, `fault0.fb_ready = fb_switch0.state`, `hv0.d_cmd = fb_switch0.id`.
+*
+* ## Component Explanation
+* All work is done in `rt`. The `*_state` inputs use the feedback state convention: 0 = disabled/not ready, 1 = incremental, 2 = start absolute (absolute position known, but not yet precise), 3 = absolute.
+*
+* 1. **Direction and raw outputs**:
+* - If `mot_rev`, `com_rev` or `joint_rev` > 0, the position, absolute position and offset of that source are negated.
+* - Link other components to `mot_state_fb` rather than to the input `mot_state`: a link typed at runtime to an input pin that is itself linked reads that pin's own value (usually 0), not its source. `id_pmsm` uses it to warn when the motor feedback is not absolute.
+*
+* 2. **Position and velocity feedback**:
+* - `pos_fb` is taken from the first source in state 1 or 3 in the order joint, mot, com, plus a command offset, wrapped with `mod()`.
+* - `vel_fb` is `mot_pos` (or `com_pos` if the motor feedback is not ready), without offset; it is meant to be differentiated by a `vel` instance.
+* - While disabled (`en` <= 0) and `mot_state` > 0, the command offsets are set to `minus(cmd_pos, source_pos)` so that `pos_fb` equals `cmd_pos` and enabling causes no jump. With `track_fb` > 0 this is only done once after boot (via `offset_first_enable`), so the feedback keeps its absolute reference and the command has to follow the feedback.
+*
+* 3. **Commutation source selection** (while `en` > 0):
+* - `current_com_pos` is reset to 10 on disable.
+* - A better source is taken whenever its state reaches 2 or 3, even while enabled (priority mot > com > joint). E.g. hall sensors (`uvw`) are used first and the motor encoder takes over once it is absolute.
+* - On switching to com or joint, an offset between that source and the motor position is stored. While that source is in state 2, `com_fb` is computed from `mot_pos` plus this offset (tracking); in state 3 directly from the absolute position:
+* ```c
+* com_fb = mod((com_abs_pos + com_offset) * polecount / com_polecount);
+* com_fb = mod(mot_pos * polecount / mot_polecount + offset);  // tracking
+* ```
+* - With the motor source, `state` stays 0 until `mot_state` is 3.
+* - Encoders with a commutation track (e.g. `encf`, see the `fanuc_fb0` template: `com_abs_pos = encf0.com_pos`, `com_state` = 3, `mot_state = encf0.state`) commutate from `com_abs_pos + com_offset` while `mot_state` is below 2, e.g. after a battery loss before the first index crossing, and switch to the motor feedback once it becomes absolute. `com_offset` is linked to `conf0.com_fb_offset` in the `pid`/`mpid` templates; `id_pmsm` measures it.
+*
+* 4. **Autophasing** (no source in state >= 2 when enabled):
+* - The start position is stored and `com_fb` is held at that angle while `id` ramps from 0 to `phase_cur` within `phase_time / 4`.
+* - The offset is integrated with `phase_gain` from the rotor movement, pulling the field so that the rotor returns to its start position.
+* - After `phase_time` `current_com_pos` becomes 4 and `com_fb = mod(mot_pos * polecount / mot_polecount + offset)`. `offset` shows the result. The motor must be free to move a little during phasing.
+* - `state` is 0 during phasing and 1 afterwards.
+*
+* {{% hint warning %}}
+* The `joint_fb` output is never written. For joint commutation both the offset and the absolute path (joint state 3) use `polecount / mot_joint_ratio`, so `mot_joint_ratio` must not be 0 (division by zero).
+* {{% /hint %}}
+*/
+
 HAL_COMP(fb_switch);
 
-HAL_PIN(polecount);
-HAL_PIN(track_fb);
-HAL_PIN(offset_first_enable);
+HAL_PIN(polecount);            // *parameter*, Motor pole pairs
+HAL_PIN(track_fb);             // *parameter*, > 0: align pos_fb to cmd_pos only once after boot
+HAL_PIN(offset_first_enable);  // *input/output*, 1 until the first command offset was computed, default 1
 
-HAL_PIN(pos_fb);
-HAL_PIN(vel_fb);
-HAL_PIN(com_fb);
-HAL_PIN(joint_fb);
-HAL_PIN(state);  // 0 = disabled, 1 = enabled
+HAL_PIN(pos_fb);    // *output*, Position feedback (rad, +-pi)
+HAL_PIN(vel_fb);    // *output*, Position for velocity estimation, no offset (rad)
+HAL_PIN(com_fb);    // *output*, Commutation angle (electrical rad, +-pi)
+HAL_PIN(joint_fb);  // *output*, Never written by the component (unused)
+HAL_PIN(state);     // *output*, 0 = disabled or not ready, 1 = enabled and commutation ready
 
-HAL_PIN(cmd_pos);
+HAL_PIN(cmd_pos);  // *input*, Position command, used to align pos_fb while disabled (rad)
 
-HAL_PIN(mot_pos);
-HAL_PIN(mot_abs_pos);
-HAL_PIN(mot_polecount);
-HAL_PIN(mot_offset);
-HAL_PIN(mot_state);  // 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
-HAL_PIN(mot_state_fb);  // mot_state out: links to an input read 0, link here instead
-HAL_PIN(mot_rev);
-HAL_PIN(mot_fb_no_offset);
-HAL_PIN(mot_abs_fb_no_offset);
+HAL_PIN(mot_pos);               // *input*, Motor feedback position (rad)
+HAL_PIN(mot_abs_pos);           // *input*, Motor feedback absolute position (rad)
+HAL_PIN(mot_polecount);         // *parameter*, Pole pairs of the motor feedback
+HAL_PIN(mot_offset);            // *parameter*, Commutation offset of the motor feedback (rad)
+HAL_PIN(mot_state);             // *input*, 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
+HAL_PIN(mot_state_fb);          // *output*, Copy of mot_state for other components to link to (e.g. idpmsm0.mot_state)
+HAL_PIN(mot_rev);               // *parameter*, Reverse the motor feedback if > 0
+HAL_PIN(mot_fb_no_offset);      // *output*, Motor position after reversal (rad)
+HAL_PIN(mot_abs_fb_no_offset);  // *output*, Motor absolute position after reversal (rad)
 
-HAL_PIN(plot_fb_pos);
+HAL_PIN(plot_fb_pos);  // *output*, Feedback position for plotting (rad)
 
-HAL_PIN(com_pos);
-HAL_PIN(com_abs_pos);
-HAL_PIN(com_polecount);
-HAL_PIN(com_offset);
-HAL_PIN(com_state);
-HAL_PIN(com_rev);
-HAL_PIN(com_fb_no_offset);
+HAL_PIN(com_pos);           // *input*, Commutation feedback position (rad)
+HAL_PIN(com_abs_pos);       // *input*, Commutation feedback absolute position (rad)
+HAL_PIN(com_polecount);     // *parameter*, Pole pairs of the commutation feedback
+HAL_PIN(com_offset);        // *parameter*, Commutation offset of the com feedback (rad), linked to conf0.com_fb_offset
+HAL_PIN(com_state);         // *input*, 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
+HAL_PIN(com_rev);           // *parameter*, Reverse the commutation feedback if > 0
+HAL_PIN(com_fb_no_offset);  // *output*, Com position after reversal (rad)
 
-HAL_PIN(joint_pos);
-HAL_PIN(joint_abs_pos);
-HAL_PIN(joint_offset);
-HAL_PIN(joint_state);
-HAL_PIN(joint_rev);
-HAL_PIN(joint_fb_no_offset);
+HAL_PIN(joint_pos);           // *input*, Joint feedback position (rad)
+HAL_PIN(joint_abs_pos);       // *input*, Joint feedback absolute position (rad)
+HAL_PIN(joint_offset);        // *parameter*, Commutation offset of the joint feedback (rad)
+HAL_PIN(joint_state);         // *input*, 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
+HAL_PIN(joint_rev);           // *parameter*, Reverse the joint feedback if > 0
+HAL_PIN(joint_fb_no_offset);  // *output*, Joint position after reversal (rad)
 
-HAL_PIN(mot_joint_ratio);
+HAL_PIN(mot_joint_ratio);  // *parameter*, Motor to joint ratio for joint commutation, default 1
 
-HAL_PIN(phase_time);
-HAL_PIN(phase_cur);
-HAL_PIN(phase_gain);
-HAL_PIN(offset);
-HAL_PIN(id);
+HAL_PIN(phase_time);  // *parameter*, Autophasing time (s), min 0.1, default 1
+HAL_PIN(phase_cur);   // *parameter*, Autophasing d current (A peak), default 1
+HAL_PIN(phase_gain);  // *parameter*, Autophasing offset integrator gain, default 100
+HAL_PIN(offset);      // *output*, Current commutation offset (electrical rad)
+HAL_PIN(id);          // *output*, D current command during autophasing (A peak)
 
-HAL_PIN(current_com_pos);
+HAL_PIN(current_com_pos);  // *output*, Commutation source: 1 mot, 2 com, 3 joint, 4 autophased, 5 phasing, 10 none
 
-HAL_PIN(en);
+HAL_PIN(en);  // *input*, Enable
 
 struct fb_switch_ctx_t {
   int32_t current_com_pos;

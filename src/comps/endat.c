@@ -9,35 +9,68 @@
 #include <string.h>
 #include <endat.h>
 
+/**
+* ## Brief
+* `endat` is an experimental driver for Heidenhain EnDat 2.1 absolute encoders on the FB0 connector of the F4 board. It uses SPI3 in bidirectional single-wire mode for clock and data and the protocol helpers in `shared/endat.c`. No config template loads it.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (nrt_init)**:
+* - SPI3 master, prescaler 32 (about 1.3 MHz clock), clock = PC10, bidirectional data = PC12.
+* - Line driver enables: PD10 for the clock (always on), PD15 for the data line (on only while sending).
+*
+* 2. **Request state machine (rt)**, selected by `endat_state`:
+* - 0: reset error; 1: select memory "state"; 2: read error register; 3: read warning register; 4: select parameter memory 0; 5: read position length; 6: read encoder type; 7: select parameter memory 1; 8: read multiturn bits; 9/10: read resolution low/high word; 11: select parameter memory 2; 12: read maximum velocity; 13: read position.
+* - If `req > 0` it overrides the command byte (e.g. 7 = read position).
+* - After a successful reply `endat_state` is incremented, after a failed one it is reset to 0 (so the whole parameter sequence is read again).
+* - In state 12 `error`/`state` follow the encoder error bit (F1): error bit set or failed reply -> `error = 1`, `state = 0`, `endat_state = 0`; otherwise `state = 1`, `error = 0`. In all other states `state = 0`.
+*
+* 3. **Transfer (rt)**:
+* - The mode command (2 + 6 bits, or 32 bits with address and data) is sent (bit order prepared by `endat_tx()`) with the data driver enabled, then the driver is switched off and `bytes` bytes (max 8) are clocked in.
+* - Before receiving, a byte left in the SPI receive register from the last frame is dropped. SPI3 is disabled one SPI clock after the second to last byte, so exactly `bytes` bytes are clocked from the encoder. If a byte does not arrive within a polling timeout, the received data is set to 0 instead of hanging the rt function.
+* - The received bits are shifted right by `skip` and then until the first 1 (start bit) is found; the total shift is shown on `shift` (max 32).
+* - The reply is decoded by `endat_rx()`: for a position read the error bit goes to `f1`, the single-turn value (`pos_len` bits) and multiturn value (`mpos_len` bits) to `pos`/`mpos`, the 5 CRC bits to `crc`. Parameter reads fill `endat_error`, `endat_warning`, `type`, `pos_res`, `max_vel`, and update `pos_len`/`mpos_len` from the encoder memory.
+* ```c
+* pos = mod(pos_raw * 2 * pi / 2^pos_len);   // rad, +-pi
+* ```
+*
+* 4. **Debug output (nrt)**:
+* - If `print_time > 0`, `timer` counts up in rt and every `print_time` seconds the nrt function prints the last request, received raw bits, position, multiturn and CRC bits.
+*
+* {{% hint danger %}}
+* Experimental and incomplete. The CRC is read but never checked. The state handling looks inconsistent: the position read (13) takes the default branch, so after one successful read `endat_state` becomes 14, which sends nothing and falls back to 0; after the parameter sequence it then stays in state 12 (reading max velocity), so `pos` is no longer updated unless `req` is set to 7. `state` never reaches 3, so `fb_switch` will not accept it as a valid feedback. SPI3 is shared with `encf`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(endat);
 
 
-HAL_PIN(pos);
-HAL_PIN(mpos);
+HAL_PIN(pos);            // *output*, Single-turn position (rad, +-pi)
+HAL_PIN(mpos);           // *output*, Raw multiturn value
 
-HAL_PIN(f1);
-HAL_PIN(crc);
-HAL_PIN(shift);
-HAL_PIN(timer);
-HAL_PIN(swap);
-HAL_PIN(skip);
-HAL_PIN(bytes);
+HAL_PIN(f1);             // *output*, Error bit F1 of the last position reply
+HAL_PIN(crc);            // *output*, Received CRC bits (not checked)
+HAL_PIN(shift);          // *output*, Total right shift applied to find the start bit
+HAL_PIN(timer);          // *output*, Debug print timer (s)
+HAL_PIN(swap);           // *parameter*, > 0 = receive with CPHA = 0 (default 1)
+HAL_PIN(skip);           // *parameter*, Received bits skipped before the start bit search (default 10)
+HAL_PIN(bytes);          // *parameter*, Number of bytes to receive, max 8 (default 7)
 
-HAL_PIN(error);
-HAL_PIN(state);
+HAL_PIN(error);          // *output*, 1 = error bit set or reply failed (only in state 12)
+HAL_PIN(state);          // *output*, 0 = not valid, 1 = valid (only in state 12)
 
-HAL_PIN(endat_error);
-HAL_PIN(endat_warning);
-HAL_PIN(endat_state);
-HAL_PIN(pos_len);
-HAL_PIN(mpos_len);
-HAL_PIN(pos_res);
-HAL_PIN(type);
-HAL_PIN(max_vel);
+HAL_PIN(endat_error);    // *output*, Encoder error register
+HAL_PIN(endat_warning);  // *output*, Encoder warning register
+HAL_PIN(endat_state);    // *input/output*, Request state machine step 0..13 (default 13 = read position)
+HAL_PIN(pos_len);        // *input/output*, Single-turn bits (default 18, updated from encoder memory)
+HAL_PIN(mpos_len);       // *input/output*, Multiturn bits (default 12, updated from encoder memory)
+HAL_PIN(pos_res);        // *output*, Resolution read from encoder memory
+HAL_PIN(type);           // *output*, Encoder type read from encoder memory
+HAL_PIN(max_vel);        // *output*, Maximum velocity read from encoder memory
 
-HAL_PIN(req);
+HAL_PIN(req);            // *parameter*, Command byte override, 0 = use state machine
 
-HAL_PIN(print_time);
+HAL_PIN(print_time);     // *parameter*, Debug print interval (s), 0 = off
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct endat_ctx_t *ctx = (struct endat_ctx_t *)ctx_ptr;

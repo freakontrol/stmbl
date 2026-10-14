@@ -4,6 +4,58 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `emf` measures the back EMF of a coasting motor on the F3 (HV board): with the bridge off it demodulates every PWM period's unfiltered phase voltage sample against the rotor angle and sums the flux linkage `psi`, its 5th and 7th harmonic back EMF, and `psi` per magnet pole, to tell a demagnetised magnet from a weak rotor. It is loaded by `stm32f303/src/main.c` as `emf0` (rt_prio 7, the last in the chain). It is controlled from the F4 through config words and read back one result at a time through a state word: `idpmsm`'s psi test drives it (conf/template/id_pmsm.txt links `hv0.emf_run/emf_sel/emf_pp` to `idpmsm0` and `idpmsm0.emf_val = hv0.emf_val`). It runs on the F3 because the F4 only sees each phase voltage every ~2 ms and through `io0`'s filter.
+*
+* ## Component Explanation
+*
+* 1. **Wiring on the F3** (fixed in main.c):
+* - `emf0.u/v/w = io0.ur/vr/wr`, `emf0.pos = ls0.pos`, `emf0.si/co = dq0.si/co`, `emf0.en = ls0.en`.
+* - `emf0.run/sel/pp = ls0.emf_run/emf_sel/emf_pp` (F4 config words), `ls0.emf_val = emf0.val` (F4 state word).
+*
+* 2. **Speed and turns** (rt, always):
+* - `vel` is the electrical speed from the change of `pos` per tick (the angle steps once per F4 packet, every `PWM_TICKS_PER_PACKET` ticks, 3 at the default 15 kHz PWM).
+* - A wrap of `pos` from +pi to -pi counts one electrical cycle forward, the other way one back.
+*
+* 3. **When it sums** (rt):
+* - Only with the bridge off: `en` must have been 0 for 30 ms (the winding current has to die out first), and `|vel|` must be above 20 rad/s electrical.
+* - `run` < 0 clears the sums every tick while it stays negative. rt_start clears them too.
+* - The live `psi` pin is updated whenever the conditions above hold, also while `run` is 0.
+*
+* 4. **Demodulation** (rt):
+* - The phase voltages are Clarke transformed (amplitude invariant, so the common mode drops out) into `e = a + j b`. With the rotor flux `psi(th) = sum psi_k exp(j k th)` over the harmonics k = 1, -5, 7, the back EMF is `e = d/dt psi`, so
+* ```c
+* e * exp(-j k th) / w  averages to  j k psi_k   // w = electrical speed
+* ```
+* - This holds whatever the direction of rotation, so `psi` comes out in Vs (peak, per electrical rad) at any speed.
+* - Every sample adds `e exp(-j th) / w`, `e exp(+j 5 th) / w` and `e exp(-j 7 th) / w` to three sums, and `n` counts them.
+* - Per pole bins: the fundamental is also summed per half electrical cycle, `bins = 2 * pp` bins over a mechanical turn (`pp` rounded, 1..8, so up to 16 bins), which is one bin per magnet pole. Bin 0 is wherever the count started, not a fixed rotor position, so compare the bins with each other: a weak pole reads low in its bin on every run.
+*
+* 5. **DC offset removal**:
+* - A DC offset between the phase voltage channels (divider or ADC offsets that differ per phase) averages out over a whole electrical cycle but not over half of one, so it would make the bins alternate high and low.
+* - The offset `d` is estimated as the mean Clarke vector over whole electrical cycles only (the back EMF integrates to 0 over each one): summing starts at the first wrap of `pos` after the first sample, and a snapshot is taken at every later wrap. Each bin also keeps the sum of `exp(-j th) / w`, so its share of `d` is subtracted when the bin is read. Until one whole cycle has been seen, `d` reads 0.
+*
+* 6. **Results** (rt, one per tick):
+* - `sel` picks what `val` returns:
+* - 0 (or below): the live `psi` (low pass filtered |psi_1| with a 20 ms time constant).
+* - 1: number of samples summed.
+* - 2, 3: psi_1 real and imaginary part, averaged over the whole coast.
+* - 4, 5: 5th harmonic back EMF (-5 psi_-5), real and imaginary, on the same scale as psi_1.
+* - 6, 7: 7th harmonic back EMF (7 psi_7), real and imaginary.
+* - 8: number of bins in use (2 * pp).
+* - 9 + 3b, 10 + 3b, 11 + 3b: bin b (0..15), psi real, psi imaginary (DC offset removed, averaged over the bin's samples), sample count.
+* - 57, 58: the DC offset `d`, alpha and beta (V).
+* - Anything above returns 0.
+* - On the F4 the value arrives through the rotating state words of the link, so after changing `sel` the reader must wait a few ms before `emf_val` holds the new result (`idpmsm` does).
+*
+* {{% hint warning %}}
+* - `vel` comes from differencing `pos`, which on the F3 is the F4's angle extrapolated between packets, so the F4 must keep sending the rotor angle while the bridge is off.
+* - Bins past `2 * pp` stay 0, and changing `pp` between clears mixes bin indices.
+* - The bin count is limited to 16 (8 pole pairs) by the F3's HAL memory (HAL_MAX_CTX); a motor with more pole pairs gets bins that each span several poles.
+* {{% /hint %}}
+*/
+
 // Back emf map of a coasting rotor, for telling a demagnetised magnet from a
 // weak rotor.
 //
@@ -43,21 +95,21 @@
 
 HAL_COMP(emf);
 
-HAL_PIN(u);  // phase voltages to ground, unfiltered [V]
-HAL_PIN(v);
-HAL_PIN(w);
-HAL_PIN(pos);  // electrical angle
-HAL_PIN(si);   // sin and cos of pos, from dq0
-HAL_PIN(co);
-HAL_PIN(en);   // bridge enable; summing only runs with the bridge off
-HAL_PIN(run);  // 1 sum, 0 hold, -1 clear
-HAL_PIN(sel);
-HAL_PIN(pp);
+HAL_PIN(u);  // *input*, U phase voltage to ground (V), unfiltered, from io0.ur
+HAL_PIN(v);  // *input*, V phase voltage to ground (V), unfiltered, from io0.vr
+HAL_PIN(w);  // *input*, W phase voltage to ground (V), unfiltered, from io0.wr
+HAL_PIN(pos);  // *input*, Electrical rotor angle (rad), from ls0.pos
+HAL_PIN(si);   // *input*, Sine of pos, from dq0.si
+HAL_PIN(co);   // *input*, Cosine of pos, from dq0.co
+HAL_PIN(en);   // *input*, Bridge enable from ls0.en, summing only runs 30 ms after it went to 0
+HAL_PIN(run);  // *input*, 1 = sum, 0 = hold, -1 = clear, from ls0.emf_run
+HAL_PIN(sel);  // *input*, Result number returned in val, from ls0.emf_sel
+HAL_PIN(pp);   // *input*, Pole pairs for the per pole bins (1..8), from ls0.emf_pp
 
-HAL_PIN(vel);  // electrical speed from pos [rad/s]
-HAL_PIN(psi);  // live |psi|
-HAL_PIN(n);    // samples summed
-HAL_PIN(val);
+HAL_PIN(vel);  // *output*, Electrical speed from pos (rad/s), 4 ms low pass
+HAL_PIN(psi);  // *output*, Live flux linkage amplitude (Vs), 20 ms low pass
+HAL_PIN(n);    // *output*, Number of samples summed
+HAL_PIN(val);  // *output*, Result number sel, to ls0.emf_val
 
 #define EMF_BINS 16         // 2 * pp, up to 8 pole pairs (the f3 HAL_MAX_CTX limit)
 #define EMF_VEL_TAU 0.004   // speed filter [s]

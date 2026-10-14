@@ -38,14 +38,29 @@
 * vel += ki err T, kp = 1.4 bw, ki = bw^2. Below e_min volts of emf the error
 * is not trusted: the loop holds its speed (ok = 0). Start it from a known
 * angle and direction (track, or I/f): at standstill the sign of vel is a
-* guess. `track` = 1 copies pos_ref and vel_ref, for a sequencer that hands
-* over to it.
+* guess. `track` = 1 sets pos to the feedback frame, pos_ref + vel_ref *
+* adv (the frame the free running pos is given in, so pos_err reads 0),
+* and vel to vel_ref, for a sequencer that hands over to it.
+*
+* `vel_m` is the rotor speed, (vel - slip) / polecount. vel only follows a
+* slip step through the loop, so the slip is passed through a copy of the
+* loop before it is taken off; taken straight, a step in iq would dip vel_m
+* for about 1 / bw, the speed loop would ask for more iq, and with little
+* flux (deep field weakening) that rings at about the observer bw. With
+* `track` = 1 the slip is taken straight.
+*
+* `max_vel` (default 3000 rad/s electrical, 477 Hz) clamps vel. On the F4
+* (5 kHz) that is about 10 samples per electrical period, which is also
+* about where the F4 observer runs out. There is no faster path: an F3
+* observer overran the F3 rt on the spindle (fault 9) and was removed, so keep
+* conf0.max_vel below this. On X the angle error stayed flat (0.015-0.021 rad)
+* from 200 to 800 rad/s electrical.
 */
 
 HAL_COMP(obs);
 
 HAL_PIN(r);          // *parameter*, winding resistance [ohm]
-HAL_PIN(r_w);        // *parameter*, d loss growing with speed [ohm per rad/s electrical], r + r_w |vel|, 0 = none
+HAL_PIN(r_w);        // *parameter*, d loss growing with speed [ohm per rad/s electrical], r + r_w * abs(vel), 0 = none
 HAL_PIN(ld);         // *parameter*, d inductance [H] (induction motor: sigma*Ls)
 HAL_PIN(lq);         // *parameter*, q inductance [H], 0 = ld
 HAL_PIN(polecount);  // *parameter*, pole pairs
@@ -62,7 +77,7 @@ HAL_PIN(uq);         // *input*, hv0.uq_fb
 HAL_PIN(pos_ref);    // *input*, angle the feedback frame was at, angle0.pos
 HAL_PIN(vel_ref);    // *input*, angle0.vel
 HAL_PIN(slip);       // *input*, induction motor slip [rad/s electrical], 0 on a PMSM
-HAL_PIN(track);      // *input*, 1 = follow pos_ref / vel_ref
+HAL_PIN(track);      // *input*, 1 = pos follows pos_ref + vel_ref * adv, vel follows vel_ref
 HAL_PIN(pos_chk);    // *input*, encoder angle to compare with while commutating from obs
 
 HAL_PIN(pos);        // *output*, flux angle in the feedback frame [rad electrical]

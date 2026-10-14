@@ -1,10 +1,19 @@
 #include "hal_test_comp.h"
 #include "hal.h"
 
+/**
+* ## Brief
+* `hal_test` is a debugging component that burns CPU time in the rt and frt threads to test HAL timing and overrun handling. F4 component; not used by any config in `conf/`.
+*
+* ## Component Explanation
+* 1. **Busy loops**:
+* - `rt` runs an empty loop `rt_wait` times, `frt` runs one `frt_wait` times. Both default to 0 (no load).
+*/
+
 HAL_COMP(hal_test);
 
-HAL_PIN(rt_wait);
-HAL_PIN(frt_wait);
+HAL_PIN(rt_wait);   // *parameter*, Busy loop iterations per rt period
+HAL_PIN(frt_wait);  // *parameter*, Busy loop iterations per frt period
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct rev_ctx_t * ctx = (struct rev_ctx_t *)ctx_ptr;

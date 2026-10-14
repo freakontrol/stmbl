@@ -5,25 +5,43 @@
 #include "defines.h"
 #include "angle.h"
 
-// Second-order filter for a command signal, e.g. a notch on the torque command
-// at a mechanical resonance:
-//   biquad0.in = pid0.torque_cmd
-//   pmsm_ttc0.torque = biquad0.out
-//   biquad0.rt_prio = 8.5 (after pid0, before the torque controller)
-// type 0: pass-through (default), 1: notch, 2: low pass.
-// notch: gain depth at f0 (0 = full notch, 0.1 = -20 dB), width f0 / q.
-// low pass: corner f0, q 0.707 = Butterworth.
-// Coefficients from the bilinear transform (RBJ cookbook) at the rt period,
-// recomputed when f0, q, depth or type change. f0 is held below 0.45 * rt rate.
+/**
+* ## Brief
+* `biquad` is a second order filter for a command signal, typically a notch on the torque command at a mechanical resonance. `conf/template/filters.txt` loads it (opt-in, `link filters` after `link pmsm`) between `pid0` and `dob0`, passing through (`type` 0) until set. The wiring, by hand or as in the template:
+* - `biquad0.in = pid0.torque_cmd`
+* - `pmsm_ttc0.torque = biquad0.out` (the template: `dob0.in = biquad0.out`)
+* - `biquad0.rt_prio = 8.3` (after `pid0`, before `dob0` and the torque controller)
+*
+* `frf` (`conf/template/id_frf.txt`) goes after `biquad0` when both are loaded.
+*
+* ## Component Explanation
+* All work is done in `rt`.
+*
+* 1. **Filter types**:
+* - `type` 0: pass-through, `out = in`, state cleared. Any value other than 1 or 2 also passes through.
+* - `type` 1: notch at `f0`. The gain at `f0` is `depth` (0 = full notch, 0.1 = -20 dB), the width is about `f0 / q`.
+* - `type` 2: low pass with its corner at `f0`; `q = 0.707` is a Butterworth response.
+*
+* 2. **Coefficients**:
+* - Bilinear transform (RBJ cookbook) at the rt period: `w0 = 2 pi f0 period`, `alpha = sin(w0) / (2 q)`, `a0 = 1 + alpha`, `a1 = -2 cos(w0) / a0`, `a2 = (1 - alpha) / a0`.
+* - Notch: `b0 = (1 + alpha depth) / a0`, `b1 = -2 cos(w0) / a0`, `b2 = (1 - alpha depth) / a0`.
+* - Low pass: `b0 = b2 = (1 - cos(w0)) / 2 / a0`, `b1 = (1 - cos(w0)) / a0`.
+* - `f0` is clamped to 1 Hz .. `0.45 / period` (below the Nyquist frequency), `q` to at least 0.1, `depth` to at least 0.
+* - They are recomputed whenever `type`, `f0`, `q`, `depth` or the rt period change (and on the first rt call). The filter state is then set to the steady state for the current input (both types pass DC), so a parameter change does not kick the output.
+*
+* 3. **Filter**:
+* - Direct form II transposed: `out = b0 in + z1`, `z1 = b1 in - a1 out + z2`, `z2 = b2 in - a2 out`.
+* - A non finite output (NaN input) sets `out` and the state to 0 instead of latching.
+*/
 
 HAL_COMP(biquad);
 
-HAL_PIN(in);
-HAL_PIN(out);
-HAL_PIN(type);
-HAL_PIN(f0);     // centre / corner frequency (Hz)
-HAL_PIN(q);
-HAL_PIN(depth);  // notch gain at f0
+HAL_PIN(in);     // *input*, Signal to filter, e.g. pid0.torque_cmd
+HAL_PIN(out);    // *output*, Filtered signal
+HAL_PIN(type);   // *parameter*, 0 = pass-through, 1 = notch, 2 = low pass (default 0)
+HAL_PIN(f0);     // *parameter*, Notch centre or low pass corner frequency (Hz, default 20, 1 to 0.45 / period)
+HAL_PIN(q);      // *parameter*, Quality factor, notch width about f0 / q (default 2, min 0.1)
+HAL_PIN(depth);  // *parameter*, Notch gain at f0, 0 = full notch (default 0, min 0)
 
 struct biquad_ctx_t {
   float b0, b1, b2, a1, a2;

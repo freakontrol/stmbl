@@ -8,22 +8,57 @@
 #include "dma_util.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `encm` reads Mitsubishi serial absolute encoders (2.5 Mbit/s, byte oriented request/reply protocol) on the FB0 connector of the F4 board. It is loaded by `conf/template/encm_fb0.txt` (used by `conf/mitsu.txt` and `conf/wobl.txt`), which links `encm0.pos` to `fb_switch0.mot_pos` and `mot_abs_pos`, `encm0.state` to `fb_switch0.mot_state` and `encm0.error` to `fault0.mot_fb_error`.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (hw_init)**:
+* - USART6 at 2.5 Mbaud, 8N1. TX = PC6, line driver enable = PD15.
+* - The reply is received by DMA2 stream 1 (channel 5) into a 15 byte buffer.
+*
+* 2. **Command selection (rt)**:
+* - If `cmd > 0` this byte is sent as request. Otherwise it depends on `id`:
+* - `id = 0` (unknown): request 0x92 (read encoder id), any length accepted.
+* - `id = 32`: request 0x02, 7 reply bytes expected, 13 bit single-turn position.
+* - `id = 61`, `65` and all others: request 0x32, 9 reply bytes expected, 17 bit single-turn position.
+*
+* 3. **Reply check and decoding (rt)**, done on the reply to the request of the previous rt cycle:
+* - Checksum: the XOR of all received bytes must be 0, otherwise `crc_error = 1`.
+* - Fewer than 3 bytes or not the expected number: `dma_error = 1`.
+* - First byte different from the sent command: `cmd_error = 1`.
+* - Any of these sets `error = 1`, `state = 0`.
+* - Reply to 0x02: `ipos = (buf2 << 11) + ((buf3 & 0x1f) << 19)`; reply to 0x32: `ipos = (buf2 & 0x80) + (buf3 << 8) + (buf4 << 16)`; both give `state = 3`.
+* - Reply to 0x92: `id = buf2`, so the next cycle uses the matching position request.
+* ```c
+* pos = ipos * 2 * pi / 2^24 - pi;   // rad, -pi..pi
+* ```
+*
+* 4. **Request (rt)**:
+* - The TX enable is set, the command byte is sent and the rt function busy-waits for the USART transmit-complete flag, then the TX enable is cleared and the RX DMA is restarted.
+*
+* {{% hint warning %}}
+* The protocol was reverse engineered: the byte meanings in the source comments are guesses, multiturn data is not decoded, and only a plain XOR checksum is checked. After the id reply `pos` is set to -pi (ipos = 0) for one cycle but `state` stays 0. The busy-wait in rt ("irq here will cause problems") and the hard coded USART6/PC6/PD15/DMA2 stream 1 make it V4 specific; DMA2 stream 1 is also used by `encs` and `dmm`, so these cannot be loaded together.
+* {{% /hint %}}
+*/
+
 HAL_COMP(encm);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(cmd_error);
-HAL_PIN(crc_error);
-HAL_PIN(dma_error);
-HAL_PIN(state);
+HAL_PIN(pos);          // *output*, Single-turn position (rad, -pi..pi)
+HAL_PIN(error);        // *output*, 1 = any reply error
+HAL_PIN(cmd_error);    // *output*, 1 = first reply byte differs from the request
+HAL_PIN(crc_error);    // *output*, 1 = XOR checksum of the reply not 0
+HAL_PIN(dma_error);    // *output*, 1 = wrong number of reply bytes
+HAL_PIN(state);        // *output*, 0 = error or no position, 3 = position valid
 
-HAL_PIN(cmd);
-HAL_PIN(req);
-HAL_PIN(full_duplex);
-HAL_PIN(bytes);
-HAL_PIN(id);
+HAL_PIN(cmd);          // *parameter*, Request byte override, 0 = select from id
+HAL_PIN(req);          // *output*, Request byte sent this cycle
+HAL_PIN(full_duplex);  // *parameter*, 0 = half duplex on PC6, > 0 = RX on PC7 (read at init)
+HAL_PIN(bytes);        // *output*, Number of reply bytes received
+HAL_PIN(id);           // *input/output*, Encoder id, 0 = unknown (read from encoder), 32, 61, 65 known
 
-HAL_PINA(buf, 15);
+HAL_PINA(buf, 15);     // *output*, Received reply bytes
 
 
 struct encm_ctx_t {

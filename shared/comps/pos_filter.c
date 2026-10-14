@@ -3,18 +3,39 @@
 #include "angle.h"
 #include "defines.h"
 
+/**
+* ## Brief
+* `pos_filter` smooths a position command with a critically damped second order tracking filter and outputs filtered position, velocity and acceleration. F4 component, see `conf/template/pos_filter.txt`: `pos_in = rev0.out`, `vel_in = rev0.out_d`, `reslimit0.pos_in = pos_out`, `pid0.vel_ext_cmd = vel_out`, `pid0.acc_ext_cmd = acc_out`.
+*
+* ## Component Explanation
+* All work is done in `rt`. `bandwidth` must be set (the template uses 1000).
+*
+* 1. **Filter**:
+* ```c
+* ki = 2 * MIN(bandwidth, 1 / period / 2);
+* kp = ki * ki / 4;
+* acc_out  = kp * minus(pos_in, pos_out) + ki * (vel_in - vel_out);
+* vel_out += acc_out * period;
+* pos_out  = mod(pos_out + vel_out * period);
+* ```
+* - Both poles are at `bandwidth` (rad/s). `bandwidth` is limited to `1 / (2 * period)`.
+*
+* 2. **Enable**:
+* - With `en` <= 0 `acc_out` is 0.
+*/
+
 HAL_COMP(pos_filter);
 
-HAL_PIN(pos_in);
-HAL_PIN(vel_in);
+HAL_PIN(pos_in);  // *input*, Position (rad)
+HAL_PIN(vel_in);  // *input*, Velocity (rad/s)
 
-HAL_PIN(pos_out);
-HAL_PIN(vel_out);
-HAL_PIN(acc_out);
+HAL_PIN(pos_out);  // *output*, Filtered position (rad, +-pi)
+HAL_PIN(vel_out);  // *output*, Filtered velocity (rad/s)
+HAL_PIN(acc_out);  // *output*, Filtered acceleration (rad/s^2)
 
-HAL_PIN(bandwidth);
+HAL_PIN(bandwidth);  // *parameter*, Filter bandwidth (rad/s), no default
 
-HAL_PIN(en);
+HAL_PIN(en);  // *input*, Enable filter, pass through if <= 0
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct pos_filter_ctx_t *ctx      = (struct pos_filter_ctx_t *)ctx_ptr;

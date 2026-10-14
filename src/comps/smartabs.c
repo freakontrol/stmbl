@@ -9,11 +9,40 @@
 #include "dma_util.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* The `smartabs` component reads the single-turn position of a Tamagawa SmartABS style serial absolute encoder (2.5 Mbit/s half-duplex RS485). It is used on the F4 board through `conf/template/smartabs_fb0.txt`, which links `smartabs0.pos` to `fb_switch0.mot_pos` / `mot_abs_pos`, `smartabs0.state` to `fb_switch0.mot_state` and `smartabs0.error` to `fault0.mot_fb_error`.
+*
+* {{% hint warning %}}
+* Hardware-specific: it uses `USART6` TX on PC6 in half-duplex mode, a TX enable on PD15 and `DMA2_Stream1`, all hard coded rather than taken from the board's feedback definitions.
+* {{% /hint %}}
+*
+* ## Component Explanation
+*
+* 1. **Request** (`rt`):
+* - At the end of every rt call, with interrupts disabled, the TX enable is set, the request byte `0x02` (data ID 0, absolute position) is sent and the TX enable is cleared again after the byte is out. Then the RX DMA is started. The reply is evaluated in the next rt call, so the position is one rt period old.
+*
+* 2. **Reply check** (`rt`):
+* - The DMA buffer holds the echo of the request byte followed by the 6 byte reply: control field, status field, 3 position bytes and the check byte.
+* - The check is an 8 bit CRC with polynomial x^8+1 (the lookup table is the identity, so it is an XOR of all bytes); the XOR over control field .. check byte must be 0. The status field error bits are not evaluated.
+*
+* 3. **Position** (`rt`):
+* - 17 bits are taken from the position bytes and scaled to rad:
+* ```c
+* pos = raw17 * 2 * M_PI / 131072 - M_PI;
+* ```
+* - On a good reply: `state = 3` (absolute), `error = 0`. On a bad reply: an internal counter is incremented and copied to `error`, `state = 0`, and `pos` keeps its last value.
+*
+* {{% hint warning %}}
+* After each read the code clears the data ID of the control field to mark the reply as used, but for data ID 0 that field is already 0, so a missing reply is not detected: the old buffer passes the check again and `pos` simply stays the same. Multi-turn data and encoder alarms are not read.
+* {{% /hint %}}
+*/
+
 HAL_COMP(smartabs);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(state);
+HAL_PIN(pos);    // *output*, Encoder position, 17 bit single turn (rad, +-pi)
+HAL_PIN(error);  // *output*, 0 = last reply ok, otherwise total count of bad replies
+HAL_PIN(state);  // *output*, 3 = absolute position valid, 0 = error
 
 #pragma pack(push, 1)
 typedef struct {

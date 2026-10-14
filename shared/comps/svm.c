@@ -5,31 +5,54 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `svm` adds a common mode offset to three phase voltages centred on 0, so that they fit into the 0..`udc` range of the half bridges. The choice of offset sets the modulation: sine, space vector (the default), flat bottom or flat top. It is built into both the F3 (HV board) and the F4 firmware, but `stm32f303/src/main.c` no longer loads it: on the F3, `hv0` now takes `idq0`'s phase voltages directly, adds the dead time compensation and then applies the same space vector (midpoint) offset itself, so the offset sees the compensated phases. No template in `conf/` loads `svm` either, so it is only there to be loaded by hand.
+*
+* ## Component Explanation
+*
+* 1. **Offset** (rt), selected by `mode`, the outputs are `su = u - offset` and so on:
+* - 0, sine: `offset = (u + v + w) / 3 - udc / 2`, the phases swing around `udc / 2`.
+* - 1, space vector: `offset = (min + max) / 2 - udc / 2`. The mid point between the highest and lowest phase sits at `udc / 2`, which gives about 15 % more line to line voltage than sine.
+* - 2, flat bottom: `offset = min`, the lowest phase is at 0 (its low side stays on).
+* - 3, flat top: `offset = max - udc`, the highest phase is at `udc`.
+* - Any other value works as 0 (sine).
+* - The outputs are not clamped. If the input asks for more than `udc` allows they leave 0..`udc`, and the PWM stage (`hv`) clamps them.
+*
+* 2. **Commutation mode** (rt, `cmode`):
+* - 0 (default): all half bridges enabled, `enu`/`env`/`enw` = 1.
+* - 1, block: the enable of the middle phase (the one between the other two, in either order) is set to 0.
+*
+* {{% hint warning %}}
+* The enable outputs are not used anywhere: the F3's `hv` ignores its own enable inputs.
+* {{% /hint %}}
+*/
+
 HAL_COMP(svm);
 
 //U V W inputs
-HAL_PIN(u);
-HAL_PIN(v);
-HAL_PIN(w);
+HAL_PIN(u);  // *input*, U phase voltage, centred on 0 (V)
+HAL_PIN(v);  // *input*, V phase voltage, centred on 0 (V)
+HAL_PIN(w);  // *input*, W phase voltage, centred on 0 (V)
 
 //dclink input
-HAL_PIN(udc);
+HAL_PIN(udc);  // *input*, DC link voltage (V)
 
 //U V W outputs
-HAL_PIN(su);
-HAL_PIN(sv);
-HAL_PIN(sw);
+HAL_PIN(su);  // *output*, U phase voltage with offset, 0..udc when within range (V)
+HAL_PIN(sv);  // *output*, V phase voltage with offset, 0..udc when within range (V)
+HAL_PIN(sw);  // *output*, W phase voltage with offset, 0..udc when within range (V)
 
 //commutation mode
-HAL_PIN(cmode);
+HAL_PIN(cmode);  // *parameter*, Commutation mode, 0 = sine, 1 = block
 
 //modulation mode
-HAL_PIN(mode);
+HAL_PIN(mode);  // *parameter*, Modulation, 0 = sine, 1 = space vector, 2 = flat bottom, 3 = flat top, default 1
 
 //half bridge enable out
-HAL_PIN(enu);
-HAL_PIN(env);
-HAL_PIN(enw);
+HAL_PIN(enu);  // *output*, U half bridge enable, 0 in block mode when u is the middle phase
+HAL_PIN(env);  // *output*, V half bridge enable, 0 in block mode when v is the middle phase
+HAL_PIN(enw);  // *output*, W half bridge enable, 0 in block mode when w is the middle phase
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct svm_ctx_t * ctx = (struct svm_ctx_t *)ctx_ptr;

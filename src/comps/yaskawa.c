@@ -9,30 +9,64 @@
 #include "hw/hw.h"
 #include "yaskawa_crc16.h"
 
+/**
+* ## Brief
+* The `yaskawa` component reads the absolute position of a Yaskawa Sigma serial encoder (as on SGMPH motors) over the F4 board's feedback 0 Z line. It is loaded by `conf/sgmph-*.txt` and `conf/sda_b.txt`, which link `yaskawa0.pos` to `fb_switch0.mot_pos` / `mot_abs_pos` and `yaskawa0.error` to `fault0.mot_fb_error`.
+*
+* {{% hint danger %}}
+* Experimental, F4-only, bit-banged driver. The rt function busy-waits for the previous reply and for the end of the request, so it takes a large part of the rt period. Hardware used: the `FB0_Z` pin and its TX enable, `TIM8` (8 MHz DMA pacing for the request), the feedback timer channel 3 in input capture mode, `DMA2_Stream1` (TX) and `DMA1_Stream7` (RX).
+* {{% /hint %}}
+*
+* ## Component Explanation
+*
+* 1. **Request** (`hw_init`, `rt`):
+* - A fixed request is Manchester encoded in `hw_init` (0 -> 01, 1 -> 10): a 0101... preamble, the HDLC flag `01111110`, the data word 0xFFFF with a 0 stuffed after every five 1s, and a closing flag.
+* - At the end of every rt call the TX enable is set, the Z pin is switched to output and the request is clocked out by DMA at 8 MHz. After the DMA finishes, the pin is switched back to timer input and edge capture into a 300 entry buffer starts, so the reply is read in the next rt call.
+*
+* 2. **Reply decoding** (`rt`):
+* - The rt call first waits until the capture timer reaches 3300 counts, then counts the captured edges.
+* - The preamble is found by looking for 10 short edge intervals (< 15 timer counts). After that, two short intervals mean "same bit", one long interval toggles the bit. Stuffed 0s after five 1s are dropped and six 1s (HDLC flag) end the frame. The decoded bits are stored as characters in a bit string and packed into a 14 byte reply.
+* - The CRC-16 over the first 12 bytes is compared with bytes 12..13; `crc_ok` or `crc_error` is incremented.
+*
+* 3. **Position** (`rt`):
+* - `len` bits starting at bit `off` of the bit string are read LSB first and scaled to rad:
+* ```c
+* pos = raw / 2^len * 2 * M_PI - M_PI;
+* ```
+* - The defaults of `len` and `off` are also what the SGMPH configs use.
+*
+* 4. **Debugging** (`nrt`):
+* - The first decoded reply after boot is kept in a snapshot buffer. A rising edge on `dump` prints its first 112 bits to the terminal in groups of 8 separated by `|` (`H` marks the end flag) and re-arms the snapshot, so the next reply is captured for the next dump.
+*
+* {{% hint warning %}}
+* `pos` and `error` are updated even when the CRC check fails; the CRC result is only counted. A decoding error found inside the bit loop is overwritten by `error = 0` right afterwards, so only the "too few edges" case really shows up on `error`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(yaskawa);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(error_sum);
-HAL_PIN(dump);
-HAL_PIN(len);
-HAL_PIN(off);
+HAL_PIN(pos);       // *output*, Encoder position (rad, +-pi)
+HAL_PIN(error);     // *output*, 1 = reply missing (80 edges or less), 0 otherwise
+HAL_PIN(error_sum); // *output*, Counts rt periods with error
+HAL_PIN(dump);      // *input*, Rising edge prints a captured reply bit string (nrt)
+HAL_PIN(len);       // *parameter*, Number of position bits (default 15)
+HAL_PIN(off);       // *parameter*, Bit offset of the position in the reply (default 64)
 
-HAL_PIN(len2);
-HAL_PIN(off2);
-HAL_PIN(probe2);
+HAL_PIN(len2);      // *parameter*, Number of bits for probe2 (default 0)
+HAL_PIN(off2);      // *parameter*, Bit offset for probe2 (default 0)
+HAL_PIN(probe2);    // *output*, Debug: len2 bits read at off2
 
-HAL_PIN(len3);
-HAL_PIN(len4);
-HAL_PIN(len5);
+HAL_PIN(len3);      // *parameter*, Bit index for probe3 (default 57)
+HAL_PIN(len4);      // *parameter*, Bit index for probe4 (default 58)
+HAL_PIN(len5);      // *parameter*, Bit index for probe5 (default 59)
 
-HAL_PIN(probe3);
-HAL_PIN(probe4);
-HAL_PIN(probe5);
+HAL_PIN(probe3);    // *output*, Debug: reply bit at index len3
+HAL_PIN(probe4);    // *output*, Debug: reply bit at index len4
+HAL_PIN(probe5);    // *output*, Debug: reply bit at index len5
 
-HAL_PIN(send);
-HAL_PIN(crc_ok);
-HAL_PIN(crc_error);
+HAL_PIN(send);      // Unused, not read or written
+HAL_PIN(crc_ok);    // *output*, Counts replies with a correct CRC
+HAL_PIN(crc_error); // *output*, Counts replies with a wrong CRC
 
 //TODO: use context
 static volatile uint32_t txbuf[128];

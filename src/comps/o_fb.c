@@ -7,10 +7,23 @@
 #include "stm32f4xx_conf.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `o_fb` (F4 logic board, hardware v4) turns the A and B lines of the fb0 feedback connector into digital outputs, e.g. to send an encoder or step/dir style signal to another device. No template loads it.
+*
+* ## Component Explanation
+*
+* 1. **Setup (hw_init)**:
+* - Enables the fb0 A and B RS485 transmitters (FB0_A_EN, FB0_B_EN high) and configures the A and B pins as push-pull outputs. The fb0 connector can then no longer be used as a feedback input.
+*
+* 2. **Output (rt)**:
+* - Once per rt period, the A line is driven from `a` and the B line from `b`. The output rate is therefore limited to the rt frequency.
+*/
+
 HAL_COMP(o_fb);
 
-HAL_PIN(a);
-HAL_PIN(b);
+HAL_PIN(a);  // *input*, fb0 line A output, > 0 = high
+HAL_PIN(b);  // *input*, fb0 line B output, > 0 = high
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct o_fb_ctx_t * ctx = (struct o_fb_ctx_t *)ctx_ptr;

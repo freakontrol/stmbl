@@ -8,25 +8,53 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* **Deprecated**: use [vf](/docs/hal_components/vf.md) instead (templates `vf` and `vf_enc`), whose slip compensation is signed and which has damping, stall prevention and an encoder path. `uf` is kept for old configs and is not being fixed; its known faults are listed below.
+*
+* Open loop V/f (voltage over frequency) control for induction motors, with slip compensation. Note that this file registers the component as **`uf`** (`HAL_COMP(uf)`), so it is loaded with `load uf` and its pins are `uf0.*`; the older `uf.c` is no longer built. It runs on the F4 board and is loaded by `conf/template/uf.txt`: `uf0.u_cmd -> hv0.d_cmd` (with `hv0.cmd_mode = 0`, voltage mode), `uf0.com_pos -> hv0.pos`, `uf0.cur = hv0.abs_cur`, `uf0.scale = fault0.scale`, `uf0.polecount = conf0.polecount`. The speed command is set by the user, e.g. `uf0.vel_cmd = ramp0.vel_cmd` in `conf/bene_uf_2kw.txt`.
+*
+* ## Component Explanation
+* All work is done in `rt`. `cur_n` has no default (0). `polecount` and `scale` have none either, so they must be linked or the output stays 0.
+*
+* 1. **Current filter**: `cur` is low pass filtered with a factor 0.01 per rt cycle (about 100 cycles time constant).
+*
+* 2. **Slip compensation**:
+* ```c
+* vel_cmd_out = vel_cmd + cur_filt / cur_n * slip_n * vel_n;
+* ```
+* - `slip_n` is the nominal slip as a fraction of `vel_n`.
+*
+* 3. **Voltage and angle**:
+* - `u_cmd = vel_cmd_out / vel_n * u_n * scale` (linear V/f, no boost at low speed, negative for negative speed).
+* - `com_pos = mod(com_pos + vel_cmd_out * polecount * period)` is the electrical angle (rad, +-pi).
+* - `load = cur_filt / cur_n` is the relative load, used e.g. by `ramp0.load`.
+*
+* {{% hint warning %}}
+* Slip compensation uses the unsigned current magnitude (`hv0.abs_cur`), so the slip is always added in the positive direction. It has the wrong sign when running in reverse or when braking (generating).
+* In `conf/template/uf.txt` `fault0.scale` derates the output voltage. In V/f operation this changes the voltage for the same frequency (less flux) instead of cleanly limiting current. In the same template it also scales the `hv0` current limit (`hv0.scale`).
+* {{% /hint %}}
+*/
+
 HAL_COMP(uf);
 
-HAL_PIN(u_n);
-HAL_PIN(vel_n);
-HAL_PIN(polecount);
-HAL_PIN(cur_n);
-HAL_PIN(slip_n);
+HAL_PIN(u_n);        // *parameter*, Nominal voltage at vel_n (V, default 155.6)
+HAL_PIN(vel_n);      // *parameter*, Nominal velocity (rad/s, default 314.2)
+HAL_PIN(polecount);  // *parameter*, Pole pairs, no default
+HAL_PIN(cur_n);      // *parameter*, Nominal current (A), min 0.1
+HAL_PIN(slip_n);     // *parameter*, Nominal slip as fraction of vel_n (default 0.01)
 
 
-HAL_PIN(scale);
+HAL_PIN(scale);  // *input*, Voltage scale, usually fault0.scale, no default
 
-HAL_PIN(vel_cmd);
-HAL_PIN(cur);
+HAL_PIN(vel_cmd);  // *input*, Velocity command (rad/s)
+HAL_PIN(cur);      // *input*, Motor current magnitude (A)
 
-HAL_PIN(u_cmd);
-HAL_PIN(vel_cmd_out);
-HAL_PIN(com_pos);
+HAL_PIN(u_cmd);        // *output*, Voltage command, to hv0.d_cmd (V)
+HAL_PIN(vel_cmd_out);  // *output*, Velocity command incl. slip compensation (rad/s)
+HAL_PIN(com_pos);      // *output*, Electrical angle of the output voltage (rad)
 
-HAL_PIN(load);
+HAL_PIN(load);  // *output*, Filtered current / cur_n
 
 struct uf_ctx_t {
   float cur;

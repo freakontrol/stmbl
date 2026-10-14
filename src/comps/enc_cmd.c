@@ -7,17 +7,56 @@
 #include "stm32f4xx_conf.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `enc_cmd` reads an incremental position command (quadrature or step/dir) with an STM32 hardware timer on the F4 board and outputs it as an angle. It is loaded by `conf/template/enc_cmd.txt` (`enc_cmd0.res = conf0.cmd_res`, `rev0.in = enc_cmd0.pos`, `fault0.cmd_error = enc_cmd0.error`), so the command position goes through `rev0` to build a multiturn command. It can also drive a fault/ready line back to the controller.
+*
+* ## Component Explanation
+*
+* 1. **Connector and timer selection (`remap`, read once in hw_init)**:
+* - `remap = 0` (default): CMD connector, A = PA15, B = PB3 on TIM2 (32 bit). Fault line = CMD C (PB5), its line driver enable PB9 is switched on.
+* - `remap = 1`: FB0 connector, A = PD12, B = PD13 on TIM4. Fault line = FB0 Z (PD14), enable PD15.
+* - `remap = 2`: FB1 connector, A = PE9, B = PE11 on TIM1. Fault line = FB1 Z (PE13), enable PE14.
+* - `remap = 3` ("bene style", used by `conf/bene_sanyo.txt` and `conf/spindle_slip_uf.txt`): A = PA8, B = PA9 on TIM1. Fault line = CMD D (PB8), enable PB2.
+* - Any other value returns from hw_init without configuring anything, `pos` then reads a timer that was never set up.
+* - A and B get the timer alternate function with pull-ups, the fault pin and its enable are push-pull outputs.
+*
+* 2. **Signal type (`mode`, read once in hw_init)**:
+* - `mode = 0` (default): quadrature. The timer runs in X4 encoder mode (counts on TI1 and TI2 edges), auto-reload = `2 * res - 1`.
+* - `mode = 1`: step/dir, step on A, direction on B. `mode = 2`: dir/step, direction on A, step on B. Direction high counts up.
+* - In step/dir the timer is a free running 32 bit up counter clocked by the rising edges of the step input. Each edge of the direction input captures the count in hardware (input capture), and the TIM2 interrupt (priority 1, above the rt) adds the steps since the last direction edge with the old sign. So the step at which the direction changed is exact whatever the interrupt latency; it only has to be taken before the next direction edge, else the capture overflow flag marks it as lost. The STM32 encoder modes cannot decode step/dir: they count a step pulse's rising and falling edge with opposite signs.
+* - `mode = 3` (up/down) is not supported, and neither is step/dir on `remap` 1..3 (16 bit timers, their DMA belongs to the feedback components). Then `error` is set and the timer is not set up.
+* - Both inputs use the digital input filter `input_filter` (IC1F/IC2F code), clamped, without prescaler.
+*
+* 3. **Position output (rt)**:
+* - Quadrature: each rt cycle the counter is read and converted:
+* ```c
+* pos = mod(counter * 2 * pi / res);   // rad, wrapped to +-pi
+* ```
+* - Because the counter range is `2 * res` counts, `pos` wraps twice per counter period; the multiturn tracking is done downstream (e.g. `rev0`). The bene config comments `cmd_res` as "cmd counts / rev * 2".
+* - Step/dir: the rt takes a pending direction edge, reads the count and adds the steps since the last edge with the current sign, with interrupts off. The signed step count is kept modulo `res`, and `pos = mod(steps * 2 * pi / res)`, so in step/dir `res` is steps per revolution.
+* - `res` is clamped to >= 1. If it changes at runtime the auto-reload register is updated (quadrature only).
+*
+* 4. **Error and fault output (rt)**:
+* - The template links `error` to `fault0.cmd_error`, so it trips fault 1 (CMD error).
+* - A `fault` of 0 drives the fault line low (e.g. `enc_cmd0.fault = fault0.fault` or an inverted enable signal).
+*
+* {{% hint warning %}}
+* With TIM1/TIM4 (`remap` 1..3) the counter is 16 bit, so `res` must stay <= 32768 in quadrature. The pin/timer definitions exist only for the V4 board.
+* {{% /hint %}}
+*/
+
 HAL_COMP(enc_cmd);
 
-HAL_PIN(res);
-HAL_PIN(pos);
-HAL_PIN(a);
-HAL_PIN(b);
-HAL_PIN(fault);
-HAL_PIN(mode);   // 0 = quad, 1 = step/dir, 2 = dir/step, 3 = up/down
-HAL_PIN(remap);  // 0 = cmd, 1 = fb0, 2 = fb1, 3 = cmd bene style
-HAL_PIN(input_filter);
-HAL_PIN(error);  // 1 = mode not supported on this remap, or a direction change was lost (latched)
+HAL_PIN(res);           // *parameter*, Counts per revolution (quadrature: auto-reload = 2 * res - 1; step/dir: steps per revolution), default 4096
+HAL_PIN(pos);           // *output*, Command position (rad, +-pi)
+HAL_PIN(a);             // *output*, Raw level of the A input (0/1)
+HAL_PIN(b);             // *output*, Raw level of the B input (0/1)
+HAL_PIN(fault);         // *input*, > 0 drives the fault/ready line high
+HAL_PIN(mode);          // *parameter*, 0 = quadrature, 1 = step/dir (step on A), 2 = dir/step (step on B); 3 = up/down is not supported; read at start
+HAL_PIN(remap);         // *parameter*, Input connector: 0 = CMD (TIM2), 1 = FB0 (TIM4), 2 = FB1 (TIM1), 3 = PA8/PA9 bene style (TIM1); step/dir only on 0
+HAL_PIN(input_filter);  // *parameter*, Timer input filter setting 0..15 (default 3)
+HAL_PIN(error);         // *output*, 1 = mode not supported on this remap, or a direction change was lost (latched)
 
 struct enc_cmd_ctx_t {
   int e_res;

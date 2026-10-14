@@ -4,24 +4,23 @@ import sys
 import os
 
 def collect_comp_docs(infile):
-    description = None
+    # The description is the comment block at the top of the file, one
+    # output line per comment line (markdown hard breaks). Comments further
+    # down belong to the config content shown below it.
+    description_lines = []
     with open(infile, 'r') as f:
-        content = f.read()
-        # Extract comments starting with #
-        comment_pattern = re.compile(r'#(.*)', re.DOTALL)
-        comments = comment_pattern.findall(content)
-
-        if comments:
-            # Join consecutive comments to form the description and remove leading hashtags
-            description_lines = []
-            for comment in comments:
-                lines = comment.split('\n')
-                cleaned_lines = [re.sub(r'^#\s*', '', line).strip() for line in lines]
-                description_lines.extend(cleaned_lines)
-            description = '\n'.join(description_lines).strip()
+        for line in f:
+            line = line.strip()
+            if not line and not description_lines:
+                continue
+            if not line.startswith('#'):
+                break
+            description_lines.append(re.sub(r'^#+\s*', '', line))
 
     compname = os.path.basename(infile).split('.')[0].upper()
-    formatted_description = f"# {compname}\n{description}"
+    formatted_description = f"# {compname}"
+    if description_lines:
+        formatted_description += "\n" + "  \n".join(description_lines)
     return formatted_description
 
 def extract_conf_content(infile):

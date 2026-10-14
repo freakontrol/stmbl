@@ -5,12 +5,27 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `reslimit` quantizes a position to a given number of steps per turn. In `conf/template/pid.txt` and `mpid.txt` it sits between the position command and the controller (`reslimit0.pos_in = rev0.out`, `pid0.pos_ext_cmd = reslimit0.pos_out`) with `reslimit0.res = conf0.mot_fb_res`, so the command is limited to the resolution of the motor feedback. It runs on the F4 board.
+*
+* ## Component Explanation
+* 1. **Quantization** (in `rt`):
+* ```c
+* pos_out = (int)(pos_in * res / (2 pi) + 0.5) / res * 2 pi;
+* ```
+*
+* {{% hint warning %}}
+* `res` must not be 0 (division by zero, TODO in the code). The `(int)` cast truncates towards zero, so rounding is wrong for negative positions and the step around 0 is twice as wide (the "offset at zerocross" TODO).
+* {{% /hint %}}
+*/
+
 HAL_COMP(reslimit);
 
-HAL_PIN(pos_in);
-HAL_PIN(pos_out);
+HAL_PIN(pos_in);   // *input*, Position (rad)
+HAL_PIN(pos_out);  // *output*, Quantized position (rad)
 
-HAL_PIN(res);
+HAL_PIN(res);  // *parameter*, Steps per turn, must not be 0
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct reslimit_ctx_t * ctx = (struct reslimit_ctx_t *)ctx_ptr;

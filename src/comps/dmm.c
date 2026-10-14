@@ -8,13 +8,35 @@
 #include "dma_util.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `dmm` reads the absolute position of a DMM servo motor encoder that streams its angle continuously over RS485 into the fb0 connector of the F4 logic board. conf/template/encdmm_fb0.txt loads it and wires `fb_switch0.mot_pos = dmm0.pos`, `fb_switch0.mot_abs_pos = dmm0.pos`, `fb_switch0.mot_state = 3`, `fault0.mot_fb_error = dmm0.error` and `io0.fb0y = dmm0.error`.
+*
+* ## Component Explanation
+*
+* 1. **Receiver (hw_init)**:
+* - USART6 in half-duplex mode on PC6 at 1.875 Mbaud 8N1, the fb0 transmitter (PD15) is switched off, so the drive only listens. DMA2 stream 1 writes the incoming bytes into a 15 byte circular buffer.
+*
+* 2. **Frame format**:
+* - A frame has 4 bytes. Byte 0 holds the MSBs of the other three bytes (bits 0..2), 4 bits F (unused here) and a 0 in bit 7; bytes 1..3 carry 7 data bits and a 1 in bit 7.
+* - Byte 1 + MSB = angle high byte, byte 2 + MSB = angle low byte, byte 3 + MSB = CRC-8 (polynomial x^8 + x^3 + 1) over the 16 bit angle.
+*
+* 3. **Decoding (rt)**:
+* - From the current DMA write position, the component looks for a valid frame starting 7, 8, 9 or 10 bytes back (the newest 3 bytes are skipped because they may belong to an incomplete frame). A frame is valid if the CRC and the four framing bits match.
+* - On success `pos = angle * 2 * pi / 65536 - pi` (rad, one turn = 16 bit) and `error = 0`; if no valid frame is found `error = 1` and `pos` keeps its last value.
+*
+* {{% hint warning %}}
+* The receive buffer is never cleared (see the TODO in `rt`). If the encoder stops sending, the last valid frame stays in the buffer and `error` stays 0 with a frozen `pos`, so a cable break is not detected. `dmm` and `usart` both use USART6 and DMA2 stream 1 and cannot be loaded together.
+* {{% /hint %}}
+*/
+
 HAL_COMP(dmm);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(state);
-HAL_PIN(dma);  //dma transfers left
-HAL_PIN(dump);
+HAL_PIN(pos);   // *output*, absolute encoder position (rad), -pi..pi
+HAL_PIN(error); // *output*, 1 = no valid frame found this rt period, 0 = ok
+HAL_PIN(state); // *output*, unused
+HAL_PIN(dma);   // *output*, dma transfers left, DMA write position in the ring buffer
+HAL_PIN(dump);  // *input*, unused
 
 #pragma pack(push, 1)
 typedef struct DMM_AsBitFieldInts {

@@ -6,116 +6,221 @@
 #include "angle.h"
 #include <math.h>
 
+/**
+* ## Brief
+* `idpmsm` identifies a permanent magnet synchronous motor on the drive itself: winding resistance `r` together with the inverter dead time curve (`hv0.drop_k`, `hv0.drop_knee`), d and q inductance `ld`/`lq`, pole pairs `pp`, feedback direction `out_rev`, commutation offset `com_offset` (plus `com_fb_offset` for a commutation track such as `encf`'s) and flux linkage `psi` (plus a per pole back emf map from the F3's `emf0`). It runs on the F4 board and is loaded by the `id_pmsm` config template, which takes over `hv0` (enable, command mode, d/q commands, commutation angle, `r`, `l`, `lq`, current loop bandwidth) and prints the results as `conf0.*` and `hv0.*` lines to append to the config.
+*
+* ## How to run it
+*
+* 1. Have a working base config with the motor feedback set up (`fb_switch0.mot_abs_fb_no_offset` and `vel1.vel` must be valid), the load off the shaft and the drive disabled.
+* 2. In the servoterm type `link id_pmsm`. The template does `load idpmsm` and wires:
+* ```
+* idpmsm0.en = fault0.en_out
+* hv0.en = idpmsm0.en_out
+* hv0.cur_bw = idpmsm0.cur_bw
+* idpmsm0.loop_bw = conf0.cur_bw
+* hv0.cmd_mode = idpmsm0.cmd_mode
+* hv0.d_cmd = idpmsm0.d_cmd
+* hv0.q_cmd = idpmsm0.q_cmd
+* hv0.pos = idpmsm0.com_pos
+* hv0.rev = idpmsm0.out_rev
+* hv0.r = idpmsm0.r
+* hv0.l = idpmsm0.l
+* hv0.lq = idpmsm0.lq
+* hv0.drop_k = 0
+* hv0.emf_run = idpmsm0.emf_run
+* hv0.emf_sel = idpmsm0.emf_sel
+* hv0.emf_pp = idpmsm0.emf_pp
+* idpmsm0.emf_val = hv0.emf_val
+* idpmsm0.pos_fb = fb_switch0.mot_abs_fb_no_offset
+* idpmsm0.mot_state = fb_switch0.mot_state_fb
+* idpmsm0.com_fb = fb_switch0.com_fb_no_offset
+* idpmsm0.com_rev = conf0.com_fb_rev
+* idpmsm0.com_polecount = conf0.com_fb_polecount
+* idpmsm0.vel_fb = vel1.vel
+* relink
+* ```
+* - plus `ud_fb`, `uq_fb`, `id_fb`, `iq_fb`, `pwm_volt`, `dc_volt`, `pwm_freq`, `u_fb`, `v_fb` from `hv0`. It also sets `fault0.pos_error = 0`, `fault0.sat = 0` and `pid0.en = 0` so the position loop and its faults stay out of the way. The final `relink` flattens chained links (`a = b`, `b = c` becomes `a = c`): links typed at runtime are not flattened like the boot config, and without it `idpmsm0.com_polecount` would read `conf0.com_fb_polecount`'s own value instead of `conf0.polecount` through it. Dead time compensation is forced off: the r test fits the uncompensated loss.
+* 3. Optionally change `idpmsm0.test_cur`, `idpmsm0.test_vel`, `idpmsm0.r_known` etc. (see below). `test_cur` must be below `conf0.max_ac_cur`.
+* 4. Enable the drive. `en` going high moves `state` from 0 to 1.0 and the tests start. With the default `auto_step = 4.2` all three steps run back to back; with a lower `auto_step` the component stops at 1.1, 2.1 or 3.1, prints a prompt and waits for you to type `idpmsm0.state = 1.2` (or 2.2, 3.2). The r test alone takes about 50 s.
+* 5. Copy the printed `conf0.r`, `conf0.l`, `conf0.lq`, `hv0.drop_k`, `hv0.drop_knee`, `conf0.polecount`, `conf0.mot_fb_offset`, `conf0.com_fb_offset` (only with a commutation track), `conf0.out_rev` and `conf0.psi` lines into the config. Lines printed in red, or after a "failed" message, are not measurements.
+* 6. Disable the drive and reload the normal config. Disabling puts `state` back to 0, and `nrt` then resets most result pins to their init values, so the numbers are only kept in the printed text.
+*
+* Afterwards run `link id_tune` (component `idtune`) to find `hv0.adv` (it keeps the `hv0.drop_k` printed here when `hv0.drop_knee > 0`), then `id_mot`.
+*
+* ## Component Explanation
+*
+* `state` is a step number: `rt` does the timed measuring in states 1.2, 1.3, 2.2, 2.3 and 3.2; `nrt` does the setup, the r fit, the prompts and the printing in states 0, 1.0, 1.5, 1.4, 2.0, 2.4 to 2.6, 3.0 and 3.3. `en <= 0` forces `state = 0` in every rt cycle, which sets `en_out = 0`, clears the commands and `cur_bw = 1`. `rt_start` clears the internal context so a restarted run never continues half a measurement.
+*
+* Defaults from `nrt_init`: `l_freq = 0` (= `loop_bw / 2 pi`, 480 Hz at `cur_bw` 3000), `cur_bw = 1`.
+*
+* 1. **Resistance and dead time curve (state 1.2, current mode)**:
+* - First 2 s at `cur_bw = 1`: `d_cmd = test_cur` at `com_pos = 0`. Because `hv0.r` is wired to `r`, `r` is bootstrapped as a filtered `ud_fb / id_fb` so current flows at all; the full current first also aligns the rotor at the strongest field.
+* - The bootstrap `r` carries the dead time volts (about 2.3x the winding on X at 12 A), and the loop's integral gain is `cur_bw * r`, so the later steps to `test_cur` would overshoot into the F3's peak current trip. So at the first dwell `r` is replaced by `r_known` when given, else, after the first two dwells (1 and 0.67 `test_cur` at angle 0), by the slope `(u0 - u1) / (i0 - i1)` clamped to 0.01 .. the bootstrap value (only if the currents differ by > 0.1 A); the dead time loss is nearly flat there and cancels.
+* - Then, at `cur_bw = 300`, 28 dwells: at each of the four angles `com_pos` = 0, pi, pi/2, -pi/2 (pairs half a turn apart give each current both signs through the same phases) the d current steps through 1, 0.67, 0.5, 0.33, 0.25, 0.17, 0.1 times `test_cur`. Each dwell settles 1 s (2 s for the first at each angle) and averages `id_fb` and `ud_fb` for 0.5 s. Each new angle after the first starts with 0.2 s at 0 A (inside its settle time), so the angle jump and the step to `test_cur` are apart.
+* - With `hv0.drop_k = 0`, `ud_fb` carries the winding drop plus the dead time loss, modelled as hv.c's compensation curve: each phase loses `V0 * sign(i) * k(i)` with `k(i) = 1 - 1 / (1 + |i| / knee)^2`, and `dproj` is what those three losses put on d:
+* ```c
+* ud = r * id + V0 * dproj(id, com_pos, knee);
+* ```
+* - State 1.5 (nrt, the fit is too slow for a tick; bridge off): a grid over `knee` from 0.05 to 2.0 A in 0.025 A steps, at each knee a least squares fit of `r` and `V0` (of `V0` alone, with `r = r_known`, when `r_known > 0`); the knee with the smallest residual wins. Results: `dt_v0`, `dt_knee`, `dt_rms` (residual), `dt_top` (largest top dwell current) and `dt_k = dt_v0 / (dt_ideal * dc_volt)` (0 if `dc_volt` is not wired; `dt_ideal = 0` uses 2 us * `pwm_freq`).
+* - Choosing `r_known`: with `r_known` > 0 the r stage runs with it from the first dwell (no slope bootstrap), the fit finds only the dead time curve (`V0` -> `drop_k`, and the knee) and the printed `conf0.r` is `r_known`. The drive's own IGBT and shunt slope (a few tens of mOhm) then ends up in the dead time curve, so no drive-fitted `r` is needed for the compensation. Use the per phase resistance of a Y winding, line to line / 2, measured at the drive end of the motor cable with the cable connected (the cable is in the current loop too), cold, with the temperature noted (copper +0.393 %/K; a 6 A run warms the winding about 3 %). A lead-nulled DMM reading is good enough; a four wire reading (bench supply 2-3 A through U-V, voltage sensed at the cable ends, `r = V_UV / (2 I)`, both polarities averaged, all three pairs within 1 %) only tightens the last 1-2 %. A fixed `r_known` is steadier than the fit, which reads high at higher `test_cur` as the winding heats (X: 0.659 at 6 A cold, 0.769 at 12 A), so use it for runs at 12 A.
+* - `r_ok` needs `dt_top > test_cur / 2`, `r > 0.001` and `V0 >= 0`. If yes, `r` takes the fit and `avg_test_volt = r * test_cur + V0 * dproj(test_cur, 0, knee)` (limited to `pwm_volt / 2`) is kept as the bias voltage for the l test and the state goes to 1.3, otherwise straight to the report 1.4.
+*
+* 2. **Ld and Lq by sine injection (state 1.3, voltage mode, `cur_bw = 1`)**:
+* - `d_cmd = avg_test_volt` holds about `test_cur` on d at `com_pos = 0`, which keeps every phase current on one side of zero so the dead time is a constant offset; a sine of `l_freq` (0: `loop_bw / 2 pi`, the current loop's crossover where the loop uses l; `loop_bw` 0 = 1000 rad/s; clamped to 20 Hz .. 0.2 / period and rounded to whole cycles of the measuring window, reported as `l_f`) is added first on `d_cmd`, then on `q_cmd`.
+* - Per axis: 0.1 s settle, four 50 ms blocks that scale the amplitude (starting at 1 V; q starts from d's) until the current ripple is `l_ripple * test_cur` (amplitude kept within 0.2 V .. `pwm_volt / 4`), then about 0.4 s (whole cycles) of demodulation of voltage and current at the injection frequency, with the dc bias taken out.
+* - The impedance `z = v1 / i1`, corrected for the zero order hold of the F3's 5 kHz command, gives
+* ```c
+* l = sqrt(z*z - r*r) / (2 * pi * f);   // 0 if z <= r
+* ```
+* - Results: `ld`, `lq` and the amplitudes `l_vd`, `l_id`, `l_vq`, `l_iq`. `l_ok = 1` if both inductances are > 0 and both current amplitudes landed within 0.5 .. 2 times the target ripple. Then `l = ld` (0 if not ok).
+*
+* 3. **Report (state 1.4, nrt)**:
+* - Prints `conf0.r`, and if `l_ok` `conf0.l` (= Ld) and `conf0.lq`, else how much current the injection drew. Then `hv0.drop_k` and `hv0.drop_knee` to append, and the fit's `V0`, link voltage, knee and residual.
+* - Goes to 2.0 if `r_ok`, else prints the top dwell current reached and goes to 9.0. State 9.0 has no rt case: the bridge stays off until the drive is disabled.
+*
+* 4. **Pole pairs and direction (state 2.2, current mode, `cur_bw = 100`, 4 s)**:
+* - `d_cmd = test_cur` and the field angle `com_pos` is turned open loop, ramping from 0 to `test_vel` electrical rad/s in 1 s so the rotor can follow.
+* - From 1.5 s to 4 s the field angle and the rotor angle (integral of `vel_fb`) are summed; `pp_raw = field / rotor`. A negative ratio sets `out_rev = 1` and the sign is dropped; `pp` is then rounded.
+* - `pp_ok` needs the rotor turning (`|vel_fb| > 0.1`) in more than 90% of the window, a rounded value of 1 .. 24 and less than 0.15 away from an integer. On failure the state goes to 2.4 (message: lower `test_vel` or raise `test_cur`, then 9.0).
+* - State 2.0 (before the rotor moves) prints a red warning if `mot_state` (`fb_switch0.mot_state_fb`) is not 3: the offsets are then relative to power-up.
+* - Throughout the test the commutation track `com_fb` is followed tick by tick: its total movement and its largest single step (both in the track's own angle units, via `minus()`) are kept. This decides in step 5 whether a track is present and whether it is coarse.
+*
+* 5. **Commutation offset (state 2.3, 2 s)**:
+* - `d_cmd = test_cur` at `com_pos = 0` so the rotor parks on the d axis. Over the second half of the dwell the unit vector of `pos_fb` is summed into `off_sin`/`off_cos` (`off_n` samples), a circular mean so the wrap at +-pi does not matter.
+* - `com_offset = -atan2(off_sin, off_cos)`, folded into `[0, 2*pi/pp)` so the same axis always prints the same number. `off_mag` is the resultant length (1 = rotor held still).
+* - `com_ok` needs `off_mag > 0.98` and `id_fb > test_cur / 2`. Success goes to 2.5 which prints `conf0.polecount`, `conf0.mot_fb_offset` and, if reversed, `conf0.out_rev = 1`; failure goes to 2.6 (message, then 9.0).
+* - **Commutation track offset** (same dwell): the track is summed as an electrical angle, `com_fb * pp / cpp` with `cpp = com_polecount` (or `pp` if `com_polecount` < 1). At the end, if the track moved more than pi in the pp test:
+* ```c
+* com_fb_offset = -atan2(com_sin, com_cos) * cpp / pp;   // negated again if com_rev > 0
+* ```
+* - This is the `com_offset` for `fb_switch`, which commutates from `mod((com_abs_pos + com_offset) * polecount / com_polecount)` (both reversed under `com_rev`) while the motor feedback is not absolute. `com_fb_ok` = 1 for a fine track, 2 if a single step was over 0.5 rad (halls: the value can be up to 30 deg electrical off), 0 if the track did not move (no track; `com_fb_offset` = 0). With `com_fb_ok` > 0 state 2.5 also prints `conf0.com_fb_offset` (plus a note for a coarse track).
+*
+* 6. **Flux linkage psi (state 3.2, current mode, `cur_bw = 250`)**:
+* - Commutation now closes on the feedback: `com_pos = mod((pos_fb + com_offset) * pp)`, `d_cmd = 0`. A speed loop drives `q_cmd` from the mechanical `vel_fb`; the clamp slews only the integrator, the P term acts on the unclamped error:
+* ```c
+* vel_error = LIMIT(v_t - vel_fb, ABS(test_vel) / 100);
+* cur_sum   = LIMIT(cur_sum + ki * vel_error * period, test_cur);
+* q_cmd     = LIMIT(vel_bw * period * (v_t - vel_fb) + cur_sum, test_cur);
+* ```
+* - Stages: spin up to `test_vel / 2` (mechanical rad/s), 2 s dwell, spin up to `test_vel`, 2 s dwell, then coast. A spin up is done when the filtered speed (50 ms) stays within 15% for 0.5 s; more than 8 s fails. A filtered speed under 10% of the target while `|cur_sum| > test_cur / 2` counts as a stall, which catches a wrong `pp` or offset. The clamp, the settle band, the stall check and the coast thresholds below use `abs(test_vel)`, so a negative `test_vel` runs the psi test in reverse.
+* - The dwells record `uq - r * iq`, `iq` and speed. They are not used for psi (they contain the dead time); after the coast they give `udt_lo`/`udt_hi` = `uq - r iq - pp vel psi` (dead time volts on q) at the currents `idt_lo`/`idt_hi` and speeds `vel_lo`/`vel_hi`.
+* - Coast: `en_out = 0`, the rotor runs down and the line voltage `u_fb - v_fb` is demodulated against the commutation angle, correcting the F3's `io.c` input filter (alpha = 750 / `pwm_freq`, 0.05 at 15 kHz) and the zero order hold of the F3 state block (`u_fb`/`v_fb` refresh only every `sizeof(f3_state_data_t) / 4` rt periods, which scales the emf by `sinc(w T / 2)`; the hold's delay stays in `emf_delay`). Sampling starts 50 ms after the bridge drops, so the freewheeling winding current has died. Samples are split into a fast band (> 0.6 `test_vel`) and a slow band (0.2 .. 0.6 `test_vel`, all on the speed magnitude); the coast ends below 0.2 `test_vel` or after 4 s. Each band needs 200 samples.
+* - Results: `psi` (both bands, clamped to 0.001 .. 1 Vs), `psi_hi`, `psi_lo`, `emf_angle` (back emf phase against the commutation angle, extrapolated to standstill, electrical degrees) and `emf_delay` (s). The report compares `emf_angle` with the expected 120 deg (60 deg with `out_rev`) as an offset check with no current in it. `psi_ok = 1` on success.
+* - Per pole map: during the coast `emf_run = 1` (it is -1, clear, while spinning up) makes the F3's `emf0` sum every pwm period's sample into `2 * pp` pole bins. After the coast `emf_run = 0` and `emf_sel` steps through emf0's results, one every 20 ms, read back on `emf_val`: `emf_psi` (whole coast), `emf_h5`/`emf_h7` (5th and 7th harmonic, % of the fundamental), `pole_min`, `pole_max` and `pole_spread` (% of the mean). A demagnetised pole reads low in its bin on every run; a uniformly weak rotor reads low in all bins (flat map). `emf_ok = 1` if the map came back with samples in every bin.
+* - State 3.3 prints `conf0.psi` and the diagnostics: with `emf_ok` the printed `conf0.psi` is `emf_psi` (the F3 map sums every pwm sample with no filter or hold in it) and the F4 coast `psi` is shown as a cross-check, otherwise it is `psi`. On failure it prints the reason (stall, speed never settled, too few coast samples), then goes to 3.4 where it idles with the bridge off.
+*
+* 7. **Other states**:
+* - `state = 10` only keeps `com_pos = mod((pos_fb + com_offset) * pp)` updated; it sets nothing else.
+*
+* {{% hint warning %}}
+* - `test_vel` means two things: the pp test turns the field at `test_vel` electrical rad/s, while the psi test holds `test_vel / 2` and `test_vel` of mechanical speed (`vel_fb`).
+* - The knee grid ends at 0.05 and 2.0 A; a fit on an edge prints a red warning, then keep the old `hv0.drop_k` and `hv0.drop_knee` if the residual is large. Without `dc_volt` wired, `hv0.drop_k` is not printed.
+* - The `mot_state` check is made after the pp test (state 2.5), so an encoder that indexes during the test does not warn. If it still warns, the printed offsets are relative to power-up: index the encoder first.
+* {{% /hint %}}
+*/
+
 HAL_COMP(idpmsm);
 
-HAL_PIN(d_cmd);
-HAL_PIN(q_cmd);
-HAL_PIN(com_pos);
-HAL_PIN(cmd_mode);
-HAL_PIN(en);
-HAL_PIN(en_out);
+HAL_PIN(d_cmd);     // *output*, d command to hv0.d_cmd (A in current mode, V in voltage mode)
+HAL_PIN(q_cmd);     // *output*, q command to hv0.q_cmd (A in current mode, V in voltage mode)
+HAL_PIN(com_pos);   // *output*, commutation angle to hv0.pos (rad electrical)
+HAL_PIN(cmd_mode);  // *output*, to hv0.cmd_mode, 0 = voltage, 1 = current
+HAL_PIN(en);        // *input*, enable, usually fault0.en_out; low resets state to 0
+HAL_PIN(en_out);    // *output*, bridge enable to hv0.en
 
-HAL_PIN(id_fb);
-HAL_PIN(iq_fb);
-HAL_PIN(ud_fb);
-HAL_PIN(uq_fb);
-HAL_PIN(pos_fb);
-HAL_PIN(vel_fb);
+HAL_PIN(id_fb);   // *input*, d current from hv0 (A)
+HAL_PIN(iq_fb);   // *input*, q current from hv0 (A)
+HAL_PIN(ud_fb);   // *input*, d voltage command from hv0 (V)
+HAL_PIN(uq_fb);   // *input*, q voltage command from hv0 (V)
+HAL_PIN(pos_fb);  // *input*, rotor position without commutation offset (rad), fb_switch0.mot_abs_fb_no_offset
+HAL_PIN(vel_fb);  // *input*, mechanical rotor velocity (rad/s), vel1.vel
 
-HAL_PIN(state);
-HAL_PIN(timer);
+HAL_PIN(state);  // *input/output*, step number: 1.x r/l, 2.x pp/offset, 3.x psi, 9 = failed, 0 = off
+HAL_PIN(timer);  // *output*, time in the current test step (s)
 
-HAL_PIN(r);
-HAL_PIN(l);
-HAL_PIN(l_ok);      // 1 = l is a measurement, 0 = it is not
-HAL_PIN(l_freq);    // *parameter*, l test injection frequency [Hz], 0 = loop_bw / 2 pi
-HAL_PIN(loop_bw);   // the run's current loop bandwidth, conf0.cur_bw [rad/s], 0 = 1000
-HAL_PIN(l_f);       // *output*, the injection frequency the l test used [Hz]
-HAL_PIN(l_ripple);  // *parameter*, l test injected current, fraction of test_cur
-HAL_PIN(ld);        // d axis inductance at test_cur on d [H]
-HAL_PIN(lq);        // q axis inductance, same bias [H]
-HAL_PIN(l_vd);      // injected voltage amplitude on d [V]
-HAL_PIN(l_id);      // resulting current amplitude on d [A]
-HAL_PIN(l_vq);      // [V]
-HAL_PIN(l_iq);      // [A]
-// r test: d dwells at four angles and seven currents; r, the per phase dead
-// time volts V0 and the knee of hv.c's compensation curve are fitted together
-HAL_PIN(r_known);   // *parameter*, measured winding resistance: fit V0 and the knee only
-HAL_PIN(dt_ideal);  // *parameter*, ideal dead time volts per link volt, 0 = 2 us * pwm_freq (0.03 at 15 kHz)
-HAL_PIN(pwm_freq);  // f3 PWM and rt rate, from hv0.pwm_freq [Hz], 0 = 15000
-HAL_PIN(dt_v0);     // fitted per phase dead time volts at the link [V]
-HAL_PIN(dt_knee);   // fitted knee, for hv0.drop_knee [A]
-HAL_PIN(dt_k);      // dt_v0 over the ideal, for hv0.drop_k
-HAL_PIN(dt_rms);    // fit residual [V rms]
-HAL_PIN(dt_top);    // largest dwell current reached [A]
-HAL_PIN(r_ok);          // this run produced a resistance
+HAL_PIN(r);         // *output*, winding resistance (ohm), also wired to hv0.r, result for conf0.r
+HAL_PIN(l);         // *output*, d axis inductance for conf0.l, 0 if not measured (H), also hv0.l
+HAL_PIN(l_ok);      // *output*, 1 = ld/lq are valid measurements
+HAL_PIN(l_freq);    // *parameter*, l test injection frequency (Hz), 0 (default) = loop_bw / 2 pi
+HAL_PIN(loop_bw);   // *input*, the run's current loop bandwidth from conf0.cur_bw (rad/s), 0 = 1000
+HAL_PIN(l_f);       // *output*, the injection frequency the l test used (Hz)
+HAL_PIN(l_ripple);  // *parameter*, l test injected current amplitude, fraction of test_cur, default 0.15
+HAL_PIN(ld);        // *output*, d axis inductance at test_cur on d (H)
+HAL_PIN(lq);        // *output*, q axis inductance at the same bias (H), also hv0.lq, result for conf0.lq
+HAL_PIN(l_vd);      // *output*, injected voltage amplitude on d (V)
+HAL_PIN(l_id);      // *output*, resulting current amplitude on d (A)
+HAL_PIN(l_vq);      // *output*, injected voltage amplitude on q (V)
+HAL_PIN(l_iq);      // *output*, resulting current amplitude on q (A)
+HAL_PIN(r_known);   // *parameter*, known winding resistance (ohm): fit only V0 and the knee, 0 = fit r too
+HAL_PIN(dt_ideal);  // *parameter*, ideal dead time volts per link volt, 0 = 2 us * pwm_freq (0.03 at 15 kHz), default 0
+HAL_PIN(pwm_freq);  // *input*, F3 PWM and rt rate (Hz), from hv0.pwm_freq, 0 = 15000
+HAL_PIN(dt_v0);     // *output*, fitted per phase dead time volts at the link (V)
+HAL_PIN(dt_knee);   // *output*, fitted knee of the dead time curve (A), result for hv0.drop_knee
+HAL_PIN(dt_k);      // *output*, dt_v0 over the ideal dt_ideal * dc_volt, result for hv0.drop_k
+HAL_PIN(dt_rms);    // *output*, residual of the r / dead time fit (V rms)
+HAL_PIN(dt_top);    // *output*, largest top dwell current reached (A)
+HAL_PIN(r_ok);      // *output*, 1 = the r test produced a resistance
 
-HAL_PIN(pp);
-HAL_PIN(pp_raw);  // pole pair ratio before rounding, sign carries out_rev
-HAL_PIN(pp_ok);   // the pp test tracked the field and landed near an integer
-HAL_PIN(com_offset);
-HAL_PIN(out_rev);
+HAL_PIN(pp);          // *output*, pole pairs, rounded, for conf0.polecount
+HAL_PIN(pp_raw);      // *output*, field/rotor angle ratio before rounding, negative = reversed
+HAL_PIN(pp_ok);       // *output*, 1 = rotor followed the field and ratio is near an integer
+HAL_PIN(com_offset);  // *output*, commutation offset for conf0.mot_fb_offset (rad)
+HAL_PIN(out_rev);     // *output*, 1 = feedback reversed, for conf0.out_rev, also hv0.rev
 
-// the commutation offset is a circular mean of pos_fb, so the wrap does not
-// matter; the resultant's length is 1 when the rotor held still
-HAL_PIN(off_sin);
-HAL_PIN(off_cos);
-HAL_PIN(off_mag);  // resultant length, 1 = the rotor held station
-HAL_PIN(off_n);
-HAL_PIN(com_ok);   // the offset dwell drew its current and the rotor held still
+HAL_PIN(off_sin);  // *output*, sum of sin(pos_fb) over the offset dwell
+HAL_PIN(off_cos);  // *output*, sum of cos(pos_fb) over the offset dwell
+HAL_PIN(off_mag);  // *output*, resultant length of the offset dwell, 1 = rotor held still
+HAL_PIN(off_n);    // *output*, samples in off_sin/off_cos
+HAL_PIN(com_ok);   // *output*, 1 = offset dwell drew its current and the rotor held still
 
-// commutation track (encf com_pos, fanuc_io, uvw halls): the angle fb_switch
-// commutates from while mot_state is not absolute, e.g. an encf encoder not
-// yet indexed after a battery reset
-HAL_PIN(com_fb);         // fb_switch0.com_fb_no_offset
-HAL_PIN(com_rev);        // conf0.com_fb_rev
-HAL_PIN(com_polecount);  // conf0.com_fb_polecount, 0 = polecount
-HAL_PIN(com_fb_offset);  // for conf0.com_fb_offset [rad]
-HAL_PIN(com_fb_ok);      // 1 fine track, 2 coarse (halls), 0 none: the track did not move in the pp test
-HAL_PIN(mot_state);      // fb_switch0.mot_state_fb: 3 = absolute
+HAL_PIN(com_fb);         // *input*, commutation track (encf com_pos, fanuc_io, uvw halls) after com_rev (rad), fb_switch0.com_fb_no_offset; fb_switch commutates from it while mot_state is not absolute, e.g. an encf not yet indexed after a battery reset
+HAL_PIN(com_rev);        // *parameter*, commutation track reversed if > 0, conf0.com_fb_rev
+HAL_PIN(com_polecount);  // *parameter*, pole pairs of the commutation track, below 1 = pp, conf0.com_fb_polecount
+HAL_PIN(com_fb_offset);  // *output*, commutation track offset for conf0.com_fb_offset (rad)
+HAL_PIN(com_fb_ok);      // *output*, 1 = fine track, 2 = coarse (halls), 0 = none (did not move in the pp test)
+HAL_PIN(mot_state);      // *input*, motor feedback state, 3 = absolute, fb_switch0.mot_state_fb
 
-HAL_PIN(test_cur);
-HAL_PIN(test_vel);
-HAL_PIN(ki);
-HAL_PIN(vel_bw);
+HAL_PIN(test_cur);  // *parameter*, test current (A peak), default 6
+HAL_PIN(test_vel);  // *parameter*, test speed (rad/s), default 50: electrical in pp test, mechanical in psi test
+HAL_PIN(ki);        // *parameter*, psi test speed loop integral gain (A/rad), default 1
+HAL_PIN(vel_bw);    // *parameter*, psi test speed loop P gain, times period (A per rad/s), default 250
 
-HAL_PIN(pwm_volt);
-HAL_PIN(dc_volt);
+HAL_PIN(pwm_volt);  // *input*, usable phase voltage from hv0.pwm_volt (V)
+HAL_PIN(dc_volt);   // *input*, dc link voltage from hv0.dc_volt (V), scales dt_k
 
-HAL_PIN(psi);
-HAL_PIN(psi_ok);     // this run produced a psi
-HAL_PIN(u_fb);       // phase u voltage to ground from hv0, read while coasting
-HAL_PIN(v_fb);       // phase v voltage to ground from hv0
-HAL_PIN(psi_hi);     // back emf psi from the fast half of the coast
-HAL_PIN(psi_lo);     // back emf psi from the slow half of the coast
-HAL_PIN(emf_angle);  // back emf phase against the commutation angle, extrapolated to standstill [deg el]
-HAL_PIN(emf_delay);  // how much later the phase voltage reads than the rotor angle [s]
-HAL_PIN(vel_lo);     // mean speed of the low dwell [rad/s]
-HAL_PIN(vel_hi);     // mean speed of the high dwell [rad/s]
-HAL_PIN(udt_lo);     // uq - r iq - pp vel psi in the low dwell: dead time volts on q [V]
-HAL_PIN(idt_lo);     // mean iq in the low dwell [A]
-HAL_PIN(udt_hi);     // the same for the high dwell [V]
-HAL_PIN(idt_hi);     // [A]
+HAL_PIN(psi);        // *output*, flux linkage from the F4 coast (Vs), printed as conf0.psi only when emf_ok is 0
+HAL_PIN(psi_ok);     // *output*, 1 = the psi test produced a value
+HAL_PIN(u_fb);       // *input*, phase u voltage to ground from hv0.u_fb (V), read while coasting
+HAL_PIN(v_fb);       // *input*, phase v voltage to ground from hv0.v_fb (V)
+HAL_PIN(psi_hi);     // *output*, psi from the fast half of the coast (Vs)
+HAL_PIN(psi_lo);     // *output*, psi from the slow half of the coast (Vs)
+HAL_PIN(emf_angle);  // *output*, back emf phase against the commutation angle at standstill (deg electrical)
+HAL_PIN(emf_delay);  // *output*, delay of the phase voltage reading against the rotor angle (s)
+HAL_PIN(vel_lo);     // *output*, mean speed of the low dwell (rad/s)
+HAL_PIN(vel_hi);     // *output*, mean speed of the high dwell (rad/s)
+HAL_PIN(udt_lo);     // *output*, dead time volts on q in the low dwell, uq - r iq - pp vel psi (V)
+HAL_PIN(idt_lo);     // *output*, mean iq in the low dwell (A)
+HAL_PIN(udt_hi);     // *output*, dead time volts on q in the high dwell (V)
+HAL_PIN(idt_hi);     // *output*, mean iq in the high dwell (A)
 
-// the f3's emf0 sums the same coast from every pwm period's sample, per magnet
-// pole: a demagnetised pole reads low in its bin, a weak rotor reads low in all
-HAL_PIN(emf_run);      // to hv0.emf_run: 1 sum, 0 hold, -1 clear
-HAL_PIN(emf_sel);      // to hv0.emf_sel
-HAL_PIN(emf_pp);       // to hv0.emf_pp
-HAL_PIN(emf_val);      // from hv0.emf_val
-HAL_PIN(emf_ok);       // the f3 map came back
-HAL_PIN(emf_psi);      // psi over the whole coast, f3 samples
-HAL_PIN(emf_h5);       // 5th harmonic back emf, % of the fundamental
-HAL_PIN(emf_h7);       // 7th, %
-HAL_PIN(pole_min);     // lowest pole's psi
-HAL_PIN(pole_max);     // highest pole's psi
-HAL_PIN(pole_spread);  // (max - min) / mean, %
+HAL_PIN(emf_run);      // *output*, to hv0.emf_run, F3 emf0 map: 1 sum, 0 hold, -1 clear
+HAL_PIN(emf_sel);      // *output*, to hv0.emf_sel, emf0 result to read back
+HAL_PIN(emf_pp);       // *output*, to hv0.emf_pp, pole pairs for emf0's bins, abs(pp)
+HAL_PIN(emf_val);      // *input*, emf0 result from hv0.emf_val
+HAL_PIN(emf_ok);       // *output*, 1 = the F3 per pole map came back
+HAL_PIN(emf_psi);      // *output*, psi over the whole coast from the F3's samples (Vs), printed as conf0.psi when emf_ok
+HAL_PIN(emf_h5);       // *output*, 5th harmonic back emf, % of the fundamental
+HAL_PIN(emf_h7);       // *output*, 7th harmonic back emf, % of the fundamental
+HAL_PIN(pole_min);     // *output*, lowest pole bin's psi (Vs)
+HAL_PIN(pole_max);     // *output*, highest pole bin's psi (Vs)
+HAL_PIN(pole_spread);  // *output*, (pole_max - pole_min) / mean, %
 
-HAL_PIN(cur_bw);
-HAL_PIN(cur_sum);
-HAL_PIN(auto_step);
+HAL_PIN(cur_bw);     // *output*, current loop bandwidth to hv0.cur_bw: 1 or 300 in r test, 1 in l, 100 in pp/offset, 250 in psi
+HAL_PIN(cur_sum);    // *output*, psi test speed loop integrator (A)
+HAL_PIN(auto_step);  // *parameter*, run steps up to this number without a prompt, default 4.2 (all)
 
-HAL_PIN(avg_test_volt);
+HAL_PIN(avg_test_volt);  // *output*, d bias voltage for the l test, r test_cur + V0 dproj (V)
 
 
 // emf0 results: 9 totals, then psi re, im and samples for up to 16 pole bins

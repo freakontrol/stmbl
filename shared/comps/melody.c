@@ -1,49 +1,47 @@
 /**
- * ## Overview
- *
- * Plays a tune through the motor: an audio-rate current added to the d-axis
- * command makes the stator hum the notes without torque (with the commutation
- * offset right). `link melody` (after `link pmsm`) inserts it between the
- * d-axis source and hv, as conf/template/melody.txt:
- *
- * ```
- * load melody
- * melody0.rt_prio = 6
- * melody0.in = fb_switch0.id
- * melody0.en = fault0.en_pid
- * hv0.d_cmd = melody0.out
- * ```
- *
- * `out` is `in` while nothing plays. The tone is a square (`wave = 1`) or a
- * quieter sine (`wave = 0`) of peak `amp` amps. The rt thread runs at 5 kHz,
- * so notes above ~2 kHz alias, and the current loop damps the high notes.
- *
- * Nothing plays unless `en`: linked to `fault0.en_pid` that is enabled and
- * past phasing, so the bridge is on anyway and the tone never switches it on.
- * `en` dropping stops the tune. With `chime = 1` a short rising arpeggio plays
- * on the first enable after power-up (`chimed` = 1 once it has), so the drive
- * says it booted and runs its config. `identify` (or a rising edge on `ident`)
- * beeps three times three, to find which drive is which.
- *
- * ## Commands
- *
- * | Command         | Action                                          |
- * |-----------------|-------------------------------------------------|
- * | `tune <notes>`  | load the notes and play them                    |
- * | `tune +<notes>` | add the notes to the loaded ones, do not play   |
- * | `tune ode`      | play Ode to Joy                                 |
- * | `tune`          | play the loaded notes again                     |
- * | `tunex`         | stop                                            |
- * | `identify`      | beep to find this drive                         |
- *
- * A note is `<letter>[#|b][octave][/len][.]`: `C4/4` quarter middle C,
- * `F#5/8` eighth, `Bb3/2.` dotted half, `R/4` quarter rest. Octave and
- * length carry over from the previous note (start: 4, /4). A quarter note is
- * one beat at `bpm`; each note sounds for `gate` of its length so repeated
- * notes stay apart. A terminal line holds 63 characters, so a longer tune is
- * loaded in parts with `tune +`; each part starts again at octave 4, /4. A
- * line with a bad note changes nothing.
- */
+* ## Brief
+* `melody` plays a tune through the motor: an audio rate current added to the d-axis command makes the stator hum the notes without torque (with the commutation offset right). It also plays a ready chime after power-up and beeps on `identify`, to find which drive is which. F4 component, loaded by `conf/template/melody.txt` (`link melody` after `link pmsm`), which inserts it between the d-axis source and hv:
+* ```
+* load melody
+* melody0.rt_prio = 6
+* melody0.in = fb_switch0.id
+* melody0.en = fault0.en_pid
+* hv0.d_cmd = melody0.out
+* ```
+*
+* ## Component Explanation
+* All playing is done in `rt`; the commands only load notes and start or stop a tune.
+*
+* 1. **Output**:
+* - `out = in + tone`. `out` is `in` while nothing plays.
+* - The tone is a square (`wave` > 0) or a quieter sine (`wave` = 0) of peak `amp` amps. Every note starts at zero current; rests and the silent part of a note add nothing.
+* - The rt thread runs at 5 kHz, so notes above about 2 kHz alias, and the current loop damps the high notes.
+*
+* 2. **Enable**:
+* - Nothing plays unless `en` > 0: linked to `fault0.en_pid` that is enabled and past phasing, so the bridge is on anyway and the tone never switches it on.
+* - `en` dropping stops the tune, and a tune asked for while off does not start later. `tune` and `identify` print "not enabled" then.
+*
+* 3. **Chime and identify**:
+* - With `chime` > 0 a short rising arpeggio (C4 E G C5) plays on the first enable after power-up, so the drive says it booted and runs its config.
+* - `identify` (or a rising edge on `ident`) beeps three times three.
+*
+* 4. **Commands**:
+*
+* | Command | Action |
+* |----|----|
+* | `tune <notes>` | load the notes and play them |
+* | `tune +<notes>` | add the notes to the loaded ones, do not play |
+* | `tune ode` | play Ode to Joy |
+* | `tune` | play the loaded notes again |
+* | `tunex` | stop |
+* | `identify` | beep to find this drive |
+*
+* 5. **Notes**:
+* - A note is `<letter>[#|b][octave][/len][.]` (`#` sharp, `b` flat): `C4/4` quarter middle C, `F#5/8` eighth, `Bb3/2.` dotted half, `R/4` quarter rest. Octave and length carry over from the previous note (start: 4, /4). Lengths 1 to 64.
+* - A quarter note is one beat at `bpm`; each note sounds for `gate` of its length so repeated notes stay apart.
+* - At most 128 notes are loaded. A terminal line holds 63 characters, so a longer tune is loaded in parts with `tune +`; each part starts again at octave 4, /4. A line with a bad note changes nothing.
+* - With `loop` > 0 a loaded tune (not the chime or identify) starts over at the end until `tunex`.
+*/
 #include "melody_comp.h"
 #include "commands.h"
 #include "hal.h"
@@ -55,19 +53,19 @@
 
 HAL_COMP(melody);
 
-HAL_PIN(in);       // d-axis command passed through (A)
-HAL_PIN(out);      // in + tone (A)
-HAL_PIN(en);       // tunes play only while > 0 (fault0.en_pid)
-HAL_PIN(amp);      // tone peak current (A)
-HAL_PIN(wave);     // 0 = sine, 1 = square
-HAL_PIN(bpm);      // quarter notes per minute
-HAL_PIN(gate);     // sounding fraction of each note
-HAL_PIN(loop);     // 1 = start over at the end
-HAL_PIN(chime);    // 1 = chime on the first enable after power-up
-HAL_PIN(ident);    // rising edge = identify
-HAL_PIN(freq);     // note playing (Hz), 0 = rest or stopped
-HAL_PIN(playing);  // 1 while a tune plays
-HAL_PIN(chimed);   // 1 once the power-up chime has played
+HAL_PIN(in);       // *input*, d-axis command passed through (A), fb_switch0.id
+HAL_PIN(out);      // *output*, in + tone (A), to hv0.d_cmd
+HAL_PIN(en);       // *input*, tunes play only while > 0 (fault0.en_pid), default 1
+HAL_PIN(amp);      // *parameter*, tone peak current (A), default 6
+HAL_PIN(wave);     // *parameter*, 0 = sine, 1 = square, default 1
+HAL_PIN(bpm);      // *parameter*, quarter notes per minute, default 120
+HAL_PIN(gate);     // *parameter*, sounding fraction of each note, default 0.9
+HAL_PIN(loop);     // *parameter*, 1 = start a loaded tune over at the end, default 0
+HAL_PIN(chime);    // *parameter*, 1 = chime on the first enable after power-up, default 1
+HAL_PIN(ident);    // *input*, rising edge = identify
+HAL_PIN(freq);     // *output*, note playing (Hz), 0 = rest or stopped
+HAL_PIN(playing);  // *output*, 1 while a tune plays
+HAL_PIN(chimed);   // *output*, 1 once the first enable after power-up has passed, with chime > 0
 
 #define MELODY_MAX 128
 
