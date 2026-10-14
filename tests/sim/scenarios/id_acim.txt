@@ -1,5 +1,5 @@
 # Identification regression: idacim (standstill r, l, tr, lmr, then the
-# rotating flux sweep and inertia) against an induction motor plant with
+# rotating ramps' tr, flux sweep and inertia) against an induction motor plant with
 # known values, on the spindle's FOC config.
 title idacim against a known induction motor plant
 config conf/fanuc_a2_spindle_foc_enc.txt
@@ -21,6 +21,10 @@ trace idacim0.state hv0.id_fb hv0.iq_fb plant.vel plant.i_mr
 #   idacim0.r_known 0.19 the rest barely moves), l 0.734 mH (0.8, -8%),
 #   tr 0.0857 (0.09, -5%), lmr 11.85 mH standstill / 12.60 mH rotating
 #   (12.4), j 0.01119 (0.0118, -5%). pp is not checked (idacim takes it from n_pp).
+# 13 Oct, ramps' tr and a constant emf sweep: rot_tr 0.0870 (0.09, -3.4%;
+#   0.1183 against a 0.12 plant, and 0.0870 with the standstill tr forced
+#   to 0.065), sweep 6.0-22.8 A flat 12.45-12.53 mH (no dip fitted),
+#   rot_lmr 12.49 mH, j 0.01176, field to position delay 0.36 ms.
 # The windows below hold those values, so a change in idacim shows up here.
 expect max fault0.last_fault < 0.5 from 0.15
 expect final idacim0.r > 0.13
@@ -29,10 +33,12 @@ expect final idacim0.l > 0.00070
 expect final idacim0.l < 0.00077
 expect final idacim0.tr > 0.082
 expect final idacim0.tr < 0.090
+expect final idacim0.rot_tr_ramp > 0.084
+expect final idacim0.rot_tr_ramp < 0.092
 expect final idacim0.rot_lmr > 0.0121
 expect final idacim0.rot_lmr < 0.0131
 expect final idacim0.rot_id_n > 18.5
 expect final idacim0.rot_id_n < 20.0
-expect final idacim0.rot_j > 0.0106
+expect final idacim0.rot_j > 0.0112
 expect final idacim0.rot_j < 0.0124
 run 120
