@@ -160,6 +160,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   float vel = PIN(vel);
   float cmd = PIN(vel_cmd);
+  if(ABS(cmd) < 0.5) {  // [rad/s] noise on a 0 command must not keep the boost and the PI on
+    cmd = 0.0;
+  }
   float id  = PIN(id);
   float iq  = PIN(iq);
   float ud  = PIN(ud);
@@ -220,7 +223,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // the rotor with no torque, so that runs open loop instead
   int enc    = PIN(enc) > 0.0 && (PIN(slip_max) > 0.0 || PIN(slip_n) > 0.0);
   float base = vel;  // field speed less slip: the reference open loop, the rotor with the encoder
-  if(enc && PIN(en) > 0.0) {
+  // at a 0 command once the ramp is there, the field stops as open loop
+  // does: a speed PI on 0 hunts with the field near 0 Hz, where the boost
+  // drives a dc current into the limit and the slip's torque gain swings
+  // (spindle, 12-13 Oct: +-17 rad/s, 29 A peaks); the rotor runs down
+  int stop0 = cmd == 0.0 && vel == 0.0;
+  if(enc && PIN(en) > 0.0 && stop0) {
+    ctx->s_i = 0.0;
+    slip     = 0.0;
+  } else if(enc && PIN(en) > 0.0) {
     float s_max = PIN(slip_max) > 0.0 ? PIN(slip_max) : 2.0 * PIN(slip_n);
     if(!ctx->enc_on) {  // switched on while running: start from the open loop slip
       ctx->s_i = LIMIT(slip, s_max);
@@ -240,7 +251,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   } else {
     ctx->s_i = 0.0;
   }
-  ctx->enc_on = enc && PIN(en) > 0.0;
+  ctx->enc_on = enc && PIN(en) > 0.0 && !stop0;
 
   float boost = 0.0;
   if(PIN(boost_vel) > 0.0) {
@@ -249,6 +260,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     boost = PIN(u_boost) * MAX(1.0 - ABS(base) / PIN(boost_vel), 0.0);
   }
   float u_cmd = PIN(u_n) * ABS(base + slip) / MAX(PIN(vel_n), 0.1) + boost;
+  if(stop0) {
+    // standing at 0: the boost would only drive a dc current (21 A on the
+    // spindle) that heats the motor, a cage takes no torque from it
+    u_cmd = 0.0;
+  }
   float u_max = CLAMP(PIN(duty), 0.0, 1.0) * PIN(pwm_volt);
   float u_lim = 0.0;
   if(PIN(pwm_volt) > 0.0 && u_cmd > u_max) {
@@ -257,7 +273,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   float damp = 0.0;
-  if(PIN(en) > 0.0) {
+  if(PIN(en) > 0.0 && !stop0) {  // at stop0 the states reset, so vel_e is 0 and the start is clean
     float k_lp = CLAMP(2.0 * M_PI * PIN(damp_lp_hz) * period, 0.0, 1.0);
     ctx->d_lp += (i_act - ctx->i_lp - ctx->d_lp) * k_lp;
     float k_hp = CLAMP(2.0 * M_PI * PIN(damp_hz) * period, 0.0, 1.0);
