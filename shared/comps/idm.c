@@ -142,12 +142,13 @@ static void fit_fdo(struct idm_ctx_t *ctx, struct idm_pin_ctx_t *pins) {
     }
     float det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
     if(ABS(det) < 1e-12) {
+      PIN(fit_n) = 0;  // no solution: keep the adapted values, print 'not fitted'
       return;
     }
     f = (b[0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (b[1] * a[2][2] - a[1][2] * b[2]) + a[0][2] * (b[1] * a[2][1] - a[1][1] * b[2])) / det;
     d = (a[0][0] * (b[1] * a[2][2] - a[1][2] * b[2]) - b[0] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) + a[0][2] * (a[1][0] * b[2] - b[1] * a[2][0])) / det;
     o = (a[0][0] * (a[1][1] * b[2] - b[1] * a[2][1]) - a[0][1] * (a[1][0] * b[2] - b[1] * a[2][0]) + b[0] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])) / det;
-  } else {  // one direction only: T = c + d v, f = (c - o) sign
+  } else if(pos == 0 || neg == 0) {  // one direction only: T = c + d v, f = (c - o) sign
     float mv = 0.0, mt = 0.0, sxx = 0.0, sxy = 0.0;
     for(int i = 0; i < m; i++) {
       mv += vv[i] / m;
@@ -158,11 +159,17 @@ static void fit_fdo(struct idm_ctx_t *ctx, struct idm_pin_ctx_t *pins) {
       sxy += (vv[i] - mv) * (tv[i] - mt);
     }
     if(sxx <= 0.0) {
+      PIN(fit_n) = 0;  // no solution: keep the adapted values, print 'not fitted'
       return;
     }
     d = sxy / sxx;
     o = PIN(offset);
     f = (mt - d * mv - o) * (pos > 0 ? 1.0 : -1.0);
+  } else {
+    // both directions at one speed only (a short stroke): f + d v is all
+    // there is, f and d can not be split. keep them as adapted
+    PIN(fit_n) = 0;
+    return;
   }
   float e = 0.0;
   for(int i = 0; i < m; i++) {
@@ -279,6 +286,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         PIN(time)         = 0.0;
         PIN(fit_n)        = 0.0;
         PIN(fit_rms)      = 0.0;
+        PIN(fit_lo)       = 0.0;
+        PIN(fit_hi)       = 0.0;
         memset(ctx, 0, sizeof(struct idm_ctx_t));
         ctx->level = -1;
         ctx->pos0  = PIN(pos);

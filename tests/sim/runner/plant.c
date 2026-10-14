@@ -68,6 +68,7 @@ static param_t P[] = {
     {"lead", 10, 0, "screw lead for pos_mm [mm/rev]"},
     {"off_err", 0, 0, "commutation error [rad el]"},
     {"enc_delay", 0, 0, "encoder sample age at the F4 rt [s]"},
+    {"enc_noise", 0, 0, "encoder angle noise per read [rad rms, mech] (magnetic sin/cos)"},
     {"enc_bits", 22, 0, "encoder bits per turn"},
     {"hv_temp", 40, 0, "IPM case temperature [C]"},
     {"substeps", 16, 0, "integration steps per PWM period"},
@@ -468,7 +469,15 @@ void plant_sample_adc(void) {
   sim_f3_adc.hv_temp = PV(hv_temp);
 }
 
+static void plant_encoder_clean(double delay, double *mech);
 void plant_encoder(double delay, double *mech) {
+  plant_encoder_clean(delay, mech);
+  if(PV(enc_noise) > 0.0) {
+    *mech += PV(enc_noise) * gauss();
+  }
+}
+
+static void plant_encoder_clean(double delay, double *mech) {
   if(hist_n == 0 || delay <= 0.0) {
     *mech = thm;
     return;
