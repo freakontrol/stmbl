@@ -1,0 +1,26 @@
+# Spindle bench (14 Oct, no load): shadow within 0.03 rad cold; trim kp_s 20
+# ki_s 2 follows the rotor temperature (k 1.0 cold, 1.07-1.11 after 20 min
+# at 2352 rpm) and holds pos_err within 0.02 rad. Not tested under a
+# cutting load yet.
+# hybrid rotor flux observer (B5), for an induction motor on an encoder.
+# link after acim_foc: link flux_obs. Loads in shadow: flux_obs0.pos_err
+# shows how far the current model's orientation is off at speed (tr).
+# To trim the slip with it: flux_obs0.kp_s 20, flux_obs0.ki_s 2 (k follows
+# the rotor temperature, minutes; faster chases load transients) and
+# angle0.slip = flux_obs0.slip; flux_obs0.k is then true/modelled slip.
+# flux_obs0.wc: crossover to the voltage model [rad/s electrical]
+load flux_obs
+flux_obs0.rt_prio = 9.4
+flux_obs0.en = fault0.en_out
+flux_obs0.r = conf0.r
+flux_obs0.l = conf0.l
+flux_obs0.adv = hv0.adv
+flux_obs0.id = hv0.id_fb
+flux_obs0.iq = hv0.iq_fb
+flux_obs0.ud = hv0.ud_fb
+flux_obs0.uq = hv0.uq_fb
+flux_obs0.pos_ref = angle0.pos
+flux_obs0.vel_ref = angle0.vel
+flux_obs0.psi_cm = acim_flux0.psi
+flux_obs0.slip_in = acim_flux0.slip
+flux_obs0.slip_max = acim_flux0.slip_max

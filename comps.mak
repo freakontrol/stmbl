@@ -43,6 +43,7 @@ LV_SHARED_COMPS += shared/comps/dc_limits.c
 LV_SHARED_COMPS += shared/comps/dc_ttc.c
 LV_SHARED_COMPS += shared/comps/acim_ttc.c
 LV_SHARED_COMPS += shared/comps/acim_flux.c
+LV_SHARED_COMPS += shared/comps/flux_obs.c
 LV_SHARED_COMPS += shared/comps/acim_foc.c
 LV_SHARED_COMPS += shared/comps/acim_fw.c
 LV_SHARED_COMPS += shared/comps/angle.c
