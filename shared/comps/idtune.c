@@ -282,16 +282,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(d_cmd)  = 0.0;
       // the clamp slews the integrator only: a clamped P limit-cycles
       float vel_raw   = v_t - PIN(vel_fb);
-      float vel_error = LIMIT(vel_raw, v_t / 100.0);
+      float vel_error = LIMIT(vel_raw, ABS(v_t) / 100.0);
       PIN(cur_sum) += PIN(ki) * vel_error * period;
       PIN(cur_sum) = LIMIT(PIN(cur_sum), PIN(test_cur));
       PIN(q_cmd)   = LIMIT(PIN(vel_bw) * period * vel_raw + PIN(cur_sum), PIN(test_cur));
 
       // stall on the integrator, not the P term, which spikes at spin up
-      if(ABS(ctx->vel_lp) < v_t * 0.1 && ABS(PIN(cur_sum)) > PIN(test_cur) * VEL_STALL) {
+      if(ABS(ctx->vel_lp) < ABS(v_t) * 0.1 && ABS(PIN(cur_sum)) > PIN(test_cur) * VEL_STALL) {
         PIN(fail) = 1.0;
       } else if(ctx->stage == 0) {  // spin up
-        if(ABS(ctx->vel_lp - v_t) < v_t * VEL_BAND) {
+        if(ABS(ctx->vel_lp - v_t) < ABS(v_t) * VEL_BAND) {
           ctx->settle_t += period;
         } else {
           ctx->settle_t = 0.0;
