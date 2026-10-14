@@ -70,4 +70,6 @@ int rb_write(struct ringbuf *rb, const void *data, int len);
  *          len bytes is in the buffer yet. Nothing is taken then, unless
  *          len bytes without a '\n' are waiting: those are dropped.
  */
+// a line without its '\n' in ptr: its length + 1; 0: no whole line yet;
+// -1: len bytes without a '\n' were dropped (the line cannot fit)
 int rb_getline(struct ringbuf *rb, char *ptr, int len);

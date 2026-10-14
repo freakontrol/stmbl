@@ -171,6 +171,17 @@ SECTIONS
     . = ALIGN(4);
   } >RAM
 
+  /* CCM: 64K core-coupled RAM, zeroed by main(). The CPU only: no DMA, no code. */
+  .ccm (NOLOAD) :
+  {
+    . = ALIGN(4);
+    _sccm = .;
+    *(.ccm)
+    *(.ccm*)
+    . = ALIGN(4);
+    _eccm = .;
+  } >CCM
+
   /* MEMORY_bank1 section, code must be located here explicitly            */
   /* Example: extern int foo(void) __attribute__ ((section (".mb1text"))); */
   .memory_b1_text :

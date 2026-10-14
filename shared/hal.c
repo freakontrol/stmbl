@@ -778,16 +778,9 @@ void hal_print_pin(hal_pin_inst_t *p) {
   }
 }
 
-char *findline(char *ptr) {
-  for(int i = 0; i < 64; i++) {
-    if(ptr[i] == 0) {
-      return (0);
-    }
-    if(ptr[i] == '\n') {
-      return (ptr + i + 1);
-    }
-  }
-  return (0);
+char *findline(char *ptr) {  // start of the next line, however long this one is
+  char *nl = strchr(ptr, '\n');
+  return (nl ? nl + 1 : 0);
 }
 
 uint32_t hal_parse_(char *cmd);
@@ -829,7 +822,7 @@ uint32_t hal_parse_(char *cmd) {
 
   uint32_t found = 0;
 
-  foo = sscanf(cmd, " %[a-zA-Z_]%li.%[a-zA-Z0-9_] = %f", sinkc, &sinki, sinkp, &value);
+  foo = sscanf(cmd, " %63[a-zA-Z_]%li.%63[a-zA-Z0-9_] = %f", sinkc, &sinki, sinkp, &value);
   if(sinki < 0) {
     for(int i = 0; i < hal.comp_inst_count; i++) {
       if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
@@ -874,7 +867,7 @@ uint32_t hal_parse_(char *cmd) {
       }
       break;
     case 3:
-      foo = sscanf(cmd, " %[a-zA-Z_]%li.%[a-zA-Z0-9_] = %[a-zA-Z_]%li.%[a-zA-Z0-9_]", sinkc, &sinki, sinkp, sourcec, &sourcei, sourcep);
+      foo = sscanf(cmd, " %63[a-zA-Z_]%li.%63[a-zA-Z0-9_] = %63[a-zA-Z_]%li.%63[a-zA-Z0-9_]", sinkc, &sinki, sinkp, sourcec, &sourcei, sourcep);
       if(sinki < 0) {
         for(int i = 0; i < hal.comp_inst_count; i++) {
           if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
@@ -986,7 +979,7 @@ void hal_linked_pins(char *ptr) {
   uint32_t sinki = 0;
   char sinkp[64];
   int foo;
-  foo = sscanf(ptr, " %[a-zA-Z_]%lu.%[a-zA-Z0-9_]", sinkc, &sinki, sinkp);
+  foo = sscanf(ptr, " %63[a-zA-Z_]%lu.%63[a-zA-Z0-9_]", sinkc, &sinki, sinkp);
   if(foo == 3) {
     hal_pin_inst_t *pin = pin_inst_by_name(sinkc, sinki, sinkp);
     if(pin) {

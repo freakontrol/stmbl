@@ -10,14 +10,14 @@
 
 struct ringbuf usb_rx_buf = {.buf = (char[RX_QUEUE_SIZE]){0}, .bufsize = RX_QUEUE_SIZE};
 
-static USBD_HandleTypeDef usb_dev;
+static USBD_HandleTypeDef usb_dev __attribute__((section(".ccm")));
 
 // OUT endpoint packet buffer, handed back to the class after each packet
-static uint8_t rx_packet[CDC_DATA_FS_OUT_PACKET_SIZE];
+static uint8_t rx_packet[CDC_DATA_FS_OUT_PACKET_SIZE] __attribute__((section(".ccm")));
 
 // IN ring, written by cdc_tx*() and sent from the USB interrupt. tx_out is
 // only moved by the interrupt, once the transfer from it has completed.
-static uint8_t tx_buf[APP_RX_DATA_SIZE];
+static uint8_t tx_buf[APP_RX_DATA_SIZE] __attribute__((section(".ccm")));  // CCM: the FS core has no DMA, the CPU fills its FIFO
 static volatile uint32_t tx_in;
 static volatile uint32_t tx_out;
 static uint32_t tx_busy_len;  // bytes of the running IN transfer, 0 if none
@@ -33,6 +33,8 @@ static uint8_t line_coding[7] = {0x00, 0xC2, 0x01, 0x00, 0x00, 0x00, 0x08};  // 
 // back, and it ended up in front of the first command, which then never ran.
 // Sending also waits CDC_OPEN_HOLD_MS after the open for the same reason.
 #define CDC_OPEN_HOLD_MS 100
+// tx ring bytes text may not use: ~24 float samples (42 B each)
+#define TX_SCOPE_ROOM 1024
 extern uint32_t HAL_GetTick(void);
 static volatile uint8_t host_open;
 static volatile uint32_t host_open_ms;
@@ -186,7 +188,10 @@ int cdc_tx_text(const char *data, int len) {
   }
   int sent = 0;
   for(uint32_t spin = 0; len > 0 && spin < 200000; spin++) {
+    // text leaves TX_SCOPE_ROOM to the scope, so a long reply (list, show)
+    // does not stall the samples behind it
     uint32_t room = cdc_tx_room();
+    room          = room > TX_SCOPE_ROOM ? room - TX_SCOPE_ROOM : 0;
     if(room == 0) {
       continue;
     }
