@@ -970,7 +970,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
           // the clamp slews the integrator only: a clamped P limit-cycles
           float vel_raw   = v_t - PIN(vel_fb);
-          float vel_error = LIMIT(vel_raw, PIN(test_vel) / 100.0);
+          float vel_error = LIMIT(vel_raw, ABS(PIN(test_vel)) / 100.0);
           PIN(cur_sum) = LIMIT(PIN(cur_sum) + PIN(ki) * vel_error * period, PIN(test_cur));
           PIN(q_cmd) = LIMIT(PIN(vel_bw) * period * vel_raw + PIN(cur_sum), PIN(test_cur));
         }
@@ -978,10 +978,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         // a bad pp or offset puts current in without torque: stall when the
         // integrator (not the P term, which spikes at spin up) asks for amps
         // and the rotor does not turn
-        if(ctx->psi_stage < 4 && ABS(ctx->vel_lp) < v_t * 0.1 && ABS(PIN(cur_sum)) > PIN(test_cur) * PSI_STALL) {
+        if(ctx->psi_stage < 4 && ABS(ctx->vel_lp) < ABS(v_t) * 0.1 && ABS(PIN(cur_sum)) > PIN(test_cur) * PSI_STALL) {
           ctx->psi_fail = 1;
         } else if(ctx->psi_stage == 0 || ctx->psi_stage == 2) {  // spin up
-          if(ABS(ctx->vel_lp - v_t) < v_t * PSI_BAND) {
+          if(ABS(ctx->vel_lp - v_t) < ABS(v_t) * PSI_BAND) {
             ctx->settle_t += period;
           } else {
             ctx->settle_t = 0.0;
@@ -1037,13 +1037,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
           float vel  = PIN(vel_fb);
           float avel = ABS(vel);
-          PIN(emf_run) = avel > PIN(test_vel) * PSI_COAST_MIN ? 1.0 : 0.0;
+          PIN(emf_run) = avel > ABS(PIN(test_vel)) * PSI_COAST_MIN ? 1.0 : 0.0;
           // the f3 opens the bridge a few packets later and the winding current
           // then freewheels through the diodes for about L / R, the terminals on
           // the rails; io.c's filter and the hold carry that on. emf0 waits
           // its own EMF_HOLDOFF for the same reason
-          if(avel > PIN(test_vel) * PSI_COAST_MIN && ctx->st_t > PSI_COAST_HOLDOFF) {
-            int b   = avel > PIN(test_vel) * PSI_COAST_SPLIT ? 0 : 1;
+          if(avel > ABS(PIN(test_vel)) * PSI_COAST_MIN && ctx->st_t > PSI_COAST_HOLDOFF) {
+            int b   = avel > ABS(PIN(test_vel)) * PSI_COAST_SPLIT ? 0 : 1;
             float w = vel * PIN(pp);
             float s_th, c_th, s_wt, c_wt;
             sincos_fast((PIN(pos_fb) + PIN(com_offset)) * PIN(pp), &s_th, &c_th);
@@ -1071,7 +1071,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
             ctx->cn[b]++;
           }
 
-          if(avel < PIN(test_vel) * PSI_COAST_MIN || ctx->st_t > PSI_COAST_TIME) {
+          if(avel < ABS(PIN(test_vel)) * PSI_COAST_MIN || ctx->st_t > PSI_COAST_TIME) {
             float z_re[3], z_im[3], w_mean[2];
             uint32_t n_all = ctx->cn[0] + ctx->cn[1];
             for(int b = 0; b < 3; b++) {  // 0 fast, 1 slow, 2 both

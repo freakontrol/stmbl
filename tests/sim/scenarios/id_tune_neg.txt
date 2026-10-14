@@ -1,0 +1,19 @@
+# id_tune adv at a negative test_vel (reverse): the speed loop clamps and
+# bands used v_t's sign, so the rotor ran away forward. Same plant as id_pmsm,
+# encoder 150 us late; adv lands at the forward run's 332 us (old code: 0, ran forward).
+title id_tune adv, test_vel negative
+config conf/fanuc_a3-3000.txt
+f4 link id_tune
+f4 idtune0.test_vel = -50
+f4 idtune0.ki = 20
+f4 fault0.en = 0
+plant r=0.70 ld=0.0030 lq=0.0045 psi=0.068 jl=0 f=0.02 d=0.00005 dt_shape=1 dt_i0=0.6 enc_delay=0.00015
+at 0.1 f4 fault0.en = 1
+trace idtune0.state idtune0.adv plant.vel
+expect max fault0.last_fault < 0.5 from 0.15
+expect max plant.vel < 5 from 0.15
+expect final idtune0.state > 1.45
+expect final idtune0.state < 1.55
+expect final idtune0.adv > 0.0001
+expect final idtune0.adv < 0.0004
+run 60
