@@ -6,101 +6,83 @@
 
 /**
 * ## Brief
-* The `flux_obs` component is a hybrid rotor flux observer for an induction
-* motor on an encoder (review item B5). It measures the rotor flux angle and
-* magnitude from voltage and current, without tr, and trims the current
-* model's slip so that the field orientation follows the measured flux at
-* speed. Below its crossover it falls back to the current model (acim_flux),
-* so at low speed nothing changes.
+* `flux_obs` is a hybrid rotor flux observer for an induction motor on an encoder (review item B5). It measures the rotor flux angle and magnitude from voltage and current, without tr, and can trim the current model's slip so that the field orientation follows the measured flux at speed. Below its crossover it falls back to the current model (`acim_flux`), so at low speed nothing changes.
 *
-* **Status (14 Oct):** shadow (pos_err, psi) and the slip trim are
-* bench-checked on the spindle, cold and warm, without load; untested under a
-* cutting load. conf/template/flux_obs.txt loads it in shadow (link
-* flux_obs); its comment gives the trim settings.
+* **Status (14 Oct):** shadow (`pos_err`, `psi`) and the slip trim are bench-checked on the spindle, cold and warm, without load; untested under a cutting load.
 *
-* ## Model (Jansen / Lorenz, stationary frame)
-* With l = sigma*Ls and psi = lmr * i_mr (the rotor flux seen from the
-* stator, as acim_flux0.psi):
+* `conf/template/flux_obs.txt` loads it after `acim_foc` (`link flux_obs`) in shadow mode, at `rt_prio` 9.4, with `en = fault0.en_out`, `r = conf0.r`, `l = conf0.l`, `adv = hv0.adv`, `id`/`iq`/`ud`/`uq = hv0.*_fb`, `pos_ref = angle0.pos`, `vel_ref = angle0.vel`, `psi_cm = acim_flux0.psi`, `slip_in = acim_flux0.slip` and `slip_max = acim_flux0.slip_max`. `flux_obs0.pos_err` then shows how far the current model's orientation is off at speed (tr). To trim the slip with it: `flux_obs0.kp_s = 20`, `flux_obs0.ki_s = 2` and `angle0.slip = flux_obs0.slip`; `flux_obs0.k` is then true / modelled slip.
 *
-*     voltage model:  d(psi_s)/dt = u - r i
-*     current model:  psi_s_cm    = psi_cm e^(j pos_ref) + l i
-*     hybrid:         d(psi_s)/dt = u - r i + kp (psi_s_cm - psi_s) + ki int(psi_s_cm - psi_s)
-*     rotor flux:     psi_r       = psi_s - l i
+* ## Component Explanation
+* All work is done in `rt`; `rt_start` clears the observer and sets `k` to 1.
 *
-* kp = 1.4 wc, ki = wc^2: the estimate follows the current model below about
-* `wc` [rad/s electrical] and the voltage model above it, where only r and l
-* matter and r's share falls with speed. The voltage integrator's drift
-* (offsets, r error) is held by the current model term.
+* 1. **Model** (Jansen / Lorenz, stationary frame):
+* - With `l = sigma*Ls` and `psi = lmr * i_mr` (the rotor flux seen from the stator, as `acim_flux0.psi`):
+* - Voltage model: `d(psi_s)/dt = u - r i`.
+* - Current model: `psi_s_cm = psi_cm e^(j pos_ref) + l i`.
+* - Hybrid: `d(psi_s)/dt = u - r i + kp (psi_s_cm - psi_s) + ki int(psi_s_cm - psi_s)`, with `kp = 1.4 wc`, `ki = wc^2`.
+* - Rotor flux: `psi_r = psi_s - l i`; `psi` is its magnitude, `pos` its angle.
+* - The estimate follows the current model below about `wc` and the voltage model above it, where only `r` and `l` matter and r's share falls with speed. The current model term holds the voltage integrator's drift (offsets, r error).
+* - The resistance used is `r + r_w * abs(vel_ref)`.
+* - While `en <= 0` the stator flux is set to the current model's and the integral cleared.
 *
-* ## Frames
-* Like obs: the feedback (hv0.id_fb ...) is in the frame pos_ref + vel_ref *
-* adv (angle0.pos, hv0.adv). Run flux_obs before angle0 (lower rt_prio), so
-* pos_ref is the angle the feedback was taken with. The voltages are the
-* mean over the period before the sample, so they sit `u_adv` off the
-* current's frame, half an rt period (u_adv 0 = -period / 2, -100 us at
-* 5 kHz). Do not calibrate it
-* on idle holds: on the spindle (13 Oct) -30 us zeroed pos_err there, but
-* that hid the current model's slip error and left 0.17 rad while braking;
-* at -100 us the rotor resistance seen by the observer (slip * psi / iq) is
-* 0.121..0.128 in run-up, hold and both brakes, at -30 us 0.09..0.15. `pos_err` = flux angle
-* minus that frame: how far the current model's orientation is off, 0 below
-* the crossover.
+* 2. **Frames**:
+* - Like `obs`: the feedback (`hv0.id_fb` ...) is in the frame `pos_ref + vel_ref * adv` (`angle0.pos`, `hv0.adv`). Run `flux_obs` before `angle0` (lower `rt_prio`), so `pos_ref` is the angle the feedback was taken with.
+* - The voltages are the mean over the rt period before the sample, which the frame turned through, so they sit `u_adv` off the current's frame: half an rt period (`u_adv` 0 = `-period / 2`, -100 us at 5 kHz).
+* - Do not calibrate `u_adv` on idle holds: on the spindle (13 Oct) -30 us zeroed `pos_err` there, but that hid the current model's slip error and left 0.17 rad while braking. At -100 us the rotor resistance seen by the observer (`slip * psi / iq`) is 0.121 to 0.128 in run-up, hold and both brakes, at -30 us 0.09 to 0.15.
+* - `pos_err = pos` minus that frame: how far the current model's orientation is off, 0 below the crossover (and 0 while `psi` is below 1e-4).
 *
-* ## Slip trim, off by default (shadow)
+* 3. **Slip trim** (off by default, shadow):
+* - `slip = slip_in * k + kp_s * pos_err`.
+* - `kp_s` pulls the frame onto the measured flux. The pull is bounded to `0.5 * abs(slip_in) + slip_min`, so a wrong angle (voltage limit, sensor fault, transient) cannot drive the frame off by more (it was open: +-63 rad/s at `kp_s` 20).
+* - `ki_s` moves `k`, the ratio of true to modelled slip (tr / true tr), so `pos_err` goes to 0 in steady state and a load step finds the right slip at once. Flux ahead of the frame (`pos_err > 0`) means the true slip is larger. `k` stays within 0.5 to 2.
+* - Both act only while the gate is open (`trim` = 1): `en > 0`, `abs(vel_ref) > vel_min`, `abs(psi_cm) > 1e-3` and `psi > psi_min * abs(psi_cm)`. `k` moves only while also `ki_s > 0` and `abs(slip_in) > slip_min`.
+* - With `acc_max > 0`, `k` also holds while `abs(acc)` (the `vel_ref` derivative, 5 Hz low pass) is above it. With `u_adv` right `k` is the same in run-up, hold and brake (spindle 13 Oct: within 0.01 in field weakening), so the gate is only for a doubtful `u_adv`.
+* - `k` starts at 1 when the drive starts (`rt_start`) and otherwise keeps its value while the gates are shut or `en` is 0, so `slip = slip_in * k` still applies there: `k` tracks the rotor temperature, which changes slowly, so a new enable starts from the last learnt ratio.
+* - The trimmed slip is clamped to `+-slip_max` when `slip_max > 0`, as `acim_flux` clamps its own.
+* - `kp_s` 0 and `ki_s` 0: `slip = slip_in` (with `k` at 1), the observer only reports. Wire `angle0.slip = flux_obs0.slip` to use it.
 *
-*     slip = slip_in * k + kp_s * pos_err
+* 4. **Results**:
+* - Spindle bench (13 Oct, unloaded): shadow (`pos_err`, `psi`) checked.
+* - Spindle bench (14 Oct, no load, template): shadow within 0.03 rad cold. Trim `kp_s` 20, `ki_s` 2 follows the rotor temperature (`k` 1.0 cold, 1.07 to 1.11 after 20 min at 2352 rpm) and holds `pos_err` within 0.02 rad.
 *
-* `kp_s` [1/s] pulls the frame onto the measured flux; `ki_s` [1/(rad s)]
-* moves k, the ratio of true to modelled slip (tr / true tr), so pos_err goes
-* to 0 in steady state and a load step finds the right slip at once. Both act
-* only while |vel_ref| > `vel_min` and the measured flux is above `psi_min`
-* times psi_cm; k moves only while |slip_in| > `slip_min`, and stays within
-* 0.5 to 2. kp_s 0 and ki_s 0 (default): slip = slip_in, the observer only
-* reports. Wire angle0.slip = flux_obs0.slip to use it.
-*
-* With `acc_max` > 0, k also holds while |acceleration| (vel_ref, 5 Hz low
-* pass, `acc`) is above it [rad/s^2 electrical]; 0 (default) = no gate. With
-* u_adv right k is the same in run-up, hold and brake (spindle 13 Oct: within
-* 0.01 in field weakening), so the gate is only for a doubtful u_adv.
-*
-* k starts at 1 when the drive starts (rt_start) and otherwise keeps its value
-* while the gates are shut or en is 0: it tracks the rotor temperature, which
-* changes slowly, so a new enable starts from the last learnt ratio.
+* {{% hint warning %}}
+* The slip trim is not tested under a cutting load yet.
+* {{% /hint %}}
 */
 
 HAL_COMP(flux_obs);
 
-HAL_PIN(r);         // *parameter*, stator resistance [ohm], conf0.r
-HAL_PIN(r_w);       // *parameter*, d loss growing with speed [ohm per rad/s electrical], as obs0.r_w
-HAL_PIN(l);         // *parameter*, leakage sigma*Ls [H], conf0.l
-HAL_PIN(wc);        // *parameter*, crossover current to voltage model [rad/s electrical]
-HAL_PIN(adv);       // *parameter*, feedback frame lead over pos_ref [s], hv0.adv
-HAL_PIN(u_adv);     // *parameter*, voltage frame lead over the current's [s], 0 = -half the rt period
-HAL_PIN(kp_s);      // *parameter*, frame pull onto the measured flux [1/s], 0 = off
-HAL_PIN(ki_s);      // *parameter*, slip ratio rate [1/(rad s)], 0 = off
-HAL_PIN(vel_min);   // *parameter*, trim only above this |vel_ref| [rad/s electrical]
-HAL_PIN(psi_min);   // *parameter*, trim only while psi > psi_min * psi_cm
-HAL_PIN(slip_min);  // *parameter*, k moves only above this |slip_in| [rad/s electrical]
-HAL_PIN(acc_max);   // *parameter*, k moves only below this |acc| [rad/s^2 electrical], 0 = no gate
-HAL_PIN(slip_max);  // *input*, clamp on the trimmed slip [rad/s electrical], acim_flux0.slip_max, 0 = none
+HAL_PIN(r);         // *parameter*, Stator resistance (ohm, default 0.2), conf0.r
+HAL_PIN(r_w);       // *parameter*, Resistance growing with speed, d loss (ohm per rad/s electrical, default 0), as obs0.r_w
+HAL_PIN(l);         // *parameter*, Leakage inductance sigma*Ls (H, default 0.001), conf0.l
+HAL_PIN(wc);        // *parameter*, Crossover from the current to the voltage model (rad/s electrical, default 20)
+HAL_PIN(adv);       // *parameter*, Feedback frame lead over pos_ref (s), hv0.adv
+HAL_PIN(u_adv);     // *parameter*, Voltage frame lead over the current's (s, default 0 = -half the rt period)
+HAL_PIN(kp_s);      // *parameter*, Frame pull onto the measured flux (1/s, default 0 = off)
+HAL_PIN(ki_s);      // *parameter*, Rate of the slip ratio k (1/(rad s), default 0 = off)
+HAL_PIN(vel_min);   // *parameter*, Trim only above this abs(vel_ref) (rad/s electrical, default 150)
+HAL_PIN(psi_min);   // *parameter*, Trim only while psi > psi_min * abs(psi_cm) (default 0.5)
+HAL_PIN(slip_min);  // *parameter*, k moves only above this abs(slip_in), also widens the kp_s bound (rad/s electrical, default 2)
+HAL_PIN(acc_max);   // *parameter*, k moves only below this abs(acc) (rad/s^2 electrical, default 0 = no gate)
+HAL_PIN(slip_max);  // *input*, Clamp on the trimmed slip (rad/s electrical, 0 = none), acim_flux0.slip_max
 
-HAL_PIN(en);        // *input*, 0 = flux estimate follows the current model (k is kept)
-HAL_PIN(id);        // *input*, hv0.id_fb
-HAL_PIN(iq);        // *input*, hv0.iq_fb
-HAL_PIN(ud);        // *input*, hv0.ud_fb
-HAL_PIN(uq);        // *input*, hv0.uq_fb
-HAL_PIN(pos_ref);   // *input*, angle the feedback frame was at, angle0.pos
-HAL_PIN(vel_ref);   // *input*, angle0.vel
-HAL_PIN(psi_cm);    // *input*, current model rotor flux, acim_flux0.psi
-HAL_PIN(slip_in);   // *input*, current model slip, acim_flux0.slip
+HAL_PIN(en);        // *input*, Enable, 0 = flux estimate follows the current model and trim off (k is kept), fault0.en_out
+HAL_PIN(id);        // *input*, d current feedback (A), hv0.id_fb
+HAL_PIN(iq);        // *input*, q current feedback (A), hv0.iq_fb
+HAL_PIN(ud);        // *input*, d voltage feedback (V), hv0.ud_fb
+HAL_PIN(uq);        // *input*, q voltage feedback (V), hv0.uq_fb
+HAL_PIN(pos_ref);   // *input*, Angle the feedback frame was at (rad electrical), angle0.pos
+HAL_PIN(vel_ref);   // *input*, Frame velocity (rad/s electrical), angle0.vel
+HAL_PIN(psi_cm);    // *input*, Current model rotor flux (V s), acim_flux0.psi
+HAL_PIN(slip_in);   // *input*, Current model slip (rad/s electrical), acim_flux0.slip
 
-HAL_PIN(psi);       // *output*, measured rotor flux magnitude [V s]
-HAL_PIN(pos);       // *output*, measured rotor flux angle [rad electrical]
-HAL_PIN(pos_err);   // *output*, pos minus the feedback frame [rad]
-HAL_PIN(k);         // *output*, true / modelled slip, the trim's integral
-HAL_PIN(slip);      // *output*, trimmed slip [rad/s electrical], to angle0.slip
+HAL_PIN(psi);       // *output*, Measured rotor flux magnitude (V s)
+HAL_PIN(pos);       // *output*, Measured rotor flux angle (rad electrical)
+HAL_PIN(pos_err);   // *output*, pos minus the feedback frame (rad)
+HAL_PIN(k);         // *output*, True / modelled slip, the trim's integral (1 at start, 0.5 to 2)
+HAL_PIN(slip);      // *output*, Trimmed slip (rad/s electrical), to angle0.slip
 HAL_PIN(trim);      // *output*, 1 = trim gates open
-HAL_PIN(acc);       // *output*, vel_ref derivative, 5 Hz low pass [rad/s^2 electrical]
+HAL_PIN(acc);       // *output*, vel_ref derivative, 5 Hz low pass (rad/s^2 electrical)
 
 struct flux_obs_ctx_t {
   float psa, psb;  // stator flux, stationary frame

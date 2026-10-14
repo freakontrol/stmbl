@@ -4,26 +4,47 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `stp` is a simple point to point trajectory planner with velocity and acceleration limits, soft limits and a jog input. F4 component, used in `conf/template/jog_cmd.txt` (`stp0.jog = jog0.jog`, `rev0.in = stp0.mpos`) and `conf/festo.txt`.
+*
+* ## Component Explanation
+* All work is done in `rt`. Positions are not wrapped, only `mpos` is.
+*
+* 1. **Target generation**:
+* - `target` is moved by `vel_ext_cmd + jog * max_vel` (limited to 0.99 * `max_vel`) and `acc_ext_cmd` (limited to 0.99 * `max_acc`). `vel_ext_cmd` itself is integrated with `acc_ext_cmd` and written back.
+* - `target` is clamped to `min_pos`..`max_pos`.
+*
+* 2. **Planning** (every period):
+* - `dtg = target - pos`. The time to stop at the target from standstill with `max_acc` is `sqrt(2 |dtg| / max_acc)`, rounded up to whole periods (`ttg`).
+* - The velocity for that time is limited to `max_vel`; the acceleration needed to reach it in one period is limited to `max_acc` and output as `acc_cmd`.
+* - `pos` and `vel_cmd` are integrated with `acc_cmd`.
+*
+* 3. **Target reached**:
+* - When less than one period to go and `|vel_cmd|` < `max_acc * period`, `pos` is set to `target` and `vel_cmd` to 0.
+* - `at_target` = 1 when at most one period to go and `|vel_cmd|` < `max_vel / 10000`.
+*/
+
 HAL_COMP(stp);
 
-HAL_PIN(target);
-HAL_PIN(vel_ext_cmd);
-HAL_PIN(acc_ext_cmd);
-HAL_PIN(jog);
+HAL_PIN(target);       // *input/output*, Target position, clamped and moved by jog (rad)
+HAL_PIN(vel_ext_cmd);  // *input/output*, External velocity, integrated from acc_ext_cmd (rad/s)
+HAL_PIN(acc_ext_cmd);  // *input*, External acceleration (rad/s^2)
+HAL_PIN(jog);          // *input*, Jog -1..1, multiplied with max_vel
 
-HAL_PIN(pos);
-HAL_PIN(mpos);
-HAL_PIN(vel_cmd);
-HAL_PIN(acc_cmd);
+HAL_PIN(pos);      // *output*, Planned position, not wrapped (rad)
+HAL_PIN(mpos);     // *output*, Planned position, wrapped (rad, +-pi)
+HAL_PIN(vel_cmd);  // *output*, Planned velocity (rad/s)
+HAL_PIN(acc_cmd);  // *output*, Planned acceleration (rad/s^2)
 
-HAL_PIN(max_pos);
-HAL_PIN(min_pos);
-HAL_PIN(max_vel);
-HAL_PIN(max_acc);
+HAL_PIN(max_pos);  // *parameter*, Upper soft limit (rad), default 20pi
+HAL_PIN(min_pos);  // *parameter*, Lower soft limit (rad), default -20pi
+HAL_PIN(max_vel);  // *parameter*, Maximum velocity (rad/s), default 2pi
+HAL_PIN(max_acc);  // *parameter*, Maximum acceleration (rad/s^2), default 20pi
 
-HAL_PIN(dtg);
-HAL_PIN(ttg);
-HAL_PIN(at_target);
+HAL_PIN(dtg);        // *output*, Distance to go (rad)
+HAL_PIN(ttg);        // *output*, Time to go (s)
+HAL_PIN(at_target);  // *output*, 1 = target reached
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct stp_ctx_t *ctx      = (struct stp_ctx_t *)ctx_ptr;

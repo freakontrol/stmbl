@@ -57,15 +57,24 @@ def main(output_file, comp_files, config_templates):
     # Extract the base name of the output file (excluding the path and extension)
     output_base_name = os.path.splitext(os.path.basename(output_file))[0]
 
-    # Find which component file has the same name as the output file, ignoring extensions
-    matching_comp_file = None
-    for comp_file in comp_files:
-        if os.path.splitext(os.path.basename(comp_file))[0] == output_base_name:
-            matching_comp_file = comp_file
-            break
+    # Find which component file has the same name as the output file, ignoring extensions.
+    # F3 and F4 can both have a component with the same name (hv): the F4 one gets <name>.md,
+    # the F3 one (under stm32f303/) gets <name>_f3.md.
+    comp_name = output_base_name
+    want_f3 = False
+    if comp_name.endswith('_f3'):
+        comp_name = comp_name[:-3]
+        want_f3 = True
+    candidates = [c for c in comp_files if os.path.splitext(os.path.basename(c))[0] == comp_name]
+    if want_f3:
+        candidates = [c for c in candidates if c.startswith('stm32f303/')]
+    else:
+        candidates.sort(key=lambda c: c.startswith('stm32f303/'))
+    matching_comp_file = candidates[0] if candidates else None
 
     # Collect component documentation and write to Markdown file
     description = collect_comp_docs(matching_comp_file)
+    description = description.replace(f"# {comp_name.upper()}\n", f"# {output_base_name.upper()}\n", 1)
 
     pins = []
     if matching_comp_file:

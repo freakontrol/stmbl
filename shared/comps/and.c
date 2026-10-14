@@ -1,14 +1,24 @@
 #include "and_comp.h"
 #include "hal.h"
 
+/**
+* ## Brief
+* `and` is a four input logic AND. F4 component, used e.g. in `conf/bene_sanyo.txt`.
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* - `out` = 1 if all of `in0`..`in3` are > 0, otherwise 0.
+* - Unused inputs default to 0, so they must be set to 1 (e.g. `and0.in3 = 1`).
+*/
+
 HAL_COMP(and);
 
-HAL_PIN(in0);
-HAL_PIN(in1);
-HAL_PIN(in2);
-HAL_PIN(in3);
+HAL_PIN(in0);  // *input*, Logic input, true if > 0
+HAL_PIN(in1);  // *input*, Logic input, true if > 0
+HAL_PIN(in2);  // *input*, Logic input, true if > 0, set to 1 if unused
+HAL_PIN(in3);  // *input*, Logic input, true if > 0, set to 1 if unused
 
-HAL_PIN(out);
+HAL_PIN(out);  // *output*, 1 if all inputs are > 0
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct and_pin_ctx_t *pins = (struct and_pin_ctx_t *)pin_ptr;

@@ -11,8 +11,8 @@
 * ## States
 * 0. off: `en` = 0. Everything reset, obs tracks.
 * 1. align: current `i_f` on d at a standing frame for `align_time`. PMSM:
-*    the rotor turns onto the d axis. Induction motor: the flux builds (use
-*    about 3 tr).
+*    the rotor turns onto the d axis. Induction motor: the flux builds (about
+*    3 tr, what align_time 0 uses).
 * 2. I/f: the frame turns at `f`, which ramps toward `vel_cmd` at `acc`, with
 *    `i_f` on d. The rotor follows the rotating current. obs tracks the frame
 *    below `w_hand` / 2, so it starts with the right direction, then runs free.
@@ -34,11 +34,12 @@
 * fits any motor: in I/f the frequency stays within it of the encoder speed,
 * so a rotor that does not follow is not left behind. In state 3 an observer
 * speed further than it from the encoder for `enc_time`
-* falls back to I/f, seeded from the encoder, and sets `enc_err` (held until
-* `en` = 0; link it to a fault input to trip instead). `slip_err` is
-* obs0.vel_m - vel_enc in state 3, low passed at 1 Hz: steady, it is the
-* slip model's error, a check on acim_flux0.tr without the MRAS. enc_tol 0
-* = off.
+* falls back to I/f, seeded from the encoder, and sets `enc_err` (link it to a
+* fault input to trip instead). Steady, `slip_err` is the
+* slip model's error, a check on acim_flux0.tr without the MRAS (the sl_acim
+* template links it to acim_flux0.slip_err, for tr_ks). Outside state 3
+* there is no observer speed to compare, so `slip_err` is held at 0 and tr_ks
+* does not adapt on the last value. enc_tol 0 = off.
 *
 * Defaults from the motor (each 0 = derived, a value set in the config wins):
 * - `align_time` 0 = 3 * `tr` (acim_flux0.tr: the flux has built), 0.3 s
@@ -47,11 +48,18 @@
 *   observer's own trust level): 5 * e_min / (polecount * flux), flux =
 *   `psi` (conf0.psi, PMSM) or `lmr` * i_f (acim_flux0.lmr, induction
 *   motor after align). 50 rad/s without either.
-* - `hyst` 0 = w_hand / 3.
-* `align` and `hand` show the values in use.
+* - `obs_bw` = 5 * `hand` * polecount, the observer bandwidth. The sl_acim
+*   template links obs0.bw to it (it used to be set by hand, spindle 300);
+*   an obs0.bw in the config wins.
 *
-* Speeds are mechanical rad/s. `vel_e` is f * polecount for angle0.vel_cmd,
-* `src` goes to angle0.src.
+* Speeds are mechanical rad/s. `vel_e` is f * polecount.
+*
+* Low speed: below w_hand - hyst the drive is in I/f, with no speed loop
+* and no torque control, so that is the lowest closed loop speed. w_hand
+* belongs where the emf, w_hand * polecount * lmr * i_f (PMSM: psi), is
+* about 5 times obs0.e_min, which is what w_hand 0 derives; the sl_acim
+* template links i_f to acim_foc0.id_n, so the induction motor's flux is
+* the rated one.
 */
 
 HAL_COMP(sl_seq);
@@ -59,7 +67,7 @@ HAL_COMP(sl_seq);
 HAL_PIN(en);          // *input*, fault0.en_pid
 HAL_PIN(vel_cmd);     // *input*, speed command [rad/s mech], vel0.vel
 HAL_PIN(polecount);   // *parameter*, pole pairs
-HAL_PIN(i_f);         // *parameter*, align and I/f current on d [A peak]
+HAL_PIN(i_f);         // *parameter*, align and I/f current on d [A peak], default 3, sl_acim links acim_foc0.id_n
 HAL_PIN(align_time);  // *parameter*, [s], 0 = 3 * tr
 HAL_PIN(acc);         // *parameter*, I/f acceleration [rad/s^2 mech]
 HAL_PIN(w_hand);      // *parameter*, handover speed [rad/s mech], 0 = from e_min and the flux
@@ -83,18 +91,18 @@ HAL_PIN(q_cmd);       // *output*, to hv0.q_cmd
 HAL_PIN(vel_ref);     // *output*, speed command for pid [rad/s mech], to pid0.vel_ext_cmd
 HAL_PIN(acc_ref);     // *output*, its slope [rad/s^2], to pid0.acc_ext_cmd
 HAL_PIN(vel_enc);     // *input*, encoder rotor speed [rad/s mech], for the guard
-HAL_PIN(enc_tol);     // *parameter*, allowed |speed - vel_enc| as a multiple of slip_max, 0 = no guard
+HAL_PIN(enc_tol);     // *parameter*, allowed abs(speed - vel_enc) as a multiple of slip_max, 0 = no guard
 HAL_PIN(slip_max);    // *parameter*, slip limit [rad/s electrical], acim_flux0.slip_max
 HAL_PIN(enc_time);    // *parameter*, observer error longer than this falls back [s]
 HAL_PIN(enc_err);     // *output*, 1 = observer disagreed with the encoder, held until en 0
-HAL_PIN(slip_err);    // *output*, obs0.vel_m - vel_enc in state 3, 1 Hz low pass [rad/s mech]
+HAL_PIN(slip_err);    // *output*, obs0.vel_m - vel_enc in state 3, 1 Hz low pass, 0 in the other states [rad/s mech]
 HAL_PIN(tr);          // *input*, rotor time constant [s], acim_flux0.tr, for align_time 0
 HAL_PIN(psi);         // *input*, magnet flux [V s], conf0.psi, for w_hand 0 (PMSM)
 HAL_PIN(lmr);         // *input*, magnetizing inductance [H], acim_flux0.lmr, for w_hand 0 (induction motor)
-HAL_PIN(e_min);       // *input*, obs0.e_min [V], for w_hand 0
+HAL_PIN(e_min);       // *input*, obs0.e_min [V], for w_hand 0, default 3
 HAL_PIN(align);       // *output*, align time in use [s]
 HAL_PIN(hand);        // *output*, handover speed in use [rad/s mech]
-HAL_PIN(obs_bw);      // *output*, observer bandwidth for obs0.bw [rad/s]: 5 x the handover speed, electrical
+HAL_PIN(obs_bw);      // *output*, observer bandwidth for obs0.bw, 5 x hand x polecount [rad/s electrical]
 
 struct sl_seq_ctx_t {
   float time;

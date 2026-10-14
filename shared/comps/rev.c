@@ -5,15 +5,25 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `rev` optionally reverses the direction of a position and its derivative. F4 component, normally used on the command path: e.g. `rev0.in = vel_int0.pos_out`, `rev0.rev = conf0.cmd_rev`, `reslimit0.pos_in = rev0.out`, `pid0.vel_ext_cmd = rev0.out_d`, and in the sserial templates `rev0.in_dd = vel_int0.acc_out`, `pid0.acc_ext_cmd = rev0.out_dd` (acceleration feedforward from the host frames).
+*
+* ## Component Explanation
+* 1. **Reversal** (`rt`):
+* - If `rev` > 0: `out = minus(0, in)` (negated and wrapped to +-pi), `out_d = -in_d` and `out_dd = -in_dd`.
+* - Otherwise the inputs are passed through unchanged.
+*/
+
 HAL_COMP(rev);
 
-HAL_PIN(in);
-HAL_PIN(out);
-HAL_PIN(in_d);
-HAL_PIN(out_d);
-HAL_PIN(in_dd);  // second derivative (acceleration), sign follows rev like in_d
-HAL_PIN(out_dd);
-HAL_PIN(rev);
+HAL_PIN(in);      // *input*, Position (rad)
+HAL_PIN(out);     // *output*, Position, negated if rev > 0 (rad, +-pi)
+HAL_PIN(in_d);    // *input*, Derivative of the position (rad/s)
+HAL_PIN(out_d);   // *output*, Derivative, negated if rev > 0 (rad/s)
+HAL_PIN(in_dd);   // *input*, Second derivative of the position (rad/s^2)
+HAL_PIN(out_dd);  // *output*, Second derivative, negated if rev > 0 (rad/s^2)
+HAL_PIN(rev);     // *parameter*, Reverse direction if > 0
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct rev_ctx_t * ctx = (struct rev_ctx_t *)ctx_ptr;

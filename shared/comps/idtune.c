@@ -27,50 +27,121 @@
 // with drop_k 0: the latch's lag at an unloaded motor's ~1 A lands on d and
 // cancels the slope.
 
+/**
+* ## Brief
+* `idtune` tunes the running compensations that `idpmsm` does not: `hv0.adv`, the commutation advance in seconds (hv sends `pos + vel * adv`), and, for the latched dead time sign (`hv0.drop_knee = 0`), `hv0.drop_k`, the dead time (drop) compensation. With `drop_knee > 0` the config's `drop_k` from `idpmsm`'s curve fit is kept. It runs on the F4 board, is loaded by the `id_tune` config template and prints `hv0.drop_k` and `hv0.adv` lines to append to the config.
+*
+* ## How to run it
+*
+* 1. Run `id_pmsm` first and have its results in the config: `conf0.r`, `conf0.l`, `conf0.lq`, `conf0.psi`, `conf0.polecount`, `conf0.mot_fb_offset` (and `conf0.out_rev`), and `hv0.drop_k` / `hv0.drop_knee` if you use the dead time curve. A correct `conf0.lq` matters: the advance is found from the d voltage the motor should need, which is computed with `lq`.
+* 2. Take the load off the shaft; the rotor must be free to spin at up to `2 * test_vel` (200 rad/s at the default).
+* 3. With the drive disabled type `link id_tune`. The template does `load idtune` and wires:
+* ```
+* idtune0.en = fault0.en_out
+* hv0.en = idtune0.en_out
+* hv0.cmd_mode = idtune0.cmd_mode
+* hv0.d_cmd = idtune0.d_cmd
+* hv0.q_cmd = idtune0.q_cmd
+* hv0.adv = idtune0.adv
+* idtune0.drop_k_cfg = hv0.drop_k
+* idtune0.drop_knee = hv0.drop_knee
+* hv0.drop_k = idtune0.drop_k
+* idtune0.vel_fb = vel1.vel
+* idtune0.vel_e = vel2.vel
+* idtune0.r = conf0.r
+* idtune0.l = conf0.l
+* idtune0.lq = conf0.lq
+* ```
+* - plus `ud_fb`, `uq_fb`, `id_fb`, `iq_fb`, `dc_volt` from `hv0`, and `fault0.pos_error = 0`, `fault0.sat = 0`, `pid0.en = 0`. `drop_k_cfg` is linked before `hv0.drop_k` is pointed at this component, so it reads the config's value. `hv0.pos` and `hv0.vel` stay on the normal running path, so the angle that is tuned is the angle the drive runs with.
+* 4. Enable the drive. The tests run automatically: drop_k (about 3.5 s at the defaults, skipped with `drop_knee > 0`), then the adv speed dwells.
+* 5. On success (state 1.3) it prints the last fit, `hv0.drop_k = ...` (or a note that the config's drop_k was kept) and `hv0.adv = ...` to append to the config, and goes to 1.5 (bridge off). On failure (state 1.4) it prints the reason and only the drop_k result.
+* 6. Disable the drive and reload the normal config.
+*
+* ## Component Explanation
+*
+* `rt` does all the measuring, `nrt` only prints the result in states 1.3 and 1.4. `en <= 0` forces `state = 0`, which sets `en_out = 0`, `cmd_mode = 1` (current mode), zero commands, `cur_sum = 0` and `fail = 0`. On `en` going high the context is cleared, `adv = 0`, `drop_k = 0.6` and `state = 1.1`; with `drop_knee > 0` the config's `drop_k_cfg` is held as the result, `drop_k = 0` and it goes straight to `state = 1.2`.
+*
+* 1. **drop_k, bisection on d current steps (state 1.1, latch only)**:
+* - `q_cmd = 0`; `d_cmd` is a square wave of +-`step_cur` at `step_freq`, so the current crosses zero on every edge with no torque (the rotor is held only by its cogging). `step_cur` is 6 A because the latch's model holds above about 2 A per phase.
+* - With too little compensation the current creeps toward the command for tens of ms after each edge; with too much it overshoots. So the signed mean error is measured:
+* ```c
+* dk_err = mean((id_fb - cmd) / cmd);   // < 0: under compensated, > 0: over
+* ```
+* - A try is 5 square wave periods; the first period and the first 2 ms after every edge (the current loop's own rise) are not measured.
+* - Bisection over `0 .. 1.2`: `dk_err < 0` raises the lower bound to `drop_k`, else the upper bound is lowered, and `drop_k` goes to the middle. After 7 tries (resolution 0.01) the result is held, `d_cmd = 0`, `drop_k = 0` and the state goes to 1.2. A result within one step of 0 or 1.2 is printed with a warning that it is not a measurement (raise `step_cur` or check the dc link).
+*
+* 2. **adv, from ud at `adv_n` speeds (state 1.2)**:
+* - The dwells run with `drop_k = 0`: the latch's lag at an unloaded motor's ~1 A would land on d and cancel the slope.
+* - `d_cmd = 0`; a speed loop on the mechanical `vel_fb` drives `q_cmd` towards the dwell speed `v_t`. The clamp slews only the integrator; the P term acts on the unclamped error:
+* ```c
+* vel_error = LIMIT(v_t - vel_fb, ABS(v_t) / 100);
+* cur_sum   = LIMIT(cur_sum + ki * vel_error * period, test_cur);
+* q_cmd     = LIMIT(vel_bw * period * (v_t - vel_fb) + cur_sum, test_cur);
+* ```
+* - The `adv_n` speeds (clamped 2..8) are spread evenly from `0.5 * test_vel` to `2 * test_vel` (50, 100, 150, 200 rad/s at the defaults). A negative `test_vel` runs the dwells in reverse: the clamp, the settle band and the stall check use `abs(v_t)`, so the loop works in either direction. At each speed: once the speed (filtered, 50 ms) is within 15% of `v_t` for 0.5 s, a 0.5 s dwell averages `ud_fb`, `uq_fb`, `id_fb`, `iq_fb` and the electrical speed `vel_e`. More than 8 s without settling fails with `fail = 2`. A filtered speed under 10% of `abs(v_t)` while `|cur_sum| > test_cur / 2` at any time fails with `fail = 1` (stalled, usually wrong polecount, offset or out_rev).
+* - Without angle error the motor needs
+* ```c
+* ud_exp = r * id - w * lq * iq;   // w = electrical speed, lq = l if lq is 0
+* ```
+* - An angle lag `d` of the commutation turns part of uq into ud, `ud - ud_exp = -uq * sin(d)`, and `d = w * (delay - adv)`. After the last speed a least squares line is fitted through the dwells:
+* ```c
+* ud_err = -tau * uq * w + c;   // tau = delay - adv, c = what is on d that is not lag
+* adv    = CLAMP(adv + tau, 0, 0.003);
+* ```
+* - `c` takes the dead time residue and iron loss, so low speed dwells no longer drag adv to its limit. The speed sweep repeats until a fit moves `adv` by less than 20 us (state 1.3); this is checked first, so a fit that settles at the 0 floor is a result (`adv = 0`). Otherwise `fail = 4` if `adv` hits 3 ms, or sits at 0 with a negative `tau` (the fit wants a negative advance); the message then says to check `conf0.lq` and `conf0.r`, raise `test_vel` and rerun. `fail = 3` after 4 fits without converging (check `conf0.lq` and `conf0.r`).
+*
+* 3. **Result (states 1.3, 1.4, 1.5)**:
+* - The bridge is switched off (`en_out = 0`, commands and `cur_sum` zeroed) and `drop_k` is set back to the measured (or kept) value. `nrt` prints the result or the failure reason and sets `state = 1.5`, where it idles until the drive is disabled.
+*
+* {{% hint warning %}}
+* - `drop_k_cfg` reads the config's `hv0.drop_k` only because `link id_tune` at the console links it before `hv0.drop_k` is re-pointed; do not save the id_tune lines into a config, since the boot time `relink` would chain `drop_k_cfg` to `idtune0.drop_k`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(idtune);
 
-HAL_PIN(en);
-HAL_PIN(en_out);
-HAL_PIN(state);
-HAL_PIN(cmd_mode);
-HAL_PIN(d_cmd);
-HAL_PIN(q_cmd);
+HAL_PIN(en);        // *input*, enable, usually fault0.en_out; low resets state to 0
+HAL_PIN(en_out);    // *output*, bridge enable to hv0.en
+HAL_PIN(state);     // *input/output*, 0 off, 1.1 drop_k, 1.2 adv, 1.3 done, 1.4 failed, 1.5 idle
+HAL_PIN(cmd_mode);  // *output*, to hv0.cmd_mode, always 1 = current mode
+HAL_PIN(d_cmd);     // *output*, d current command to hv0.d_cmd (A)
+HAL_PIN(q_cmd);     // *output*, q current command to hv0.q_cmd (A)
 
-HAL_PIN(adv);     // out, to hv0.adv [s]
-HAL_PIN(drop_k);  // out, to hv0.drop_k
-HAL_PIN(drop_k_cfg);  // the config's hv0.drop_k, kept when drop_knee > 0
-HAL_PIN(drop_knee);   // hv0.drop_knee, > 0 skips the drop_k step
+HAL_PIN(adv);         // *output*, commutation advance to hv0.adv (s), 0 .. 0.003
+HAL_PIN(drop_k);      // *output*, dead time compensation to hv0.drop_k, 0 .. 1.2, 0 during the adv dwells
+HAL_PIN(drop_k_cfg);  // *input*, the config's hv0.drop_k, kept as the result when drop_knee > 0
+HAL_PIN(drop_knee);   // *input*, hv0.drop_knee, > 0 skips the drop_k bisection
 
-HAL_PIN(id_fb);
-HAL_PIN(iq_fb);
-HAL_PIN(ud_fb);
-HAL_PIN(uq_fb);
-HAL_PIN(vel_fb);  // mechanical speed, for the speed loop [rad/s]
-HAL_PIN(vel_e);   // electrical speed, what hv0.vel sees [rad/s]
-HAL_PIN(dc_volt);
+HAL_PIN(id_fb);    // *input*, d current from hv0 (A)
+HAL_PIN(iq_fb);    // *input*, q current from hv0 (A)
+HAL_PIN(ud_fb);    // *input*, d voltage command from hv0 (V)
+HAL_PIN(uq_fb);    // *input*, q voltage command from hv0 (V)
+HAL_PIN(vel_fb);   // *input*, mechanical speed for the speed loop (rad/s), vel1.vel
+HAL_PIN(vel_e);    // *input*, electrical speed as hv0.vel sees it (rad/s), vel2.vel
+HAL_PIN(dc_volt);  // *input*, dc link voltage from hv0 (V), only printed
 
-HAL_PIN(r);
-HAL_PIN(l);
-HAL_PIN(lq);  // 0 = same as l
+HAL_PIN(r);   // *parameter*, winding resistance (ohm), conf0.r
+HAL_PIN(l);   // *parameter*, d inductance (H), conf0.l
+HAL_PIN(lq);  // *parameter*, q inductance (H), conf0.lq, 0 = same as l
 
-HAL_PIN(step_cur);   // *parameter*, d step amplitude [A]
-HAL_PIN(step_freq);  // *parameter*, d step frequency [Hz]
-HAL_PIN(test_cur);   // *parameter*, q current limit of the speed loop [A]
-HAL_PIN(test_vel);   // *parameter*, dwell speed, mechanical [rad/s]
-HAL_PIN(ki);
-HAL_PIN(vel_bw);
-HAL_PIN(cur_sum);
+HAL_PIN(step_cur);   // *parameter*, d step amplitude (A), default 6
+HAL_PIN(step_freq);  // *parameter*, d step frequency (Hz), default 10, min 1
+HAL_PIN(test_cur);   // *parameter*, q current limit of the speed loop (A), default 3
+HAL_PIN(test_vel);   // *parameter*, base dwell speed, mechanical (rad/s), dwells at 0.5..2 x, negative runs them in reverse, default 100
+HAL_PIN(ki);         // *parameter*, speed loop integral gain (A/rad), default 1
+HAL_PIN(vel_bw);     // *parameter*, speed loop P gain, times period (A per rad/s), default 250
+HAL_PIN(cur_sum);    // *output*, speed loop integrator (A)
 
-HAL_PIN(dk_err);   // signed mean step error of the last drop_k try, fraction of step_cur
-HAL_PIN(ud_err);   // ud - ud expected in the last dwell [V]
-HAL_PIN(ud_exp);   // ud expected in the last dwell [V]
-HAL_PIN(uq_mean);  // uq in the last dwell [V]
-HAL_PIN(iq_mean);  // iq in the last dwell [A]
-HAL_PIN(w_mean);   // electrical speed in the last dwell [rad/s]
-HAL_PIN(fail);     // 0 none, 1 stalled, 2 never settled, 3 adv did not converge, 4 adv hit its limit
-HAL_PIN(adv_n);    // *parameter*, speeds in the adv fit, 2..8
-HAL_PIN(adv_c);    // fit intercept: what is left on d that is not lag [V]
-HAL_PIN(adv_tau);  // lag the last fit found on top of adv [s]
+HAL_PIN(dk_err);   // *output*, signed mean step error of the last drop_k try, fraction of step_cur
+HAL_PIN(ud_err);   // *output*, ud minus ud expected in the last dwell (V)
+HAL_PIN(ud_exp);   // *output*, ud expected in the last dwell, r id - w lq iq (V)
+HAL_PIN(uq_mean);  // *output*, mean uq in the last dwell (V)
+HAL_PIN(iq_mean);  // *output*, mean iq in the last dwell (A)
+HAL_PIN(w_mean);   // *output*, mean electrical speed in the last dwell (rad/s)
+HAL_PIN(fail);     // *output*, 0 none, 1 stalled, 2 never settled, 3 adv did not converge, 4 adv hit its limit (3 ms, or 0 with a negative fit)
+HAL_PIN(adv_n);    // *parameter*, number of speeds in the adv fit, 2..8, default 4
+HAL_PIN(adv_c);    // *output*, fit intercept, what is left on d that is not lag (V)
+HAL_PIN(adv_tau);  // *output*, lag the last fit found on top of adv (s)
 
 #define DK_MAX 1.2     // drop_k search range 0..DK_MAX
 #define DK_ITER 7      // bisection steps, DK_MAX / 2^7 = 0.01

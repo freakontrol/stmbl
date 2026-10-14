@@ -6,60 +6,68 @@
 #include <math.h>
 
 /**
- * id_dac (comp iddac): one shot search for the overcurrent comparator threshold
- * (hv0.dac) that trips at a wanted current. It prints the hv0.dac line to put
- * in the config; nothing is saved.
- *
- * The comparators are one-sided, so the bridge trips only with the current
- * vector at 60, 180 and 300 deg el. For each dac tried, d current ramps from
- * 0 at those three fixed angles (the unloaded rotor aligns to them) until the
- * f3 reports HV_OVERCURRENT_HW or the ramp reaches cur. A dac passes when all
- * three angles trip by cur. Bisection finds the highest passing dac between
- * dac_lo and dac_hi, so no angle trips above cur.
- *
- * mode 1, loaded or blocked axis: hv0.pos follows the rotor (com_pos) and
- * the current stays on d, so it makes no torque and the rotor need not move.
- * The current vector then sits at the rotor angle or opposite it; each ramp
- * takes the sign whose vector lies within 30 deg of a trip angle and counts
- * the current that phase sees, |i| cos(offset), against cur (the vector
- * goes up to 1.155 x cur). One ramp per dac tests only the comparator of
- * that phase; trip1/trip2 stay 0 and trip_phase says which one (0 = 60 deg).
- * Rotate the axis by hand between runs to check the others.
- *
- * mode 0, free axis: the three fixed angles, so all three comparators.
- *
- * Expect one comparator trip per ramp, a few dozen in all.
- * max_cur (conf0.max_ac_cur) must be over 1.05 x cur, 1.2 x in mode 1
- * (the vector goes up to 1.155 x cur); otherwise the run stops at once with
- * fail 1 and leaves hv0.dac at dac_lo.
- */
+* ## Brief
+* `iddac` (loaded by `conf/template/id_dac.txt` as `id_dac`) is a one shot identification on the F4 board that searches the F3 hardware overcurrent comparator threshold `hv0.dac` that trips at a wanted phase current `cur` (A peak). It drives `hv0` in current mode itself, bisects the dac, and prints the `hv0.dac = ...` line to append to the config. Nothing is saved; for normal operation use `ocdac` or a fixed `hv0.dac`.
+*
+* ## Component Explanation
+*
+* 1. **Procedure**:
+* - Set `conf0.max_ac_cur` to at least 1.1 x `cur` (1.2 x in mode 1). `cur` must be over 1 A, at most `cur_max` and under `max_cur / 1.05` (mode 0) or `max_cur / 1.2` (mode 1), otherwise the run fails with `fail = 1`. Too low a `max_cur` also lets the F3 software trip (fault 15) or `fault0` fire first and stop the run.
+* - `link id_dac` (or load the template). It disables `pid0`, `fault0.pos_error` and `fault0.sat`, routes `hv0.en`, `cmd_mode`, `d_cmd`, `q_cmd`, `pos` and `dac` from this component, and inserts `hv_error` between `hv0.fault` and `fault0.hv_error`. The template sets `mode = 1` and `cur = 20`.
+* - Enable the drive. The run starts on `en > 0`, `state` goes to 1, and at the end the result is printed in the console (green) or the failure reason (red). Append the printed line to the config and reset: a finished run (`state = 2`) is a one shot and does not repeat until reset; after a failure, dropping `en` returns `state` to 0 and the next enable runs again.
+* - Expect one comparator trip per ramp, a few dozen in all.
+*
+* 2. **Search (rt)**:
+* - The comparators are one-sided, so the bridge trips only with the current vector at 60, 180 and 300 deg el.
+* - For each dac tried: bridge off, wait for `hv_fault` to clear (up to 2 s, else `fail = 3`) and 0.1 s settle, then the d current ramps at `ramp` A/s from 1 A (after 0.1 s alignment) until the F3 reports `HV_OVERCURRENT_HW` or the ramp reaches `cur`. After a trip the bridge stays off 0.3 s.
+* - A dac passes when every tested angle trips by `cur`. `dac_lo` must pass (else `fail = 4`) and `dac_hi` must fail (else `fail = 5`); then bisection finds the highest passing dac, so no angle trips above `cur`.
+* - Any other hv fault during a ramp stops with `fail = 2`.
+*
+* 3. **Mode 0, free axis**:
+* - `pos` is set to the three fixed angles 60, 180, 300 deg in turn (the unloaded rotor aligns to them), so all three comparators are tested.
+*
+* 4. **Mode 1, loaded or blocked axis**:
+* - `pos` follows the rotor (`com_pos`) and the current stays on d, so it makes no torque and the rotor need not move.
+* - The current vector then sits at the rotor angle or opposite it; each ramp takes the d sign whose vector lies within 30 deg of a trip angle and counts the current that phase sees, `|i| * cos(offset)`, against `cur` (the vector goes up to 1.155 x `cur`).
+* - One ramp per dac tests only the comparator of that phase: the result is in `trip0`, `trip1`/`trip2` stay 0. Rotate the axis by hand between runs to check the others.
+*
+* 5. **Fault handling and outputs**:
+* - While running, `HV_OVERCURRENT_HW` trips caused by the search are masked out of `hv_error`; any other `hv_fault` (and all faults when idle, done or failed) pass through to `fault0`.
+* - With `en <= 0` the bridge is off and `dac` outputs the last result, or `dac_lo` before the first run; an interrupted or failed run returns `state` to 0, a finished one keeps `state = 2`.
+* - On success or failure the comparator is left at the last passing dac (the result, or `dac_lo`).
+* - `cmd_mode` is 1 (current mode) from nrt_init.
+*
+* {{% hint warning %}}
+* After `fail = 1` (bad `cur`) on the first run, the `dac` output is 0 until `en` drops, because the search bounds were never set; the bridge stays off meanwhile. The console text for `fail = 3` also says "disabled", but disabling does not set `fail`.
+* {{% /hint %}}
+*/
 HAL_COMP(iddac);
 
-HAL_PIN(en);        // fault0.en_out
-HAL_PIN(en_out);    // to hv0.en
-HAL_PIN(cmd_mode);  // to hv0.cmd_mode
-HAL_PIN(d_cmd);     // to hv0.d_cmd
-HAL_PIN(q_cmd);     // to hv0.q_cmd
-HAL_PIN(pos);       // to hv0.pos
-HAL_PIN(dac);       // to hv0.dac
-HAL_PIN(hv_fault);  // in, hv0.fault
-HAL_PIN(hv_error);  // out, to fault0.hv_error: hv0.fault without the trips we cause
-HAL_PIN(max_cur);   // in, conf0.max_ac_cur
-HAL_PIN(com_pos);   // in, rotor electrical angle (fb_switch0.com_fb), mode 1
-HAL_PIN(mode);      // *parameter*, 0 free axis, 1 loaded or blocked axis
+HAL_PIN(en);        // *input*, enable, from fault0.en_out
+HAL_PIN(en_out);    // *output*, bridge enable, to hv0.en
+HAL_PIN(cmd_mode);  // *output*, hv command mode, 1 = current, to hv0.cmd_mode
+HAL_PIN(d_cmd);     // *output*, d current command (A peak), to hv0.d_cmd
+HAL_PIN(q_cmd);     // *output*, q current command, always 0, to hv0.q_cmd
+HAL_PIN(pos);       // *output*, electrical angle of the current vector (rad), to hv0.pos
+HAL_PIN(dac);       // *output*, overcurrent comparator dac under test (0..4095), to hv0.dac
+HAL_PIN(hv_fault);  // *input*, hv fault code, from hv0.fault
+HAL_PIN(hv_error);  // *output*, hv0.fault without the HW overcurrent trips the search causes, to fault0.hv_error
+HAL_PIN(max_cur);   // *input*, current limit (A peak), from conf0.max_ac_cur
+HAL_PIN(com_pos);   // *input*, rotor electrical angle (rad), from fb_switch0.com_fb, used in mode 1
+HAL_PIN(mode);      // *parameter*, 0 = free axis (three angles), 1 = loaded or blocked axis (rotor d axis)
 
-HAL_PIN(cur);       // *parameter*, wanted trip current [A peak]
-HAL_PIN(cur_max);   // *parameter*, hard ceiling on cur [A], default 25
-HAL_PIN(ramp);      // *parameter*, ramp rate [A/s], default 20
-HAL_PIN(dac_lo);    // *parameter*, search floor, default 150 (0 A ringing trips below)
-HAL_PIN(dac_hi);    // *parameter*, search ceiling, default 400
+HAL_PIN(cur);       // *parameter*, wanted trip current (A peak), default 20
+HAL_PIN(cur_max);   // *parameter*, hard ceiling on cur (A peak), default 25
+HAL_PIN(ramp);      // *parameter*, current ramp rate (A/s), default 20
+HAL_PIN(dac_lo);    // *parameter*, search floor, must trip by cur, default 150 (ringing trips at 0 A below)
+HAL_PIN(dac_hi);    // *parameter*, search ceiling, must not trip by cur, default 400
 
-HAL_PIN(state);     // 0 idle, 1 running, 2 done, 3 failed
-HAL_PIN(fail);      // 1 cur too high, 2 other hv fault, 3 fault did not clear, 4 dac_lo does not trip, 5 dac_hi trips
-HAL_PIN(trip0);     // trip currents at the passing dac [A]: 60, 180, 300 deg
-HAL_PIN(trip1);
-HAL_PIN(trip2);
-HAL_PIN(trip_phase);  // mode 1: the comparator tested, 0/1/2 = 60/180/300 deg
+HAL_PIN(state);     // *output*, 0 = idle, 1 = running, 2 = done, 3 = failed
+HAL_PIN(fail);      // *output*, 0 = ok, 1 = bad cur, 2 = other hv fault, 3 = fault did not clear, 4 = dac_lo does not trip, 5 = dac_hi trips
+HAL_PIN(trip0);     // *output*, trip current at the result dac (A peak), 60 deg (mode 1: the tested phase)
+HAL_PIN(trip1);     // *output*, trip current at the result dac (A peak), 180 deg, mode 0 only
+HAL_PIN(trip2);     // *output*, trip current at the result dac (A peak), 300 deg, mode 0 only
+HAL_PIN(trip_phase);  // *output*, mode 1: comparator tested, 0/1/2 = 60/180/300 deg
 
 #define SETTLE 0.1   // after a dac change or before a ramp [s]
 #define RESET_T 0.3  // bridge off after a trip [s]

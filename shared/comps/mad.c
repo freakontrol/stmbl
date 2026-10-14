@@ -1,13 +1,22 @@
 #include "mad_comp.h"
 #include "hal.h"
 
+/**
+* ## Brief
+* `mad` (multiply add) computes `out = in * mult + add`. F4 component, used e.g. in `conf/spindle_slip_uf.txt` to scale an analog input into a velocity command (`mad0.in = io0.in1`, `ramp0.vel_ext_cmd = mad0.out`).
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* - `out = in * mult + add`. All pins default to 0.
+*/
+
 HAL_COMP(mad);
 
-HAL_PIN(in);
-HAL_PIN(mult);
-HAL_PIN(add);
+HAL_PIN(in);    // *input*, Signal
+HAL_PIN(mult);  // *parameter*, Multiplier
+HAL_PIN(add);   // *parameter*, Offset
 
-HAL_PIN(out);
+HAL_PIN(out);  // *output*, in * mult + add
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct mad_pin_ctx_t *pins = (struct mad_pin_ctx_t *)pin_ptr;

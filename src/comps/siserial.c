@@ -10,6 +10,39 @@
 #include "dma_util.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* The `siserial` component is a simple UART link that lets an external controller (for example a microcontroller or PC) send an enable word and two float values to the drive, and receive two float values back. It was adapted from the spietari/stmbl fork and is not used by any config or template in this repository.
+*
+* {{% hint danger %}}
+* Experimental and F4-only. It uses the same hardware as `sserial` and `smart_torque` (UART4 TX on PA0, USART1 RX on PA10, TX enable PB7 driven high, `DMA1_Stream4` TX, `DMA2_Stream5` RX), so only one of these components can be loaded. The link runs at 115200 baud, 8N1.
+* {{% /hint %}}
+*
+* ## Component Explanation
+*
+* 1. **Sending** (`frt`):
+* - Every 100 frt cycles (5 ms at 20 kHz) the component checks whether `out0` or `out1` changed by more than 0.01 since the last frame. If so it sends a 14 byte frame:
+* ```c
+* 0xCA 0xFE out0[4] crc0   0xBA 0xBE out1[4] crc1
+* ```
+* - The floats are sent little-endian as raw IEEE-754 bytes; `crc0` / `crc1` are the low byte of a CRC-32 (polynomial 0xEDB88320) over the 4 float bytes.
+*
+* 2. **Receiving** (`frt`):
+* - The RX DMA writes into a 128 byte ring buffer. Each frt cycle the last 18 received bytes are checked for a frame:
+* ```c
+* 0xCA 0xFE enable[4] in0[4] in1[4] crc32[4]
+* ```
+* - The CRC-32 is computed over the 12 payload bytes and compared with the received little-endian CRC-32.
+* - On a valid frame: `enable = 1` when the enable word equals `0xACDC6660`, else 0; `in0` and `in1` get the received floats.
+*
+* 3. **Defaults** (`nrt_init`):
+* - All pins are 0 except `debug0 = 123`, `debug1 = 124`.
+*
+* {{% hint warning %}}
+* There is no timeout: if frames stop arriving, `enable`, `in0` and `in1` keep their last values, so a lost link leaves the drive enabled. When the received CRC lies across the end of the ring buffer it is read without wrap-around, so such frames are rejected (and bytes past the buffer are read).
+* {{% /hint %}}
+*/
+
 HAL_COMP(siserial);
 
   //  hal_pin_inst_t error;
@@ -23,16 +56,16 @@ HAL_COMP(siserial);
   //  hal_pin_inst_t debug0;
   //  hal_pin_inst_t debug1;
 
-HAL_PIN(error);
-HAL_PIN(crc_error);
-HAL_PIN(enable);
-HAL_PIN(in0);
-HAL_PIN(in1);
-HAL_PIN(out0);
-HAL_PIN(out1);
-HAL_PIN(rxpos);
-HAL_PIN(debug0);
-HAL_PIN(debug1);
+HAL_PIN(error);     // Unused, always 0
+HAL_PIN(crc_error); // Unused, always 0
+HAL_PIN(enable);    // *output*, 1 when the last valid frame carried the enable word 0xACDC6660
+HAL_PIN(in0);       // *output*, First float received from the external controller
+HAL_PIN(in1);       // *output*, Second float received from the external controller
+HAL_PIN(out0);      // *input*, First float sent to the external controller
+HAL_PIN(out1);      // *input*, Second float sent to the external controller
+HAL_PIN(rxpos);     // Unused, always 0
+HAL_PIN(debug0);    // Unused, set to 123 at init
+HAL_PIN(debug1);    // Unused, set to 124 at init
 
 struct siserial_ctx_t {
   float last_out0;

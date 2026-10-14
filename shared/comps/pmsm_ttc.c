@@ -5,45 +5,78 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `pmsm_ttc` (torque to current) converts a torque command (Nm) into a q-axis current command (peak A) for a permanent magnet synchronous motor, with optional cogging / torque ripple compensation and an experimental block commutation mode. It runs on the F4 board and is loaded by `conf/template/pmsm.txt`: `pmsm_ttc0.torque = pid0.torque_cmd`, `pmsm_ttc0.pos_in = vel2.pos_out`, `hv0.q_cmd = pmsm_ttc0.cur`, `hv0.d_cmd = pmsm_ttc0.id`, `angle0.pos_fb = pmsm_ttc0.pos_out`, with `psi` and `polecount` from `conf0`.
+*
+* ## Component Explanation
+* All work is done in `rt`.
+*
+* 1. **Torque to current**:
+* ```c
+* cur = (torque + g * (tc + te)) * 2 / 3 / polecount / psi;
+* ```
+* - This inverts `torque = 3/2 * polecount * psi * iq`.
+* - `id = id_in + id_mtpa`: the phasing current from `fb_switch0.id` passes through, plus the MTPA d current (0 unless `mtpa` is on).
+*
+* 2. **MTPA** (`mtpa` 1, needs `ld` > 0, `lq` > 0 and `lq` != `ld`):
+* - With ld != lq the reluctance torque `1.5 p (ld - lq) id iq` adds to the magnet's, so a torque costs the least current at an id of its own. The command is split on that curve: `T = 1.5 p iq (psi - (lq - ld) id)` and `id = (psi - sqrt(psi^2 + 4 (lq - ld)^2 iq^2)) / (2 (lq - ld))`, written so it holds for either sign of lq - ld.
+* - Two fixed point passes per tick, starting from last tick's id (the command moves little per tick). The flux term is floored at half of psi.
+* - `mtpa` 0, or `ld` or `lq` 0: id 0 and `iq = torque / (1.5 p psi)` as above. A later field weakening id goes on the same `id` path.
+*
+* 3. **Torque ripple model** (all amplitudes 0 by default, so nothing is added):
+* - Cogging torque, independent of load: `tc = ac * sin(pc + pos_in * nc)`.
+* - Electrical ripple, proportional to the torque command: `te = torque * ae * sin(pe + pos_in * ne)`.
+* - With `ac` or `ae` at 0 the matching term is 0 without computing the sine (the normal case, saves rt time).
+* - `t = tc + te` is always output; it is only added to the current command when the gain `g` is non zero.
+*
+* 4. **Block commutation** (experimental):
+* - `pos_out` is `pos_in` quantized to six 60 degree sectors, blended with the unmodified position by `block_gain`:
+* ```c
+* pos_out = pos_in * (1 - block_gain) + sector_pos(pos_in) * block_gain;
+* ```
+* - `block_gain` defaults to 0, so `pos_out = pos_in`.
+*/
+
 HAL_COMP(pmsm_ttc);
 
 // motor values
-HAL_PIN(psi);
-HAL_PIN(polecount);
+HAL_PIN(psi);        // *parameter*, Flux linkage (Vs), min 0.01
+HAL_PIN(polecount);  // *parameter*, Pole pairs, min 1
 
 // cogging torque ripple, constant
-HAL_PIN(ac);  // amplitude
-HAL_PIN(pc);  // phase
-HAL_PIN(nc);  // frequency
+HAL_PIN(ac);  // *parameter*, Cogging torque amplitude (Nm)
+HAL_PIN(pc);  // *parameter*, Cogging torque phase (rad)
+HAL_PIN(nc);  // *parameter*, Cogging periods per turn of pos_in (default 1)
 
 // electrical torque ripple, linear with current
-HAL_PIN(ae);  // amplitude
-HAL_PIN(pe);  // phase
-HAL_PIN(ne);  // frequency
+HAL_PIN(ae);  // *parameter*, Electrical ripple amplitude, relative to torque
+HAL_PIN(pe);  // *parameter*, Electrical ripple phase (rad)
+HAL_PIN(ne);  // *parameter*, Electrical ripple periods per turn of pos_in (default 1)
 
-HAL_PIN(pos_in);
-HAL_PIN(pos_out);
-HAL_PIN(t);           // compensation torque
-HAL_PIN(g);           // compensation gain
-HAL_PIN(block_gain);  // block commutation gain
+HAL_PIN(pos_in);      // *input*, Rotor position (rad)
+HAL_PIN(pos_out);     // *output*, Commutation position, pos_in blended with block commutation (rad)
+HAL_PIN(t);           // *output*, Modelled ripple torque tc + te (Nm)
+HAL_PIN(g);           // *parameter*, Ripple compensation gain, 0 = off
+HAL_PIN(block_gain);  // *parameter*, Block commutation blend 0..1 (default 0, experimental)
 
 
 // torque cmd in
-HAL_PIN(torque);
+HAL_PIN(torque);  // *input*, Torque command (Nm)
 
 // cur cmd out
-HAL_PIN(cur);  // q current
+HAL_PIN(cur);  // *output*, q-axis current command (A)
 
 // MTPA: with ld != lq the reluctance torque 1.5 p (ld - lq) id iq adds to the
 // magnet's, so a torque costs the least current at an id of its own. mtpa 1
 // splits the torque into id and iq on that curve, 0 (default) keeps id 0 and
 // iq = torque / (1.5 p psi). id = id_in + the MTPA id; a later field weakening
 // id goes on the same path.
-HAL_PIN(mtpa);
-HAL_PIN(ld);     // conf0.l
-HAL_PIN(lq);     // conf0.lq, 0 = same as ld (no reluctance torque, id 0)
-HAL_PIN(id_in);  // fb_switch0.id, the phasing current
-HAL_PIN(id);     // d current, to hv0.d_cmd
+HAL_PIN(mtpa);   // *parameter*, 1 = split the torque into id and iq on the MTPA curve, 0 (default) = id 0
+HAL_PIN(ld);     // *input*, d axis inductance (H), from conf0.l, 0 = same as lq (no reluctance torque, id 0)
+HAL_PIN(lq);     // *input*, q axis inductance (H), from conf0.lq, 0 = same as ld (no reluctance torque, id 0)
+HAL_PIN(id_in);  // *input*, d current from fb_switch0.id, the phasing current (A)
+HAL_PIN(id);     // *output*, d current command id_in + MTPA id (A), to hv0.d_cmd
 
 struct pmsm_ttc_ctx_t {
   float id_mtpa;  // last tick's, the start for this tick's iteration

@@ -6,141 +6,226 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `idacim` identifies an AC induction motor. A standstill test measures the stator resistance `r` (with the inverter dead time voltage `drop` separated from it), the leakage inductance `l` (sigma*Ls) by injection at two frequencies around the current loop's crossover, and the rotor time constant `tr` and rotor side magnetizing inductance `lmr` (Lm^2/Lr) by d current steps; an optional current ladder (`knee`) fits how tr changes with flux. From these and the motor plate it computes a `vf` parameter set. An optional rotating test spins the rotor open loop; with an encoder it first reads `tr` and the inertia from up and down speed ramps at two currents, can check `tr` with the rotor turning under FOC (`rot_tr_vel`), then sweeps the flux, each level at the ramps' top emf and at half that speed, and fits the magnetizing curve (`acim_flux0.lmr`, `lmr_sat`, `i_knee`, `tr_sat`, `i_dip`, `lmr_dip`, `tr_dip`, `acim_foc0.id_n`). A separate pole pair test reads `conf0.polecount` and the direction. It runs on the F4 board, drives `hv0` directly and is loaded by the `id_acim` template.
+*
+* ## Component Explanation
+*
+* 1. **Before you start**:
+* - `test_cur` must be under `conf0.max_ac_cur`. The r chord's dead time correction needs every phase above about 2 A in the lower dwell (`test_cur / 2` on d is `-test_cur / 4` on v and w), and the rotor test steps between the same two levels, so `lmr` and `ls` are read over `test_cur / 2 .. test_cur`. No test level should go under `i_min`, where the dead time distorts the voltage: the console warns if `test_cur < 2 * i_min`. For the V/f set, a `test_cur` near the resulting `id_n` is best (the report says when to rerun).
+* - If you have a four wire measurement of the winding resistance, set `idacim0.r_known` to it: r is then taken as given and only the dead time drop is read.
+* - For the V/f set give the plate: `n_volt`, `n_freq`, `n_cur` and `n_pp`. Without all four the V/f set is skipped; the rotating test needs at least `n_freq` and `n_pp`, and the tr knee fit needs `id_n` from the V/f set.
+* - `spin = 1` goes on to the rotating test after the standstill test. That test turns the rotor, so the shaft must be free and unloaded.
+* - `knee = 1` adds the tr ladder to the rotor test (see 5.). It needs `test_cur >= 1.5 * i_min / 0.7` (about 8.6 A with the default `i_min`), otherwise the console says there is no range and no ladder runs.
+* - The template sets `hv0.drop_k = 0` (no dead time compensation) for the run: the r fit and the dead time drop are read from `ud_fb`.
+* - While the state is 0 the nrt function resets `r` 0.1 ohm, `l` 1 mH, `drop` 0, `r_ok`, `l_ok`, `tr_ok` and `out_rev` 0, `cur_bw` 1. The parameters keep their values.
+*
+* 2. **How to run it**:
+* - At the console, `link id_acim`. The template loads `idacim` and wires `idacim0.en = fault0.en_out`, sets `fault0.pos_error = 0` and `pid0.en = 0`, connects `hv0.en`, `cur_bw`, `cmd_mode`, `d_cmd`, `q_cmd`, `pos`, `vel` (from `com_vel`), `rev`, `r`, `l`, `psi` to this component (`hv0.lq = 0`) and `hv0.ud_fb`, `id_fb`, `uq_fb`, `iq_fb`, `pwm_volt`, `dc_volt`, `conf0.cur_bw` (as `loop_bw`), `vel1.vel` and `fb_switch0.vel_fb` (as `pos_fb`, the encoder position without offset) back into it. `hv0.r` / `hv0.l` are this component's `r` / `l`, so they are the current loop's plant model during the tests.
+* - Enable the drive. The rotor may stay free for the standstill test: a dc field and a single pulsating axis make no torque on a cage. The state goes `0` -> `1.0` -> `1.1` and the console asks for `idacim0.state = 1.2`. `en` low returns to `0` from any state.
+* - The standstill test runs r (`1.2`, 4 s), leakage (`1.3`, a few s) and the rotor test (`1.4`, about `(1 + 2 * rot_cycles) * rot_half` at most, shorter once tr is known, plus each ladder rung). State `1.5` prints the results and goes to `3.0` (done), to `4.0` if `spin` is set, or back to `0` if r failed. Append the printed lines to the config and save.
+* - Rotating test: `4.0` (set it by hand after a standstill test in the same enable, or via `spin`) checks that `tr_ok`, `n_freq` and `n_pp` are there, prints the top speeds of the ramps, the flux sweep and the tr check, and asks for `idacim0.state = 4.2`. It ends in `5.0`.
+* - Pole pair test: set `idacim0.state = 2` by hand; it asks to unblock the rotor and for `idacim0.state = 2.2`, and ends in `3.0`.
+*
+* 3. **Resistance (`state` 1.2)**:
+* - Current mode, `cur_bw` 1, current on the d axis at `com_pos = 0`: 2 s at `test_cur`, then 2 s at `test_cur / 2`. `id_fb` / `ud_fb` of each dwell are low-passed (0.001 per tick) into `tmp2` / `tmp3` (top) and `tmp0` / `tmp1` (half). Meanwhile `r` tracks `ud_fb / id_fb` so the current loop can build up voltage at all.
+* - `ud_fb` contains `r * id + 4/3 * drop` (dead time; at angle 0 the phase currents are id, -id/2, -id/2). After 4 s `fit_di = tmp2 - tmp0` and the chord `r_2p = (tmp3 - tmp1) / fit_di` (only if `fit_di > 0.01` A) are computed, and `r` is taken from one of two modes:
+* - `r_known > 0`: `r = r_known`, `drop = 0.75 * (tmp3 - r * tmp2)`. Needs the top dwell to reach half of `test_cur`.
+* - default: `r = r_2p - r_bias` with `r_bias = drop_slope * dc_volt / test_cur` (0 if `dc_volt` is not wired), `drop` as above. The dead time drop rises roughly as ln(i), which biases the chord; `drop_slope` was fitted on one bridge.
+* - `r_ok` is set if the chosen mode produced a value. Then `avg_test_volt = r * test_cur + 4/3 * drop` (limited to `pwm_volt / 2`) and the state goes to `1.3`, or straight to `1.5` if `r_ok` is 0.
+*
+* 4. **Leakage inductance (`state` 1.3)**:
+* - Voltage mode, `cur_bw` 1: `d_cmd = avg_test_volt + amp * sin(w t)`. The dc bias holds about `test_cur` on d, so every phase current stays on one side of zero and the dead time is only an offset. The first settle is 1 s (the bias settles on the slow rotor pole), after a frequency change 0.2 s.
+* - The pair of frequencies sits on either side of the current loop's crossover `f_c = loop_bw / 2 pi`. At a `cur_bw` of 1000 the default pair is 120 / 240 Hz. Both are rounded to multiples of 20 Hz, so every window holds whole cycles, and kept within 20 Hz .. `0.2 / period`. The leakage of a cage rotor has no plateau over frequency, so this is the band `conf0.l` has to describe.
+* - At each frequency 4 blocks of 50 ms size the amplitude so the injected current is `l_ripple * test_cur`, then about 0.4 s (a whole number of cycles, counted in samples) demodulate `ud_fb` and `id_fb`, with the dc bias taken out of both (the mean times the reference sums, as in `idpmsm`), into the impedance `l_za` / `l_zb` (corrected for the zero order hold of the command) and the current reached, `l_ia` / `l_ib`. No resistance goes in:
+* ```c
+* l * l = (zb * zb - za * za) / (wb * wb - wa * wa);
+* ```
+* - `l_res` is the resistance (stator plus cage) the pair implies. `l_ok` needs a positive l^2 and both currents within 0.5..2 times the target. If the reactance at the upper frequency is under `2 * l_res` (small leakage, as on high speed spindles), the pair moves up an octave, at most 3 times and while the upper one stays under `0.2 / period`; `l_fa` / `l_fb` are the pair used.
+* - `l = sqrt(l^2)` if `l_ok`, else 1 mH (then measure line to line near 150 Hz with an LCR meter and halve it). The state goes to `1.4`.
+*
+* 5. **Rotor time constant and magnetizing inductance (`state` 1.4)**:
+* - Current mode at `cur_bw = rot_bw`, `com_pos = 0`: `d_cmd` steps between `test_cur` and `test_cur / 2`, `1 + 2 * rot_cycles` levels. The first level only magnetizes. Each level lasts `rot_half` until an edge has given a tr, then `16 * tr` of the last fit (at least 0.1 s).
+* - The rotor flux follows the stator current with `tr = Lr/Rr`, and its emf `lmr * d(i_mr)/dt` appears in `ud_fb` on top of `r * id`, the dead time and `l * d(id)/dt`. Integrated from the edge, with `c` the offset `ud - r id` where the edge settles:
+* ```c
+* lam(t) = integral(ud - r * id - c) - l * (id - i0) = lmr * (i_mr - i0);
+* integral(lam) = lmr * integral(id - i0) - tr * lam;
+* ```
+* - This is fitted by least squares on the current that actually flowed, from `rot_t0` (skips the current loop's settling) to the end of the edge, with `lmr`, `tr` and the edge's own offset `c` as unknowns (Gauss-Newton in nrt, started from the median of 8 block means over the last quarter). `r_2p` (or `r`) is used for r, because the chord takes the dead time out at exactly these two levels. A median of three filters single bad samples; the sums take every 8th tick. An edge counts if it moves the current by more than 10 % of the level; nrt prints one `# edge` line per edge.
+* - At the end the rising and falling edges are reduced apart: `tr_rise` / `tr_fall` are their medians, `tr` their mean (this cancels the asymmetry a step into saturation causes), `tr_spread` the worse direction's (max - min) / median, `tr_min` / `tr_max` the extremes. `lmr` is the median of the falling edges only (rising ones read low near saturation). `tr_ok` if `tr` is over `5 * period` and under the start of the last edge's settled tail (0.75 of its length); then `slip_n = 1 / tr` and `ls = l + lmr`, otherwise these are 0 (`tr` is reported either way).
+* - Offset ladder (`lad_top > 0`): after the main test, rung k of `lad_n` repeats the steps between its top and `lad_ratio` times it, and stores its top current, `lmr` slope, `tr` and spread in `lad_i`, `lad_lm`, `lad_tr`, `lad_sp`.
+* - `knee = 1` (with `lad_top` 0) writes the ladder itself at the start of a run: `lad_ratio` 0.7, `lad_bot = max(0.4 * test_cur, i_min / 0.7)`, `lad_top = test_cur`, `lad_n` 4, and records it in `lad_auto`. A ladder the knee wrote is replaced or dropped on the next run; one set by hand stays.
+*
+* 6. **Report and V/f set (`state` 1.5, nrt)**:
+* - Waits until nrt has reduced the last rung. If `r_ok`: prints `conf0.r`, `conf0.l` (or why l failed), and if `tr_ok` also `acim_flux0.tr`, `acim_flux0.lmr` and the slip for `acim_ttc` (`vel_n = (2 pi freq_n - slip_n) / polecount`), with warnings for `tr_spread > 0.25` and `rot_dip > 0.1` (raise `rot_bw`).
+* - With `tr_ok` and all four plate pins the V/f set: `u = n_volt * sqrt(2/3)`, `w = 2 pi n_freq`, `id_n = u / sqrt(r^2 + w^2 ls^2)`, `iq_n = sqrt((sqrt(2) n_cur)^2 - id_n^2)`. It prints `conf0.polecount = n_pp` and `vf0.u_n = u`, `vf0.vel_n = w / n_pp`, `vf0.u_boost = r * id_n + 4/pi * drop` (V/f runs in volt mode with no dead time compensation, and a rotating vector loses the square wave's fundamental, 4/pi of the per phase drop; on the spindle `r * id_n` alone, 3.7 V, stalled and 12 V started), `vf0.boost_vel` (where `w ls = 3 r`, clamped to 2..20 % of `w`, per pole pair), `vf0.slip_n = iq_n / (tr * id_n) / n_pp`, `vf0.cur_n = iq_n`, and `acim_foc0.id_n` as a start value. The same values are on the `vf_*`, `id_n` and `iq_n` pins.
+* - With a ladder it prints a table per rung (range, lmr slope, tr, spread; with `lad_bot` 0 and `lad_ratio` 0.5 also psi_r and the secant lmr, integrated from the slopes), then the tr knee fit: acim_flux's model `tr * (1 + tr_sat * x)`, `x = (id_n - i) / (id_n - i_knee)` clamped 0..1, fitted over the rungs (only those with an lmr, a lower current of at least `i_min` and spread up to 0.3, each at the middle of its range) and the main test (at `0.75 * test_cur`), weighted by 1 / spread^2, for every `i_knee` from 0 to 0.9 `id_n` in 1 % steps. It needs `id_n` and three levels. It is rejected if `tr_sat` is outside 0..1 or tr at `id_n` is more than 30 % off the main test's tr; otherwise `knee_i`, `knee_tr_sat`, `knee_tr` are set and it prints `acim_flux0.tr` (tr at `id_n`, replacing the one above), `acim_flux0.i_knee` and `acim_flux0.tr_sat`.
+* - Then the dead time `drop`, which is also part of `vf0.u_boost`.
+* - If `r_ok` is 0 it prints why the r test failed and returns to state 0 (with `en` still high, straight back to the 1.1 prompt).
+*
+* 7. **Rotating test (`state` 4.2 to 4.7), rotor free, no load**:
+* - Current mode at `cur_bw = rot_bw`, `d_cmd = id_n` (or `test_cur` without the V/f set), and `com_pos` turns open loop. `4.2`: the field ramps at `rot_acc` to `rot_vel` of plate speed and holds 1 s. If `vel_fb` is within 20 % of the field, `rot_enc = 1`; if the rotor turns but lags more, it pulled out and the test ends (`4.6`). The order is then `4.4` ramps, `4.5` tr check (if `rot_tr_vel > 0`), `4.3` flux sweep, `4.6`, `4.7`; without an encoder `4.2` goes straight to the sweep.
+* - In every state but `4.5` a slow integrator (20 /s) trims `d_cmd` (within 25 % of its target) and `q_cmd` (within 10 % of the d target) until `id_fb` is on target and `iq_fb` is 0: the current loop leaves an error at speed that differs between an up and a down ramp (simulated: id 19.2 / 19.7 A for 20.4, iq 0 / 0.2 A), and with the trim both ramps see the same flux and current.
+* - `psi` (to `hv0.psi`, curpid's emf feed forward and predictor) is the rotor flux from the emf, `abs(e) / w` with `e = u - r i - j w l i`, low passed over 20 ms while the field turns faster than 0.1 of plate speed, starting from `lmr * id_n`. It does not come from `acim_flux0`, whose low flux shape is what this test is after (on the spindle that read 0.075 for 0.107 Vs at 6.9 A, and the predicted iq ran 4 A off at 780 rad/s el). `com_vel` gives `hv0.vel` the frame's own speed: the rotor's speed has the wrong sign on a motor that turns against the field (`out_rev = 1`), and hv0 then advanced the frame the wrong way and the F3 decoupled against the emf (the spindle ran iq -3..-12 A for 0 commanded).
+* - `4.4` ramps, only with `rot_enc`: two pairs, the first at `id_n`, the second at 0.65 `id_n` (at least `i_min`). Each pair holds until the rotor flux has settled (`max(6 tr, 0.5 s)`), ramps up from `rot_vel` to `w_hi = min(2 rot_vel, 0.9)` of plate speed, holds 0.5 s and ramps back down. Over the middle half of each ramp it averages the air gap torque (stator power less copper loss, over the field speed: no tr in it), the slip against `vel_fb`, the slip against the encoder position (mean field speed less `pp` times the position travelled over the time), the rotor flux on d (`(uq - r iq) / w - l id`), `id_fb` and the acceleration. A slip x tr over 1 ends the ramps (pulled out).
+* - tr from the ramps: with the current on d the rotor flux lags it by `atan(ws tr)`, so the torque is `1.5 pp psi_d id ws tr`. Up minus down, the air gap torque holds no friction, iron loss, r or dead time error (same speeds, flux and current on both): `dT = psi_d id tr dws`. The measured slip, though, is the field's commanded speed against the encoder's, which comes back a delay D later, so each pair's slip difference also carries `pp (alpha_up - alpha_down) D` (simulated: about 1 ms, 23 % of `dws` at `id_n`). That part does not scale with the flux, so the two pairs give both:
+* ```c
+* dws_m_k = dT_k / (psi_d_k * id_k * tr_k) + pp * dalpha_k * D;   // tr_k = tr * lmr_k / lmr_0
+* ```
+* - The 2x2 solve needs the pairs to differ enough in flux (determinant over 0.2 of `a0 b1`); D goes to `rot_delay` and a tr within 0.3..3 times the standstill `tr` to `rot_tr_ramp`, with the first pair's lmr times `1 + (ws tr)^2`. From then on the sweep uses this tr and lmr in place of the standstill ones. (The standstill steps read the spindle's tr as 0.078-0.093 s, where its orientation needs about 0.12 at every flux.)
+* - `4.5` rotating tr check, after the ramps when `rot_tr_vel > 0` (off by default; the rotor runs up to `rot_tr_vel`): FOC on the encoder with the test's own rotor flux model at the standstill tr (`i_mr` low passed from `id_fb` with tr, `slip = iq / (tr i_mr)`). The frame turns with the encoder position plus that slip, not with `vel_fb`, whose lag on a ramp is a frame speed error as large as the one looked for (vel1: 1.8 ms; simulated k 0.99 from the true angles for 1.06). The d current is held at what gives 0.8 of the plate emf at `rot_tr_vel` (at least 1.5 `i_min`, at most `id_n`; a flux that follows the speed tilts the angle with the ramp's sign, simulated k 0.87 for 1), and `q_cmd = +-ia` (`min(0.6 id_n, sqrt(imax^2 - id^2))`, no speed loop) ramps the rotor up to `rot_tr_vel` and down to 0.7 of it. After one unmeasured pair, 3 pairs are measured where the speed is between 0.76 and 0.94 of `rot_tr_vel` and at least `3 tr` into the ramp.
+* - There the emf is large against the dead time and r errors, so `e = u - r i - j w l i = j w psi_r` gives the flux angle in the frame (the dead time loses 4/pi of `drop` along the current and is taken out; simulated k 0.975 for 1.056 without it). With the model's tr off by `k = tr_true / tr` the frame settles where `tan(phi - delta) = k tan(phi)` (phi the current's angle, delta the flux's). An offset `b` on the angle (dead time, voltage timing) is the same on the up and the down ramp, where phi changes sign, so `b` is found by bisection where both ramps give the same `k`; this needs at least 100 samples on each ramp and phi of opposite sign. A `k` in 0.3..3 gives `rot_tr = k tr`, `rot_tr_k`, `rot_tr_imr`, `rot_tr_lmr` (`abs(e) / w / i_mr`) and `rot_tr_b`; they are printed as comments only. The report also gives the same without the dead time correction and a torque balance `(T_up - T_down) = J (a_up - a_down)` with `T = 1.5 pp psi abs(i) sin(phi - delta)`, whose J against `rot_j` tells which flux angle is right.
+* - Then `q_cmd = -ia` brakes the rotor (d current rising to keep 0.8 of the plate emf) until it is under `rot_vel` of plate speed, where the open loop field takes over at the rotor's speed and the sweep starts. A ramp that does not reach its end within 15 s goes on to the next phase; 30 s without getting under `rot_vel` switches the bridge off, the rotor coasts and the state goes to `4.7`.
+* - `4.3` flux sweep: d current at 1.15, 1.0, 0.9, 0.75, 0.6, 0.45, 0.35, 0.25 of `id_n`, from the top down, limited to `i_min` .. `0.85 * sqrt(2) * n_cur` (levels that would repeat a limit are skipped; without an encoder it stops at 0.45). With an encoder each level runs where its emf is the ramps' top one, at `w_hi * id_n / i`, at most `rot_vmax` of plate speed (but not under `w_hi`): the field weakening range, where acim_flux uses these levels. An inverter voltage error is a larger part of a small emf; at one speed for all levels (0.4 of plate speed) the spindle read lmr at 5.5 A as 6.6 mH and 9.4 at 0.9, against about 12 from a flux observer at 838 rad/s. Without an encoder every level runs at `rot_vel`.
+* - Each level settles `max(6 tr, 0.3 s)` and averages 0.5 s. At no load `uq = r iq + w psi_s`, so the rotor flux is `(uq - r iq) / w - l id`; with an encoder it is corrected for the slip angle (with tr scaled by the point's own lmr against the lmr that tr belongs to, the ramps' or the standstill one). A point with slip x tr over 0.35 (0.6 with the ramps' tr, which holds further) is dropped and ends the pass; a filtered slip x tr over 1 (near pull out) ends it too.
+* - With an encoder the same levels are read again, each at half its speed: an offset du on uq reads as du / w in the flux, so `lmr = (w1 psi1 - w2 psi2) / (w1 i1 - w2 i2)` takes it out. While the field changes speed the d current is `id_n` (`id_n * w_hi / w` above `w_hi`, so the emf stays at the ramps' top), the flux settles first, and with an encoder the field waits while the slip x tr is over 0.35. Results in rising order in `sw_i` / `sw_psi` (`sw_n` points, at most 8).
+* - Per point the report also lists tr from the voltages: `x_v`, the tangent of the flux angle behind the current from `e = u - r i - j w l i` (slip x tr with no tr in it), over the encoder slip at each speed, and the two speed value `(x1 - 2 x2) / (ws1 - 2 ws2)`, which takes out the `w lmr / R_fe` iron loss puts on `x_v`. These are diagnostics only.
+* - `4.6` ramps the field down to 0, `4.7` (nrt) reports and goes to `5.0`: `rot_id_n`, the d current where the stator flux reaches `n_volt` at `n_freq` (interpolated from the sweep, or `id_n` without `n_volt`), and `rot_lmr`, the secant there, printed as `acim_foc0.id_n`, `acim_flux0.i_n` and `acim_flux0.lmr`. With `rot_tr_ramp` it prints `acim_flux0.tr`, the ramps' tr moved to `rot_id_n` with the secant lmr (tr follows lmr, Rr does not saturate), which replaces the standstill tr, and the field to position delay; with an encoder but no tr from the ramps it says to keep the standstill tr.
+* - Magnetizing curve: with at least 3 points under 0.95 `id_n` the secant lmr is fitted to acim_flux's shape `lmr * (1 + lmr_sat * x) * (1 - lmr_dip * y)`, `x = (id_n - i) / (id_n - i_knee)`, `y = (i_dip - i) / i_dip`, both clamped 0..1 (growth as the iron desaturates down to the knee, flat, then a fall under `i_dip` at low induction), over a grid of `i_knee` and `i_dip <= i_knee` starting at the lowest point; terms that come out negative are dropped. The fit is used only with an encoder, `lmr_sat <= 1`, `lmr_dip <= 0.5` and its lmr at `id_n` within 5 % of `rot_lmr`: then it prints `acim_flux0.lmr_sat`, `i_knee`, `tr_sat` (= `lmr_sat`), `i_dip`, `lmr_dip` and `tr_dip` (= `lmr_dip`: tr = Lr / Rr follows the secant lmr below the dip as above the knee; on the spindle the rotating checks agree with this to a few %). Otherwise `lmr_sat` comes from a straight line through the lowest point at or above 0.4 `id_n` and no knee or dip is set. Without an encoder that `lmr_sat` is printed to append (at least 0); with an encoder it is only printed as a comment, because the line runs through the dip and does not fit the config's knee and dip, which stay.
+* - With the ramps also `rot_j` (inertia from the first pair's air gap torque, printed as `conf0.j`), `rot_j_s` (the same from the position slip and the ramps' tr, equal by construction), the friction torque `rot_tf` and `rot_lag`, the lag of `vel_fb` behind the position from the difference of their slips.
+*
+* 8. **Pole pairs and direction (`state` 2.2), rotor free**:
+* - `2.0` (nrt) clears `pp` and asks for `idacim0.state = 2.2`. For 3 s: current mode, `cur_bw` 100, `d_cmd = test_cur`, and `com_pos` advances open loop at `test_vel`, dragging the rotor along. While `abs(vel_fb) > 0.1` rad/s, `pp` is low-passed (0.005 per tick, starting from the first reading) from `test_vel / vel_fb`. At the end a negative `pp` sets `out_rev = 1`, and `pp` is rounded to an integer.
+* - `2.4` (nrt) prints `conf0.polecount` and, if reversed, `conf0.out_rev = 1`, if `pp` is at least 1, the ratio before rounding is within 0.15 of it and the rotor turned in more than 80 % of the ticks; otherwise it prints the ratio and that fraction as a failure (a slipping rotor, a load, or no `vel_fb`). Then it goes to `3.0` (done).
+*
+* {{% hint warning %}}
+* `drop` is a voltage per phase; it goes into `vf0.u_boost` but is not a value for `hv0.drop_k` (a fraction). `conf0.l` here is the leakage, right for `acim_foc` (which carries the rotor flux in `hv0.psi`); `acim_ttc` has no flux term, so with it iq falls short at speed. `tr` is the rotor's at the test's temperature and flux: a hot cage reads shorter. The rotating test uses `r`, `l`, `tr` and `lmr` from the pins and needs `tr_ok`; `en` low resets `r` and `l` to 0.1 ohm / 1 mH and clears `tr_ok`, so run it in the same enable as the standstill test. Without an encoder the sweep is not corrected for slip, so drag reads as saturation at the low points. In the pole pair test the rotor slips behind the field, so `test_vel / vel_fb` reads slightly high before rounding.
+* {{% /hint %}}
+*/
+
 HAL_COMP(idacim);
 
-HAL_PIN(d_cmd);
-HAL_PIN(q_cmd);
-HAL_PIN(com_pos);
-HAL_PIN(com_vel);  // com_pos's rate [rad/s el], to hv0.vel: hv0 extrapolates pos by vel * adv and the f3 decouples with it
-HAL_PIN(cmd_mode);
-HAL_PIN(en);
-HAL_PIN(en_out);
+HAL_PIN(d_cmd);  // *output*, d axis command to hv0.d_cmd, current (A) or voltage (V) depending on cmd_mode
+HAL_PIN(q_cmd);  // *output*, q axis command to hv0.q_cmd (A), 0 in the standstill and pole pair tests, the slow iq trim in the rotating test and +-ia in the tr check
+HAL_PIN(com_pos);  // *output*, commutation angle to hv0.pos (rad), 0 in the standstill tests, turns in the pole pair and rotating tests
+HAL_PIN(com_vel);  // *output*, rate of com_pos (rad/s electrical) to hv0.vel, for hv0's angle extrapolation and the F3 decoupling
+HAL_PIN(cmd_mode);  // *output*, to hv0.cmd_mode, 0 = voltage, 1 = current
+HAL_PIN(en);  // *input*, enable, from fault0.en_out; low aborts (state -> 0)
+HAL_PIN(en_out);  // *output*, enables hv0 while a test runs
 
-HAL_PIN(id_fb);
-HAL_PIN(ud_fb);
+HAL_PIN(id_fb);  // *input*, d axis current from hv0.id_fb (A)
+HAL_PIN(ud_fb);  // *input*, d axis voltage from hv0.ud_fb (V)
 
-HAL_PIN(state);
-HAL_PIN(timer);
+HAL_PIN(state);  // *input/output*, 0 off, 1.1 wait, 1.2 r, 1.3 leakage, 1.4 rotor, 1.5 report, 2.1 wait, 2.2 pp test, 2.4 print, 3 done, 4.1 wait, 4.2 spin up, 4.4 ramps (tr, inertia), 4.5 rotating tr check, 4.3 flux sweep, 4.6 spin down, 4.7 report, 5 done
+HAL_PIN(timer);  // *output*, time in the r and pole pair tests (s)
 
-HAL_PIN(r);
-HAL_PIN(l);
-HAL_PIN(l_ok);    // 1 = l is a measurement, 0 = it is not
-HAL_PIN(l_freq_a);  // *parameter*, leakage test, lower injection frequency [Hz], 0 = 0.75 loop_bw / 2 pi
-HAL_PIN(l_freq_b);  // *parameter*, leakage test, upper injection frequency [Hz], 0 = 1.5 loop_bw / 2 pi
-HAL_PIN(loop_bw);   // the run's current loop bandwidth, conf0.cur_bw [rad/s], 0 = 1000
-HAL_PIN(l_ripple);  // *parameter*, injected current, fraction of test_cur
-HAL_PIN(l_za);      // |Z| at l_freq_a [ohm]
-HAL_PIN(l_zb);      // |Z| at l_freq_b [ohm]
-HAL_PIN(l_ia);      // injected current amplitude reached at l_freq_a [A]
-HAL_PIN(l_ib);      // injected current amplitude reached at l_freq_b [A]
-HAL_PIN(l_res);     // resistance the two frequencies imply, stator plus cage [ohm]
-HAL_PIN(l_fa);      // lower injection frequency used [Hz]
-HAL_PIN(l_fb);      // upper injection frequency used [Hz]
+HAL_PIN(r);  // *output*, measured resistance (ohm), to hv0.r, 0.1 while idle, result for conf0.r
+HAL_PIN(l);  // *output*, measured leakage inductance sigma*Ls (H), to hv0.l, 1 mH while idle or if not measured, result for conf0.l
+HAL_PIN(l_ok);  // *output*, 1 = l is a measurement, 0 = it is not
+HAL_PIN(l_freq_a);  // *parameter*, leakage test, lower injection frequency (Hz), 0 = 0.75 loop_bw / 2 pi, default 0
+HAL_PIN(l_freq_b);  // *parameter*, leakage test, upper injection frequency (Hz), 0 = 1.5 loop_bw / 2 pi, default 0
+HAL_PIN(loop_bw);  // *input*, the run's current loop bandwidth from conf0.cur_bw (rad/s), sets the leakage test frequencies, 0 = 1000
+HAL_PIN(l_ripple);  // *parameter*, leakage test, injected current as a fraction of test_cur, default 0.15
+HAL_PIN(l_za);  // *output*, impedance magnitude at l_fa (ohm)
+HAL_PIN(l_zb);  // *output*, impedance magnitude at l_fb (ohm)
+HAL_PIN(l_ia);  // *output*, injected current amplitude reached at l_fa (A)
+HAL_PIN(l_ib);  // *output*, injected current amplitude reached at l_fb (A)
+HAL_PIN(l_res);  // *output*, resistance the two frequencies imply, stator plus cage (ohm)
+HAL_PIN(l_fa);  // *output*, lower injection frequency used (Hz)
+HAL_PIN(l_fb);  // *output*, upper injection frequency used (Hz)
 
-HAL_PIN(rot_half);    // *parameter*, rotor test, time at each current level [s]
-HAL_PIN(rot_cycles);  // *parameter*, rotor test, measured cycles (two edges each)
-HAL_PIN(rot_bw);      // *parameter*, rotor test, current loop bandwidth [rad/s]
-HAL_PIN(rot_t0);      // *parameter*, rotor test, skip this long after each edge [s]
-HAL_PIN(tr);          // rotor time constant Lr/Rr, mean of tr_rise and tr_fall [s]
-HAL_PIN(slip_n);      // 1/tr, acim_ttc's slip constant [rad/s electrical]
-HAL_PIN(lmr);         // rotor side magnetizing inductance Lm^2/Lr, median over edges [H]
-HAL_PIN(ls);          // stator inductance l + lmr [H]
-HAL_PIN(rot_n);       // edges that went into tr and lmr
-HAL_PIN(rot_dip);     // largest current error at rot_t0, fraction of the step
-HAL_PIN(tr_ok);       // 1 = tr, slip_n and lmr are measurements
-HAL_PIN(tr_spread);   // (max - min) / median of tr, the worse of the two directions
-HAL_PIN(tr_rise);     // median tr of the edges up to test_cur [s]
-HAL_PIN(tr_fall);     // median tr of the edges down to test_cur/2 [s]
-HAL_PIN(tr_min);      // shortest edge [s]
-HAL_PIN(tr_max);      // longest edge [s]
+HAL_PIN(rot_half);  // *parameter*, rotor test, longest time at each current level (s), default 1.5
+HAL_PIN(rot_cycles);  // *parameter*, rotor test, measured cycles of two edges each, default 4, at most 16
+HAL_PIN(rot_bw);  // *parameter*, current loop bandwidth of the rotor and rotating tests (rad/s), default 1500
+HAL_PIN(rot_t0);  // *parameter*, rotor test, fit starts this long after each edge (s), default 0.015, kept under tr / 5
+HAL_PIN(tr);  // *output*, rotor time constant Lr/Rr, mean of tr_rise and tr_fall (s), result for acim_flux0.tr
+HAL_PIN(slip_n);  // *output*, 1/tr, slip constant (rad/s electrical), 0 = not measured
+HAL_PIN(lmr);  // *output*, rotor side magnetizing inductance Lm^2/Lr, median of the falling edges (H), result for acim_flux0.lmr
+HAL_PIN(ls);  // *output*, stator inductance l + lmr (H)
+HAL_PIN(rot_n);  // *output*, edges that went into tr and lmr
+HAL_PIN(rot_dip);  // *output*, largest current error at rot_t0, fraction of the step
+HAL_PIN(tr_ok);  // *output*, 1 = tr, slip_n and lmr are measurements
+HAL_PIN(tr_spread);  // *output*, (max - min) / median of tr, the worse of the two directions
+HAL_PIN(tr_rise);  // *output*, median tr of the edges up to test_cur (s)
+HAL_PIN(tr_fall);  // *output*, median tr of the edges down to test_cur/2 (s)
+HAL_PIN(tr_min);  // *output*, shortest tr of all edges (s)
+HAL_PIN(tr_max);  // *output*, longest tr of all edges (s)
 
-HAL_PIN(lad_top);     // *parameter*, offset ladder, top current [A], 0 = no ladder
-HAL_PIN(lad_n);       // *parameter*, offset ladder, rungs (at most 4), rung k steps between top k/n and half of it
-HAL_PIN(lad_bot);     // *parameter*, offset ladder, lowest rung's top [A]: rungs evenly from here to lad_top, 0 = top k/n
-HAL_PIN(lad_ratio);   // *parameter*, offset ladder, rung's lower current over its top, 0 = 0.5
-HAL_PINA(lad_i, 4);   // rung's upper current [A]
-HAL_PINA(lad_lm, 4);  // rung's lmr, the slope of rotor flux over the rung [H]
-HAL_PINA(lad_tr, 4);  // rung's tr [s]
-HAL_PINA(lad_sp, 4);  // rung's tr spread
-HAL_PIN(i_min);       // *parameter*, lowest current any test level may use; under it the dead time distorts the voltage [A]
-HAL_PIN(knee);        // *parameter*, 1 = run the ladder for i_knee/tr_sat, from 0.4 test_cur to test_cur (unless lad_top is set)
-HAL_PIN(lad_auto);    // lad_top the knee wrote, cleared on the next run, 0 = none
-HAL_PIN(knee_i);      // acim_flux0.i_knee from the ladder's tr, 0 = not fitted [A]
-HAL_PIN(knee_tr_sat); // acim_flux0.tr_sat from the ladder's tr
-HAL_PIN(knee_tr);     // tr at id_n from the same fit [s]
-HAL_PIN(drop);          // dead time volts per phase at the top dwell [V]
-HAL_PIN(r_known);       // *parameter*, measured winding resistance, 0 = fit it
-HAL_PIN(fit_di);        // dwell current separation, 0 = r/drop fit did not run
-HAL_PIN(r_2p);          // two dwell chord slope, 0 = the fit did not run
-HAL_PIN(drop_slope);    // *parameter*, the chord's dead time bias, ohm A per volt
-HAL_PIN(r_bias);        // what was subtracted from the chord to get r
-HAL_PIN(r_ok);          // this run produced a resistance
+HAL_PIN(lad_top);  // *parameter*, offset ladder, top current (A), 0 = no ladder, default 0
+HAL_PIN(lad_n);  // *parameter*, offset ladder, rungs (at most 4), default 4
+HAL_PIN(lad_bot);  // *parameter*, offset ladder, lowest rung's top (A), rungs evenly from here to lad_top, 0 = lad_top k/n
+HAL_PIN(lad_ratio);  // *parameter*, offset ladder, rung's lower current over its top, 0 = 0.5, else clamped 0.3 to 0.9
+HAL_PINA(lad_i, 4);  // *output*, ladder rung upper current (A)
+HAL_PINA(lad_lm, 4);  // *output*, ladder rung lmr, the slope of rotor flux over the rung (H), 0 = no fit
+HAL_PINA(lad_tr, 4);  // *output*, ladder rung tr (s)
+HAL_PINA(lad_sp, 4);  // *output*, ladder rung tr spread
+HAL_PIN(i_min);  // *parameter*, lowest current any test level may use, under it the dead time distorts the voltage (A), default 4
+HAL_PIN(knee);  // *parameter*, 1 = run the ladder for the tr knee fit, from 0.4 test_cur to test_cur (unless lad_top is set), default 0
+HAL_PIN(lad_auto);  // *output*, lad_top the knee wrote, cleared on the next run, 0 = none
+HAL_PIN(knee_i);  // *output*, i_knee for acim_flux0 from the ladder's tr (A), 0 = not fitted
+HAL_PIN(knee_tr_sat);  // *output*, tr_sat for acim_flux0 from the ladder's tr
+HAL_PIN(knee_tr);  // *output*, tr at id_n from the knee fit (s), result for acim_flux0.tr when fitted
+HAL_PIN(drop);  // *output*, dead time voltage per phase at the top dwell (V), 4/pi of it goes into vf_boost
+HAL_PIN(r_known);  // *parameter*, known winding resistance (ohm), 0 = fit it, default 0
+HAL_PIN(fit_di);  // *output*, current difference of the two r dwells (A)
+HAL_PIN(r_2p);  // *output*, two dwell chord slope (ohm), 0 = the fit did not run, also r of the rotor test
+HAL_PIN(drop_slope);  // *parameter*, chord dead time bias (ohm A per volt of dc link), default 0.0039
+HAL_PIN(r_bias);  // *output*, bias subtracted from the chord to get r (ohm)
+HAL_PIN(r_ok);  // *output*, 1 = this run produced a resistance
 
-HAL_PIN(pp);
-HAL_PIN(out_rev);
-HAL_PIN(spin);          // *parameter*, 1 = go on to the rotating test after the standstill test (turns the rotor)
+HAL_PIN(pp);  // *output*, measured pole pairs from the pole pair test, result for conf0.polecount
+HAL_PIN(out_rev);  // *output*, 1 = motor turns backwards, to hv0.rev, result for conf0.out_rev
+HAL_PIN(spin);  // *parameter*, 1 = go on to the rotating test after the standstill test (turns the rotor), default 0
 
-// Plate values for the V/f set the standstill test computes; 0 = not given
-HAL_PIN(n_volt);        // *parameter*, plate voltage, line to line rms [V]
-HAL_PIN(n_freq);        // *parameter*, plate frequency at that voltage [Hz]
-HAL_PIN(n_cur);         // *parameter*, plate current, rms [A]
-HAL_PIN(n_pp);          // *parameter*, pole pairs (poles / 2)
-HAL_PIN(id_n);          // magnetizing current at plate voltage and frequency [A peak]
-HAL_PIN(iq_n);          // active current at plate current [A peak]
-HAL_PIN(vf_u_n);        // vf0.u_n, phase peak volts at vf_vel_n [V]
-HAL_PIN(vf_vel_n);      // vf0.vel_n [rad/s mech]
-HAL_PIN(vf_boost);      // vf0.u_boost [V]
-HAL_PIN(vf_boost_vel);  // vf0.boost_vel [rad/s mech]
-HAL_PIN(vf_slip_n);     // vf0.slip_n, slip at vf_cur_n [rad/s mech]
-HAL_PIN(vf_cur_n);      // vf0.cur_n, active current at plate current [A peak]
+HAL_PIN(n_volt);  // *parameter*, plate voltage, line to line rms (V), 0 = not given
+HAL_PIN(n_freq);  // *parameter*, plate frequency at that voltage (Hz), 0 = not given
+HAL_PIN(n_cur);  // *parameter*, plate current, rms (A), 0 = not given
+HAL_PIN(n_pp);  // *parameter*, plate pole pairs (poles / 2), 0 = not given
+HAL_PIN(id_n);  // *output*, magnetizing current at plate voltage and frequency (A peak), V/f set
+HAL_PIN(iq_n);  // *output*, active current at plate current (A peak), V/f set
+HAL_PIN(vf_u_n);  // *output*, for vf0.u_n, phase peak voltage at vf_vel_n (V)
+HAL_PIN(vf_vel_n);  // *output*, for vf0.vel_n (rad/s mechanical)
+HAL_PIN(vf_boost);  // *output*, for vf0.u_boost, r id_n + 4/pi drop (V)
+HAL_PIN(vf_boost_vel);  // *output*, for vf0.boost_vel (rad/s mechanical)
+HAL_PIN(vf_slip_n);  // *output*, for vf0.slip_n, slip at vf_cur_n (rad/s mechanical)
+HAL_PIN(vf_cur_n);  // *output*, for vf0.cur_n, active current at plate current (A peak)
 
-HAL_PIN(test_cur);
-HAL_PIN(test_vel);
+HAL_PIN(test_cur);  // *parameter*, highest current of the standstill test (A peak), default 8
+HAL_PIN(test_vel);  // *parameter*, field speed of the pole pair test (rad/s electrical), default 50
 
-HAL_PIN(vel_fb);
-HAL_PIN(pos_fb);        // rotor position [rad mech], fb_switch0.vel_fb: the rotating tr check's frame
-HAL_PIN(psi);           // rotor flux for hv0.psi (curpid's emf feed forward and predictor) [Vs]: |emf| / w while rotating, 0 at standstill
-HAL_PIN(uq_fb);
-HAL_PIN(iq_fb);
+HAL_PIN(vel_fb);  // *input*, mechanical velocity from vel1.vel (rad/s)
+HAL_PIN(pos_fb);  // *input*, rotor position without offset from fb_switch0.vel_fb (rad mechanical), slip of the ramps and frame of the rotating tr check
+HAL_PIN(psi);  // *output*, rotor flux to hv0.psi for curpid's emf feed forward and predictor (Vs), abs(emf) / w low passed in the rotating test, set to 0 when the standstill or the rotating test starts
+HAL_PIN(uq_fb);  // *input*, q axis voltage from hv0.uq_fb (V), rotating test
+HAL_PIN(iq_fb);  // *input*, q axis current from hv0.iq_fb (A), rotating test
 
-// Rotating test (state 4): spins the rotor open loop at plate flux, needs the
-// standstill test's r, l, tr, lmr and the plate pins from the same session
-HAL_PIN(rot_vel);       // *parameter*, rotating test speed, fraction of the plate speed
-HAL_PIN(rot_acc);       // *parameter*, rotating test ramp [rad/s^2 electrical], 0 = plate speed in 5 s
-HAL_PIN(sw_n);          // flux sweep points taken
-HAL_PINA(sw_i, 8);      // flux sweep: d current [A]
-HAL_PINA(sw_psi, 8);    // flux sweep: rotor flux [Vs peak]
-HAL_PIN(rot_id_n);      // d current for plate flux at plate voltage and frequency [A]
-HAL_PIN(rot_lmr);       // secant lmr at rot_id_n [H]
-HAL_PIN(rot_lmr_sat);   // acim_flux0.lmr_sat (and tr_sat) from the sweep
-HAL_PIN(rot_i_knee);    // acim_flux0.i_knee from the sweep, 0 = not fitted [A]
-HAL_PIN(rot_i_dip);     // acim_flux0.i_dip from the sweep, 0 = no dip [A]
-HAL_PIN(rot_lmr_dip);   // acim_flux0.lmr_dip from the sweep
-HAL_PIN(rot_j);         // inertia from the ramps (stator voltages), 0 = no encoder [kg m^2]
-HAL_PIN(rot_j_s);       // inertia from the ramps (slip, scales with tr) [kg m^2]
-HAL_PIN(rot_tf);        // friction torque in the ramps' speed range [Nm]
-HAL_PIN(rot_enc);       // 1 = vel_fb followed the field, so the ramps could read slip
-HAL_PIN(rot_tr_vel);    // *parameter*, rotating tr check: top speed [rad/s mech], 0 = skip the check
-HAL_PIN(rot_tr);        // tr from the rotating check, at rot_tr_imr [s], 0 = not run
-HAL_PIN(rot_tr_k);      // rot_tr over the standstill tr
-HAL_PIN(rot_tr_imr);    // magnetizing current the check ran at [A]
-HAL_PIN(rot_tr_lmr);    // lmr there, from the emf [H]
-HAL_PIN(rot_tr_b);      // the flux angle's offset the up and down ramps share [rad]
-HAL_PIN(rot_tr_ramp);   // tr at the ramps' current, from the open loop ramps, 0 = not measured [s]
-HAL_PIN(rot_lag);       // vel_fb's lag behind pos_fb on the ramps [s]
-HAL_PIN(rot_delay);     // the field command to position feedback delay the ramps found [s]
-HAL_PIN(rot_vmax);      // *parameter*, flux sweep: highest field speed, fraction of the plate speed
+HAL_PIN(rot_vel);  // *parameter*, rotating test speed, fraction of plate speed (0.05 to 0.45), default 0.4
+HAL_PIN(rot_acc);  // *parameter*, rotating test ramp (rad/s^2 electrical), 0 = plate speed in 5 s, default 0
+HAL_PIN(sw_n);  // *output*, flux sweep points taken
+HAL_PINA(sw_i, 8);  // *output*, flux sweep magnetizing current, rising (A)
+HAL_PINA(sw_psi, 8);  // *output*, flux sweep rotor flux (Vs peak)
+HAL_PIN(rot_id_n);  // *output*, d current for plate flux at plate voltage and frequency (A), result for acim_foc0.id_n and acim_flux0.i_n
+HAL_PIN(rot_lmr);  // *output*, secant lmr at rot_id_n (H), result for acim_flux0.lmr
+HAL_PIN(rot_lmr_sat);  // *output*, saturation from the sweep, result for acim_flux0.lmr_sat (and tr_sat with a knee)
+HAL_PIN(rot_i_knee);  // *output*, knee current from the sweep (A), result for acim_flux0.i_knee, 0 = not fitted
+HAL_PIN(rot_i_dip);  // *output*, dip current from the sweep (A), result for acim_flux0.i_dip, 0 = no dip
+HAL_PIN(rot_lmr_dip);  // *output*, dip depth from the sweep, result for acim_flux0.lmr_dip
+HAL_PIN(rot_j);  // *output*, inertia from the ramps via the air gap torque (kg m^2), 0 = no encoder, result for conf0.j
+HAL_PIN(rot_j_s);  // *output*, inertia from the ramps via the position slip and the ramps' tr (kg m^2)
+HAL_PIN(rot_tf);  // *output*, friction torque in the ramps speed range (Nm)
+HAL_PIN(rot_enc);  // *output*, 1 = vel_fb followed the field, so slip can be read (ramps, tr check, sweep correction, second speed)
+HAL_PIN(rot_tr_vel);  // *parameter*, top speed of the rotating tr check (rad/s mechanical), needs an encoder, 0 = skip the check, default 0
+HAL_PIN(rot_tr);  // *output*, tr from the rotating check at rot_tr_imr, rot_tr_k x tr (s), 0 = not run or no solution
+HAL_PIN(rot_tr_k);  // *output*, rot_tr over the standstill tr
+HAL_PIN(rot_tr_imr);  // *output*, magnetizing current the check ran at (A)
+HAL_PIN(rot_tr_lmr);  // *output*, lmr at rot_tr_imr from the emf (H)
+HAL_PIN(rot_tr_b);  // *output*, flux angle offset shared by the up and down ramps (rad)
+HAL_PIN(rot_tr_ramp);  // *output*, tr at the ramps' current (id_n) from the open loop ramps (s), 0 = not measured, moved to rot_id_n for acim_flux0.tr
+HAL_PIN(rot_lag);  // *output*, lag of vel_fb behind pos_fb on the ramps (s)
+HAL_PIN(rot_delay);  // *output*, delay from field command to position feedback found on the ramps (s)
+HAL_PIN(rot_vmax);  // *parameter*, highest field speed of the flux sweep with an encoder, fraction of the plate speed, default 1
 
-HAL_PIN(pwm_volt);
-HAL_PIN(dc_volt);
+HAL_PIN(pwm_volt);  // *input*, usable voltage from hv0.pwm_volt (V), limits avg_test_volt and the injection
+HAL_PIN(dc_volt);  // *input*, dc link voltage from hv0.dc_volt (V), scales r_bias
 
-HAL_PIN(cur_bw);
+HAL_PIN(cur_bw);  // *output*, current loop bandwidth to hv0.cur_bw (rad/s)
 
-HAL_PIN(tmp0);
-HAL_PIN(tmp1);
-HAL_PIN(tmp2);
-HAL_PIN(tmp3);
-HAL_PIN(avg_test_volt);
+HAL_PIN(tmp0);  // *output*, filtered id_fb of the half current dwell (A)
+HAL_PIN(tmp1);  // *output*, filtered ud_fb of the half current dwell (V)
+HAL_PIN(tmp2);  // *output*, filtered id_fb of the full current dwell (A)
+HAL_PIN(tmp3);  // *output*, filtered ud_fb of the full current dwell (V)
+HAL_PIN(avg_test_volt);  // *output*, voltage that holds test_cur incl. dead time, dc bias of the leakage test (V)
 
 #define ROT_BLK 8     // rotor test: the settled tail is read as the median of this many blocks
 #define ROT_EDGES 32  // rotor test: edges kept per rung, so rot_cycles is at most 16

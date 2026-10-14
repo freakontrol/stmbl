@@ -7,25 +7,58 @@
 #include "stm32f4xx_conf.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `res` generates the resolver excitation (reference) signal on the FB0 connector of the F4 board and computes the rotor angle from the demodulated sin/cos signals delivered by the `adc` component. It is loaded by `conf/template/res_fb0.txt`, which links `res0.sin`/`cos`/`quad` to `adc0.sin0`/`cos0`/`quad`, `adc0.res_mode = res0.res_mode`, `res0.poles = conf0.mot_fb_polecount`, `res0.vel = fb_switch0.mot_vel` and `res0.pos` to `fb_switch0.mot_pos`/`mot_abs_pos`.
+*
+* ## Component Explanation
+*
+* 1. **Reference signal (hw_init and rt)**:
+* - V4 board: TIM4 is clocked by the ADC master timer trigger (TIM3, `ADC_TRIGGER_FREQ` = 1.2 MHz). TIM4 channel 3 toggles the reference output on FB0 Z/RES_REF (PD14); the FB0 line driver enable (PD15) is switched on.
+* - Every rt cycle `freq` is rounded to a multiple of the rt frequency (5 kHz) and clamped to 5..20 kHz (the shipped configs use 5 kHz); the rounded value is written back to `freq`.
+* ```c
+* mult     = CLAMP(freq / 5000 + 0.5, 1, 4);
+* ARR      = 1.2e6 / 2 / (5000 * mult) - 1;
+* CCR3     = CLAMP(phase * ARR, 0, ARR - 1);
+* res_mode = ADC_GROUPS / 2 / mult;   // = 12 / mult, ADC sample groups per half wave
+* ```
+* - `phase` must be tuned so that `amp` is maximal (the configs use 0.89..0.9).
+*
+* 2. **Signal check (rt)**:
+* - `amp = sqrt(sin^2 + cos^2)`. If `amp < min_amp`: `error = 1`, `state = 0`, `pos` is not updated. Otherwise `error = 0`, `state = 3`.
+*
+* 3. **Angle (rt)**:
+* - `pos_e = atan2(sin, cos)` (computed with `atan2_fast()`, a polynomial approximation with about 3e-7 rad maximum error), plus a delay compensation of half an rt period: `dpos = vel * period / 2`.
+* - `poles = 1`: `pos = mod(pos_e + dpos)`.
+* - `poles > 1` (multi-speed resolver): the electrical cycle is counted by watching `quad` (quadrant from `adc`) change 2 -> 3 (+1) or 3 -> 2 (-1), wrapped to 0..poles-1, and
+* ```c
+* pos = mod((pos_e + cycle * 2 * pi) / poles + dpos);   // rad, +-pi
+* ```
+*
+* {{% hint warning %}}
+* With `poles > 1` the cycle counter starts at 0 at power up, so the mechanical position is only relative (not absolute) and a missed quadrant change shifts it by one electrical cycle. The rt code uses the V4 macros `RT_FREQ`, `ADC_TRIGGER_FREQ` and `ADC_GROUPS`, so the component only builds for V4 (the source comment "clk = TIM_MASTER(TIM2)" is stale, TIM_MASTER is TIM3 on V4).
+* {{% /hint %}}
+*/
+
 HAL_COMP(res);
 
-HAL_PIN(pos);
-HAL_PIN(amp);
-HAL_PIN(quad);
-HAL_PIN(poles);
-HAL_PIN(min_amp);
+HAL_PIN(pos);       // *output*, Rotor position (rad, +-pi)
+HAL_PIN(amp);       // *output*, Amplitude of the sin/cos signals
+HAL_PIN(quad);      // *input*, Quadrant of the sin/cos signals from adc (1..4)
+HAL_PIN(poles);     // *parameter*, Resolver speed, electrical cycles per revolution (default 1)
+HAL_PIN(min_amp);   // *parameter*, Minimum amplitude, below it error = 1 (default 0.15)
 
-HAL_PIN(vel);  // TODO: vel rev, fb,cmd -> vel0,1 -> rev
+HAL_PIN(vel);       // *input*, Velocity for delay compensation (rad/s)
 
-HAL_PIN(sin);
-HAL_PIN(cos);
+HAL_PIN(sin);       // *input*, Demodulated sine signal from adc
+HAL_PIN(cos);       // *input*, Demodulated cosine signal from adc
 
-HAL_PIN(enable);
-HAL_PIN(error);
-HAL_PIN(state);
-HAL_PIN(phase);     //phase adjust
-HAL_PIN(res_mode);  //resolver mode output, calculated form frequency
-HAL_PIN(freq);
+HAL_PIN(enable);    // *input*, Not used
+HAL_PIN(error);     // *output*, 1 = amplitude below min_amp
+HAL_PIN(state);     // *output*, 0 = error, 3 = position valid
+HAL_PIN(phase);     // *parameter*, Reference phase adjust 0..1 relative to ADC sampling (default 0.85)
+HAL_PIN(res_mode);  // *output*, ADC sample groups per half wave for adc0.res_mode (12 / (freq / 5 kHz))
+HAL_PIN(freq);      // *input/output*, Reference frequency, rounded to 5, 10, 15 or 20 kHz (default 10000)
 
 // TODO: in hal stop, reset adc dma
 

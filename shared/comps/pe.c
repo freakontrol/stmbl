@@ -5,26 +5,38 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `pe` (power and energy) computes power and energy values of the drive for display on the scope. It runs on the F4 board and is loaded by `conf/template/pid.txt` and `mpid.txt` with `pe0.udc = hv0.dc_volt`, `pe0.id/iq = hv0.id_fb/iq_fb`, `pe0.torque = pid0.torque_cmd`, `pe0.vel = vel1.vel`, `pe0.r = conf0.r`, `pe0.j = conf0.j`, `pe0.cap = 0.00054`. The templates set `idc`, `ud` and `uq` to 0. No component uses the outputs.
+*
+* ## Component Explanation
+* 1. **Energies** (in `rt`): `e_el = cap * udc^2 / 2` (DC link capacitor), `e_kin = j * vel^2 / 2` (rotor).
+*
+* 2. **Powers**: `p_el_dc = udc * idc`, `p_m = torque * vel`, `p_el_ac` and `p_t` (copper losses) as below.
+*
+* `p_el_ac` is `1.5 * (ud * id + uq * iq)` and `p_t` is `1.5 * r * (id^2 + iq^2)`; `p_el_ac` is 0 in the templates anyway.
+*/
+
 HAL_COMP(pe);
 
-HAL_PIN(udc);
-HAL_PIN(idc);
-HAL_PIN(ud);
-HAL_PIN(uq);
-HAL_PIN(id);
-HAL_PIN(iq);
-HAL_PIN(torque);
-HAL_PIN(vel);
-HAL_PIN(r);
-HAL_PIN(j);
-HAL_PIN(cap);
+HAL_PIN(udc);     // *input*, DC link voltage (V)
+HAL_PIN(idc);     // *input*, DC link current (A)
+HAL_PIN(ud);      // *input*, d-axis voltage (V)
+HAL_PIN(uq);      // *input*, q-axis voltage (V), not used
+HAL_PIN(id);      // *input*, d-axis current (A)
+HAL_PIN(iq);      // *input*, q-axis current (A)
+HAL_PIN(torque);  // *input*, Torque (Nm)
+HAL_PIN(vel);     // *input*, Velocity (rad/s)
+HAL_PIN(r);       // *parameter*, Phase resistance (Ohm)
+HAL_PIN(j);       // *parameter*, Inertia (kgm^2)
+HAL_PIN(cap);     // *parameter*, DC link capacitance (F)
 
-HAL_PIN(e_el);
-HAL_PIN(e_kin);
-HAL_PIN(p_el_dc);
-HAL_PIN(p_el_ac);
-HAL_PIN(p_m);
-HAL_PIN(p_t);
+HAL_PIN(e_el);     // *output*, Energy in the DC link capacitor (J)
+HAL_PIN(e_kin);    // *output*, Kinetic energy (J)
+HAL_PIN(p_el_dc);  // *output*, DC link power (W)
+HAL_PIN(p_el_ac);  // *output*, AC power, buggy (W)
+HAL_PIN(p_m);      // *output*, Mechanical power (W)
+HAL_PIN(p_t);      // *output*, Copper losses, missing factor 3/2 (W)
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct pe_ctx_t * ctx = (struct pe_ctx_t *)ctx_ptr;

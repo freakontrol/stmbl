@@ -14,7 +14,6 @@
 * The `zv_ip` component applies a Zero Vibration (ZV) input shaper to the position and velocity commands of a motor. This component operates within a hardware abstraction layer (HAL) framework, providing real-time control and non-real-time initialization functions.
 *
 * 1. **Input Reading and Initialization**:
-* - The component reads the position command (`cmd_pos`) and velocity command (`cmd_vel`) from input pins.
 * - It also reads various parameters for the ZV input shaper, including `natural_frequency`, `damping_ratio`, `A1`, `A2`, and `T`.
 *
 * 2. **Parameter Calculation**:
@@ -22,9 +21,6 @@
 *
 * 3. **Input Shaping**:
 * - The component applies the ZV input shaper to the position and velocity commands to generate the shaped position (`shaped_pos`) and shaped velocity (`shaped_vel`) outputs.
-*
-* 4. **Output Updates**:
-* - The component updates the output pins with the calculated shaped position and velocity commands.
 */
 
 HAL_COMP(zv_ip);

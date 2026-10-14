@@ -25,35 +25,59 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `ypid` is a simple cascaded position (P) / velocity (PI) controller whose output `out` has no fixed unit (for example a current or torque command). It is compiled into the F4 firmware but not loaded by any template or config in `conf/` (the F3 build has it commented out). For normal servo use see `pid`.
+*
+* ## Component Explanation
+* All work is done in `rt`. There is no `nrt_init`: all pins start at 0. Negative gains are treated as 0.
+*
+* 1. **Position loop**:
+* - `pos_error = minus(pos_ext_cmd, pos_fb)` is always computed, also when disabled.
+* - `vel_cmd = pos_p * pos_error + vel_ff * vel_ext_cmd`.
+* - `vel_sat` is set to +-1 if this exceeds +-`max_vel`.
+* - `vel_cmd` is then clamped to `max_vel` and to `vel_fb +- max_acc * period`, so it cannot run away from the actual velocity by more than one period of `max_acc`.
+*
+* 2. **Velocity loop**:
+* - `vel_error = vel_cmd - vel_fb`, set to 0 when `abs(vel_error) < vel_min` (dead band).
+* - `out = LIMIT(vel_error * vel_p, max_out)`, plus the integrator `vel_error_sum * vel_i * vel_p`.
+* - The integrator sums `vel_error` every rt cycle without multiplying by `period`, so the effective I gain depends on the rt frequency. It is clamped so the total stays within +-`max_out`, and cleared when `vel_i * vel_p` is 0.
+* - `out_sat` is +-1 when `out` exceeds 99 % of `max_out`; `out` is finally limited to +-`max_out`.
+*
+* 3. **Saturation and enable**:
+* - `saturated` counts the time (s) either `vel_sat` or `out_sat` is non zero and resets to 0 otherwise.
+* - With `enable <= 0` all outputs except `pos_error` are 0 and the integrator is cleared.
+*/
+
 HAL_COMP(ypid);
 
-HAL_PIN(pos_ext_cmd);  // cmd in (rad)
-HAL_PIN(pos_fb);       // feedback in (rad)
-HAL_PIN(pos_error);    // error out (rad)
+HAL_PIN(pos_ext_cmd);  // *input*, Position command (rad)
+HAL_PIN(pos_fb);       // *input*, Position feedback (rad)
+HAL_PIN(pos_error);    // *output*, Position error wrapped to +-pi (rad)
 
-HAL_PIN(vel_ext_cmd);  // cmd in (rad/s)
-HAL_PIN(vel_fb);       // feedback in (rad/s)
-HAL_PIN(vel_cmd);      // cmd out (rad/s)
-HAL_PIN(vel_error);    // error out (rad/s)
-HAL_PIN(vel_min);      // minimum velocity error 0.3
+HAL_PIN(vel_ext_cmd);  // *input*, Velocity feedforward command (rad/s)
+HAL_PIN(vel_fb);       // *input*, Velocity feedback (rad/s)
+HAL_PIN(vel_cmd);      // *output*, Clamped velocity command (rad/s)
+HAL_PIN(vel_error);    // *output*, Velocity error after dead band (rad/s)
+HAL_PIN(vel_min);      // *parameter*, Velocity error dead band (rad/s), e.g. 0.3
 
-HAL_PIN(enable);
-HAL_PIN(out);
+HAL_PIN(enable);  // *input*, Enable
+HAL_PIN(out);     // *output*, Controller output, limited to max_out
 
-HAL_PIN(pos_p);  //10
+HAL_PIN(pos_p);  // *parameter*, Position P gain (1/s), e.g. 10
 
-HAL_PIN(vel_p);   //0.5
-HAL_PIN(vel_i);   //0.005
-HAL_PIN(vel_ff);  //1.0
+HAL_PIN(vel_p);   // *parameter*, Velocity P gain, e.g. 0.5
+HAL_PIN(vel_i);   // *parameter*, Velocity I gain per rt cycle, e.g. 0.005
+HAL_PIN(vel_ff);  // *parameter*, Velocity feedforward gain, e.g. 1.0
 
 // system limits
-HAL_PIN(max_vel);
-HAL_PIN(max_acc);
-HAL_PIN(max_out);
+HAL_PIN(max_vel);  // *parameter*, Maximum velocity (rad/s)
+HAL_PIN(max_acc);  // *parameter*, Maximum acceleration (rad/s^2)
+HAL_PIN(max_out);  // *parameter*, Maximum output
 
-HAL_PIN(vel_sat);
-HAL_PIN(out_sat);
-HAL_PIN(saturated);
+HAL_PIN(vel_sat);    // *output*, Velocity command saturated (-1, 0, 1)
+HAL_PIN(out_sat);    // *output*, Output saturated (-1, 0, 1)
+HAL_PIN(saturated);  // *output*, Time in saturation (s)
 
 struct ypid_ctx_t {
   float sat;

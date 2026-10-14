@@ -5,12 +5,21 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `gain` computes a velocity dependent factor between 0 and 1. F4 component; not used by any config in `conf/`.
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* - `scale = CLAMP(|vel / MAX(max_vel, 0.1)|, 0, 1)`, i.e. 0 at standstill rising linearly to 1 at `max_vel`.
+*/
+
 HAL_COMP(gain);
 
-HAL_PIN(vel);
-HAL_PIN(max_vel);
+HAL_PIN(vel);      // *input*, Velocity (rad/s)
+HAL_PIN(max_vel);  // *parameter*, Velocity for factor 1 (rad/s), min 0.1
 
-HAL_PIN(scale);
+HAL_PIN(scale);  // *output*, Factor 0..1
 
 
 static void rt_func(float gainriod, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {

@@ -1,14 +1,23 @@
 #include "or_comp.h"
 #include "hal.h"
 
+/**
+* ## Brief
+* `or` is a four input logic OR. F4 component.
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* - `out` = 1 if any of `in0`..`in3` is > 0, otherwise 0. Unused inputs can stay at their default 0.
+*/
+
 HAL_COMP(or);
 
-HAL_PIN(in0);
-HAL_PIN(in1);
-HAL_PIN(in2);
-HAL_PIN(in3);
+HAL_PIN(in0);  // *input*, Logic input, true if > 0
+HAL_PIN(in1);  // *input*, Logic input, true if > 0
+HAL_PIN(in2);  // *input*, Logic input, true if > 0
+HAL_PIN(in3);  // *input*, Logic input, true if > 0
 
-HAL_PIN(out);
+HAL_PIN(out);  // *output*, 1 if any input is > 0
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct or_pin_ctx_t *pins = (struct or_pin_ctx_t *)pin_ptr;

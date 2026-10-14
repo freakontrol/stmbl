@@ -5,6 +5,35 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `ipm` estimates the junction temperatures of the power module (IPM) on the F4 board, so the drive can derate and trip on die temperature between the fast overcurrent trips and the slow module NTC. It adds a modelled temperature rise of each of the twelve dies (per leg: high and low IGBT, high and low diode) to the NTC reading. Loaded by conf/template/ipm.txt, which the motor templates (pid, mpid, uf and vf) link at their end, so a config does not link it again (a second `link ipm` loads an `ipm1` nothing reads): its inputs come from `hv0` (`ipm0.id = hv0.id_fb`, ..., `ipm0.case_temp = hv0.hv_temp`, `ipm0.pos = hv0.pos`) and `fault0.ipm_temp = ipm0.temp` feeds the derate (`conf0.high_ipm_temp`) and the IPM_TEMP_ERROR trip (`conf0.max_ipm_temp`) in `fault`. The defaults are for the IKCM30F60GD fitted to v5.0 (conf/template/ipm_ikcm30f60gd.txt repeats them); link conf/template/ipm_im06b50gc1.txt after the motor template for the IM06B50GC1.
+*
+* ## Component Explanation
+* Everything runs in `rt`. There is no `rt_start`, so the die temperatures survive a disable (the module does not cool because the drive stopped).
+*
+* 1. **Leg currents and duties**:
+* - The angle is read from the pin that finally drives `pos`: `ipm0.pos = hv0.pos` links an input to an input, so the component follows the link chain (up to 4 hops) to the driving pin, e.g. `vel2.pos_out`.
+* - `id`, `iq`, `ud`, `uq` are turned into the three phase currents and voltages with an amplitude invariant inverse Park and Clarke transform at that angle.
+* - Leg duty = `CLAMP(0.5 + u_phase / dc_volt, 0, 1)`; the common mode of the modulation is ignored. `dc_volt` is taken as at least 1 V.
+*
+* 2. **Losses per die** (after the CIPOS Mini application note):
+* - Current out of the leg flows through the high IGBT for the duty and the low diode for the rest; current into the leg through the low IGBT for the rest and the high diode for the duty. Dies not carrying the current get no loss.
+* - Conduction: `duty_share * kvt * (v0 * |i| + r0 * i^2)` with `vi`/`ri` for the IGBT and `vd`/`rd` for the diode, `kvt = 1 + v_tc * (Tj - 25)`.
+* - Switching: `e * f_sw * dc_volt / e_volt * |i| * ket` with `ei` (IGBT Eon + Eoff per amp) or `ed` (diode Erec per amp), `ket = 1 + ei_tc (or ed_tc) * (Tj - 25)`. Both temperature factors are clamped to 0.5..3 and use each die's own last junction temperature.
+*
+* 3. **Thermal model**:
+* - Each die has a three pole Foster network, one first order lag per pole with the shared time constants `tau1..tau3` and the splits `fi1`, `fi2` (IGBT) or `fd1`, `fd2` (diode). The static rise is `P * rth_i` or `P * rth_d`. Time constants shorter than the rt period are clamped to the period.
+* ```c
+* Tj = case_temp + sum over k of lag(P * rth * f_k, tau_k)
+* ```
+* - At speed the networks average over the electrical cycle; at standstill the leg carrying DC heats on its own, which a mean value model over a sine would understate about 3.3x.
+*
+* {{% hint warning %}}
+* `rth_i` and `rth_d` are the datasheet Rth(J-C) times a factor that makes the model reproduce the module's SOA chart (1.5 for the IKCM30F60GD, 3.6 for the IM06B50GC1). They do not include the heatsink, which is covered by `case_temp` from the NTC; trim them against the real hardware. `pos` is used as linked, without `hv0.adv`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(ipm);
 
 /*
@@ -27,50 +56,50 @@ IKCM30F60GD fitted to v5.0.
 */
 
 // in
-HAL_PIN(id);         // *input*, hv0.id_fb
-HAL_PIN(iq);         // *input*, hv0.iq_fb
-HAL_PIN(ud);         // *input*, hv0.ud_fb
-HAL_PIN(uq);         // *input*, hv0.uq_fb
-HAL_PIN(pos);        // *input*, the electrical angle hv0 commutates with
-HAL_PIN(dc_volt);    // *input*, hv0.dc_volt
-HAL_PIN(case_temp);  // *input*, hv0.hv_temp, the module NTC
+HAL_PIN(id);         // *input*, d axis current (A peak), hv0.id_fb
+HAL_PIN(iq);         // *input*, q axis current (A peak), hv0.iq_fb
+HAL_PIN(ud);         // *input*, d axis voltage (V), hv0.ud_fb
+HAL_PIN(uq);         // *input*, q axis voltage (V), hv0.uq_fb
+HAL_PIN(pos);        // *input*, electrical angle hv0 commutates with (rad), link chain is followed
+HAL_PIN(dc_volt);    // *input*, DC link voltage (V), hv0.dc_volt
+HAL_PIN(case_temp);  // *input*, module NTC temperature (deg C), hv0.hv_temp
 
 // device, common
-HAL_PIN(f_sw);    // *parameter*, switching frequency (Hz)
-HAL_PIN(e_volt);  // *parameter*, link voltage the switching energies were measured at (V)
+HAL_PIN(f_sw);    // *parameter*, switching frequency (Hz), default 15000, the module templates link hv0.pwm_freq
+HAL_PIN(e_volt);  // *parameter*, link voltage the switching energies were measured at (V), default 300
 HAL_PIN(v_tc);    // *parameter*, rise of the conduction drops with junction temperature (1/K)
 
 // transistor
-HAL_PIN(vi);     // *parameter*, on state knee voltage at 25 C (V)
-HAL_PIN(ri);     // *parameter*, on state slope resistance at 25 C (ohm)
-HAL_PIN(ei);     // *parameter*, (Eon + Eoff) per amp switched at e_volt, 25 C (J/A)
+HAL_PIN(vi);     // *parameter*, IGBT on state knee voltage at 25 C (V)
+HAL_PIN(ri);     // *parameter*, IGBT on state slope resistance at 25 C (Ohm)
+HAL_PIN(ei);     // *parameter*, IGBT (Eon + Eoff) per amp switched at e_volt, 25 C (J/A)
 HAL_PIN(ei_tc);  // *parameter*, rise of that energy with junction temperature (1/K)
-HAL_PIN(rth_i);  // *parameter*, junction to case (K/W)
+HAL_PIN(rth_i);  // *parameter*, IGBT junction to case thermal resistance, SOA scaled (K/W)
 
 // diode
-HAL_PIN(vd);     // *parameter*, forward knee voltage at 25 C (V)
-HAL_PIN(rd);     // *parameter*, forward slope resistance at 25 C (ohm)
-HAL_PIN(ed);     // *parameter*, Erec per amp recovered at e_volt, 25 C (J/A)
+HAL_PIN(vd);     // *parameter*, diode forward knee voltage at 25 C (V)
+HAL_PIN(rd);     // *parameter*, diode forward slope resistance at 25 C (Ohm)
+HAL_PIN(ed);     // *parameter*, diode Erec per amp recovered at e_volt, 25 C (J/A)
 HAL_PIN(ed_tc);  // *parameter*, rise of that energy with junction temperature (1/K)
-HAL_PIN(rth_d);  // *parameter*, junction to case (K/W)
+HAL_PIN(rth_d);  // *parameter*, diode junction to case thermal resistance, SOA scaled (K/W)
 
 // junction to case impedance shape, three pole Foster network: shared time
 // constants, separate splits; the last share is what the first two leave
-HAL_PIN(tau1);
-HAL_PIN(tau2);
-HAL_PIN(tau3);
-HAL_PIN(fi1);
-HAL_PIN(fi2);
-HAL_PIN(fd1);
-HAL_PIN(fd2);
+HAL_PIN(tau1);   // *parameter*, Foster pole 1 time constant (s), shared by IGBT and diode
+HAL_PIN(tau2);   // *parameter*, Foster pole 2 time constant (s)
+HAL_PIN(tau3);   // *parameter*, Foster pole 3 time constant (s)
+HAL_PIN(fi1);    // *parameter*, IGBT share of rth_i in pole 1
+HAL_PIN(fi2);    // *parameter*, IGBT share of rth_i in pole 2, pole 3 gets the rest
+HAL_PIN(fd1);    // *parameter*, diode share of rth_d in pole 1
+HAL_PIN(fd2);    // *parameter*, diode share of rth_d in pole 2, pole 3 gets the rest
 
 // out
-HAL_PIN(p_igbt);   // mean per transistor (W)
-HAL_PIN(p_diode);  // mean per diode (W)
-HAL_PIN(power);    // all twelve dies, what the heatsink sees (W)
-HAL_PIN(t_igbt);   // hottest transistor (C)
-HAL_PIN(t_diode);  // hottest diode (C)
-HAL_PIN(temp);     // the hotter of the two, what the derate watches (C)
+HAL_PIN(p_igbt);   // *output*, mean loss per IGBT (W)
+HAL_PIN(p_diode);  // *output*, mean loss per diode (W)
+HAL_PIN(power);    // *output*, total loss of all twelve dies, what the heatsink sees (W)
+HAL_PIN(t_igbt);   // *output*, hottest IGBT junction (deg C)
+HAL_PIN(t_diode);  // *output*, hottest diode junction (deg C)
+HAL_PIN(temp);     // *output*, the hotter of t_igbt and t_diode (deg C), to fault0.ipm_temp
 
 struct ipm_ctx_t {
   float die[12][3];  // per leg: high igbt, low igbt, high diode, low diode

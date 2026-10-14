@@ -30,11 +30,39 @@ word C:
 2..15: checksum/multiturn?
 */
 
+/**
+* ## Brief
+* `encs` reads Sanyo Denki serial absolute encoders (tested with PA035C, 2.5 Mbit/s) on the Z line of the FB0 connector of the F4 board. It is loaded by `conf/template/encs_fb0.txt` (used e.g. by `conf/bene_sanyo.txt`), which links `encs0.pos` to `fb_switch0.mot_pos` and `mot_abs_pos`, `encs0.state` to `fb_switch0.mot_state` and `encs0.error` to `fault0.mot_fb_error`.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (hw_init)**:
+* - The half-duplex data line is FB0 Z (PD14), the line driver enable is FB0 Z TXEN (PD15).
+* - Transmit: the request is bit-banged by DMA2 stream 1 (channel 7, TIM8 update) writing a 24 word pattern to the GPIO set/reset register. TIM8 runs with prescaler 1 and period 32, about 2.545 MHz per bit.
+* - Receive: TIM4 channel 3 captures every edge on PD14 (both polarities), DMA1 stream 7 (channel 2) stores up to 300 capture times.
+* - The request frame is fixed: start bit, sync, frame code, encoder address 0, command code CDF1 ("absolute lower 24 bit data request") and a precomputed CRC.
+*
+* 2. **Reply decoding (rt)**, done on the reply to the request of the previous rt cycle:
+* - The time between edges is divided by 33 timer ticks per bit and rounded; every odd-numbered interval is written as 1s, the rest of the 54 bit frame is filled with 1 (idle line).
+* - The frame consists of three 18 bit words (start bit, 16 data bits, stop bit). Only the start (0) and stop (1) bits are checked.
+* - Position: 16 bits from word B plus the MSB (bit 16) from word C, 17 bit single turn:
+* ```c
+* pos = (pos0_15 / 65536 + pos16) * pi - pi;   // rad, -pi..pi
+* ```
+*
+* 3. **Request (rt)**:
+* - PD14 is switched to output, TX enable set, the TX DMA is started and the rt function busy-waits until it completes (about 9 us), then PD14 is switched back to the timer input, the capture timer is reset and the RX DMA is restarted.
+*
+* {{% hint warning %}}
+* The CRC, the alarm/status fields and the multiturn bits of the reply are not checked or used. The GPIO mode register access is hard coded for PD14 (V4 board). DMA2 stream 1 is also used by `encm` and `dmm`, and TIM8 by `yaskawa`, so these cannot be loaded together with `encs`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(encs);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(state);
+HAL_PIN(pos);    // *output*, Single-turn position, 17 bit (rad, -pi..pi)
+HAL_PIN(error);  // *output*, 1 = start/stop bits of the reply wrong
+HAL_PIN(state);  // *output*, 0 = error, 3 = position valid
 
 static volatile uint32_t request_buf[24];
 static volatile uint16_t tim_data[300];

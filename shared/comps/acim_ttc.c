@@ -14,12 +14,13 @@
 * The `acim_ttc` component is designed for controlling an AC Induction Motor (ACIM) using Torque and Flux control strategies. This component operates within a hardware abstraction layer (HAL) framework, providing real-time control and non-real-time initialization functions.
 *
 * 1. **Input Reading and Initialization**:
-* - The component reads various motor parameters and control settings from input pins, including `mode`, `sensorless`, `torque_n`, `cur_n`, `slip_n`, `polecount`, `freq_n`, `vel_n`, `u_n`, `u_boost`, `t_boost`, and `s_boost`.
+* - The component reads various motor parameters and control settings from input pins, including `mode`, `sensorless`, `torque_n`, `cur_n`, `slip_n`, `polecount`, `freq_n`, `vel_n`, `u_n`, `u_boost`, `t_boost`, `s_boost`, `slip_comp` and `p_max`.
 * - The torque command (`torque`) and measured velocity (`vel_m`) are also read from input pins.
 *
 * 2. **Parameter Calculation**:
 * - The component calculates several derived parameters based on the input values, such as `poles`, `vel_n`, `t_n`, `freq_n`, `slip_n`, and `id_n`.
 * - These parameters are used in the control algorithm to adjust the motor's operation.
+* - High speed slip compensation: the slip gain is `slip_n * comp` with `comp = MAX(1 + slip_comp * (1 / scale - 1), 0.01)`. It is inert at and below base speed (`scale = 1`) and only acts in field weakening, where the Rr/Lr slip law de-tunes; `slip_comp` is a machine specific tuning value.
 *
 * 3. **Scale Update**:
 * - The `scale` parameter is updated based on the error between the duty cycle setpoint and the actual duty cycle. This helps in adjusting the control parameters dynamically.
@@ -33,7 +34,10 @@
 * - The appropriate control strategy is selected based on the `mode` input, and the corresponding commands are calculated.
 *
 * 5. **Torque Limits**:
-* - The component calculates the minimum and maximum torque limits (`t_min` and `t_max`) based on the operating conditions and the `t_boost` parameter.
+* - The component calculates the minimum and maximum torque limits (`t_min = -t_lim`, `t_max = t_lim`) from `t_lim = torque_n * boost * scale`, with `boost = t_boost`.
+* - In slip control (`mode` 0) holding `t_boost` in field weakening needs slip proportional to `1/scale^2`, so `boost = MIN(t_boost, s_boost * scale / comp)`: past `scale = t_boost / s_boost` the slip cap, not `t_boost`, is the real torque ceiling.
+* - With `p_max > 0` the limit is also clamped to constant power, `t_lim = MIN(t_lim, p_max / MAX(abs(vel) / polecount, 0.1))` (vel is electrical, so it is divided back to mechanical speed); this is the middle region of the Fanuc slip law (EP0078698 eq. 17a).
+* - The slip itself is limited to `+-slip_n * s_boost`.
 * - These limits ensure that the motor operates within safe and efficient boundaries.
 *
 * 6. **Slip and Velocity Updates**:

@@ -5,14 +5,31 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `idx_home` implements index homing for LinuxCNC via smart serial: when LinuxCNC requests an index, it switches the feedback from the incremental motor position to the absolute motor position at the next zero crossing. F4 component, loaded by `conf/template/sserial.txt`: `idx_home0.fb = fb_switch0.mot_fb_no_offset`, `idx_home0.fb_abs = fb_switch0.mot_abs_fb_no_offset`, `idx_home0.index_en = sserial0.index_out`, `sserial0.index_clear = idx_home0.index_clear`, `linrev0.fb_in = idx_home0.pos_out`.
+*
+* ## Component Explanation
+* All work is done in `rt`. There is no `nrt_init`.
+*
+* 1. **Index detection**:
+* - While `index_en` > 0 and `mot_state` is 3 (absolute), the quadrant of `fb_abs` is tracked. A crossing between quadrant 1 and 4 (through 0 rad) acts as the index: `index_clear` is set to 1 and the component latches into the homed state. Each new request (rising edge of `index_en`) starts the quadrant tracking fresh, so a quadrant left over from an earlier request does not count as a crossing.
+* - If the index was requested while the feedback was not yet absolute, the index is accepted immediately once `mot_state` becomes 3. This only applies to that request; later ones wait for the zero crossing.
+* - `index_clear` goes back to 0 when `index_en` is released.
+*
+* {{% hint warning %}}
+* The homed state is never reset: after the first index `pos_out` stays `fb_abs`, later index requests only set `index_clear` again.
+* {{% /hint %}}
+*/
+
 HAL_COMP(idx_home);
 
-HAL_PIN(mot_state);  // 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
-HAL_PIN(fb);
-HAL_PIN(fb_abs);
-HAL_PIN(index_en);
-HAL_PIN(index_clear);
-HAL_PIN(pos_out);
+HAL_PIN(mot_state);    // *input*, Motor feedback state: 0 = disabled, 1 = inc, 2 = start abs, 3 = abs
+HAL_PIN(fb);           // *input*, Incremental motor position (rad)
+HAL_PIN(fb_abs);       // *input*, Absolute motor position (rad)
+HAL_PIN(index_en);     // *input*, Index request from LinuxCNC
+HAL_PIN(index_clear);  // *output*, 1 = index found
+HAL_PIN(pos_out);      // *output*, fb before, fb_abs after the index (rad)
 
 struct idx_home_ctx_t {
   int state;

@@ -5,15 +5,27 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `en` is an enable sequencer: after its input has been active for a while it switches on two enable outputs one after the other, and it restarts when a fault occurs. It runs on the F4 board. `conf/template/en.txt` uses it to enable the drive automatically after power up: `en0.en_in = 1`, `fault0.en = en0.en_out0`, `en0.fault = fault0.fault`, `en0.time = 1`. In `conf/move.txt` `en_out1` enables the drive and homing.
+*
+* ## Component Explanation
+* 1. **Timer** (in `rt`): `timer` counts up by `period` while `en_in > 0`, and is reset to 0 when `en_in <= 0` or `fault > 0`. It stops at `time`.
+*
+* 2. **Fault retry**:
+* - With the `en.txt` wiring a fault resets the timer, `en_out0` drops, `fault0` goes to DISABLED and clears its fault, and the drive is enabled again after `time / 2`.
+* - So the drive retries automatically after every fault.
+*/
+
 HAL_COMP(en);
 
-HAL_PIN(en_in);
-HAL_PIN(en_out0);
-HAL_PIN(en_out1);
-HAL_PIN(fault);
+HAL_PIN(en_in);    // *input*, Enable request
+HAL_PIN(en_out0);  // *output*, 1 once timer > time / 2
+HAL_PIN(en_out1);  // *output*, 1 once timer > time
+HAL_PIN(fault);    // *input*, Fault, > 0 resets the timer
 
-HAL_PIN(time);
-HAL_PIN(timer);
+HAL_PIN(time);   // *parameter*, Sequence time (s, default 5)
+HAL_PIN(timer);  // *output*, Time since en_in became active (s)
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct en_pin_ctx_t *pins = (struct en_pin_ctx_t *)pin_ptr;

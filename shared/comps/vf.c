@@ -5,111 +5,97 @@
 
 /**
 * ## Brief
-* The `vf` component runs an induction motor open loop, V/f, and replaces uf
-* (uf2.c) for new configs. Its frequency goes to angle0 (src 3) and its
-* voltage to hv0.d_cmd in volt mode.
+* `vf` runs an induction motor open loop, V/f, and replaces uf (uf2.c) for new configs. It is loaded by `conf/template/vf.txt`: its frequency `vel_e` goes to `angle0.vel_cmd` (`angle0.src` 3) and its voltage `u_cmd` to `hv0.d_cmd` in volt mode (`hv0.cmd_mode` 0, `hv0.q_cmd` 0). `en` and `scale` come from fault0, the currents and voltages from hv0, `dc_hold` from `conf0.high_dc_volt`. `conf/template/vf_enc.txt` links vf, adds fb_switch and vel and sets `vf0.vel_fb = vel0.vel`, `vf0.enc = 1` for slip frequency control on an encoder, and `vel0.torque = vf0.torque`. The speed command is `vf0.vel_cmd` (rad/s mech).
 *
-* ## Behaviour
-* - Frequency `vel` ramps toward `vel_cmd` (mechanical rad/s) at `acc` and
-*   `dec`; vf is its own ramp, so no ramp0 is needed in front. Accel stall prevention scales the ramp with the active current (low
-*   passed at damp_hz): full `acc` up to `i_stall`, down to 0 at 1.1 *
-*   i_stall, then back toward zero, reaching `stall_dec` at 1.3 * i_stall.
-*   Proportional, so the frequency never steps. The magnetizing current doesn't count, so
-*   i_stall is a load limit and works near base speed too. It stops
-*   falling while the dc link is above `dc_hold` (decel stall prevention, the
-*   motor regenerating into the link). `scale` (fault0.scale) lowers i_stall,
-*   so a derate slows the motor instead of cutting its flux.
-* - Voltage: u_n * |vel| / vel_n plus a boost u_boost that fades linearly to 0
-*   at boost_vel. Phase peak volts, like every volt mode d_cmd. Capped at
-*   duty * pwm_volt (hv0.pwm_volt, live from the dc link): above that speed
-*   the flux falls as 1/f, field weakening, and `u_lim` is 1. pwm_volt 0 =
-*   no cap.
-* - Slip compensation from the ACTIVE current, signed: the current along the
-*   voltage vector, which is torque producing and goes negative when the motor
-*   brakes, minus nothing for magnetizing. slip_n is the rated slip in
-*   mechanical rad/s at active current cur_n. It uses the active current low
-*   passed at damp_hz, so it follows the load but not the rotor swing:
-*   unfiltered, every current swing would move the field and feed the
-*   hunting.
-* - Encoder path (optional, `enc` 1, needs `vel_fb`): slip frequency control.
-*   The field turns at vel_fb + slip, and slip comes from a PI on the speed
-*   error vel - vel_fb (`enc_kp` [1], `enc_ki` [1/s]), clamped to `slip_max`
-*   (mechanical rad/s, 0 = 2 * slip_n). The ramp, stall prevention and
-*   dc_hold still shape `vel`, which becomes the speed reference. The slip
-*   clamp bounds the torque, so the rotor cannot pull out, and the integrator
-*   holds while clamped, and vel stays within slip_max of vel_fb, so a ramp
-*   faster than the motor can follow just slows down. It replaces the slip compensation and the damping
-*   (k_damp, k_vel): the field is tied to the rotor. vel_fb must have the
-*   field's sign and mechanical scale; a reversed encoder runs away against
-*   the clamp, so check vel_fb in open loop first. enc 0 = off; with
-*   slip_n and slip_max both 0 it runs open loop.
-* - `vel_e` = (vel + slip) * polecount, synchronous electrical speed for
-*   angle0.vel_cmd, so hv0.vel is right and the f3 extrapolates between packets.
-* - Damping (optional): open loop V/f on a lightly loaded motor hunts, the
-*   rotor swinging against the field. `damp` = k_damp * the active current
-*   band passed between damp_hz and damp_lp_hz moves the field frequency with
-*   the swing and damps it. The high pass keeps steady slip and the ramp's
-*   acceleration current out, the low pass the pwm and current loop ripple.
-*   Frequency only, the voltage stays on vel + slip. Clamped to 5 % of vel_n.
-*   k_damp 0 = off, positive damps.
-* - Speed damping (optional, needs a speed feedback): `k_vel` times the
-*   rotor speed swing (vel_fb - vel, same band pass) adds to `damp`. With an
-*   encoder this measures the swing directly, to find the damping law that
-*   an estimate can then replace. k_vel 0 = off.
-*   vel_src 1 uses an estimate instead, no encoder: the air gap torque
-*   1.5 * (u * i_act - r * |i|^2) / signed synchronous speed over `j` is the rotor
-*   acceleration; less the field's own acceleration (the ramp, stall
-*   prevention, slip, damp), high passed at damp_hz and integrated (leaky at
-*   damp_hz), it gives the swing of the rotor against the field, `w_est`. Needs `j` (conf0.j) and `r` (conf0.r).
+* ## Component Explanation
+* All work is done in `rt`. The active current `i_act` = (ud * id + uq * iq) / abs(u) is the current along the voltage vector: it is torque producing, positive when motoring in either direction and negative when the motor brakes; the magnetizing current does not count. Its low pass at `damp_hz` drives stall prevention and slip compensation, so they follow the load but not the rotor swing.
+*
+* 1. **Ramp and stall prevention**:
+* - `vel` ramps toward `vel_cmd` at `acc` and `dec`; vf is its own ramp, so no ramp0 is needed in front. `en` 0 sets `vel` to 0 at once.
+* - Accel stall prevention scales the ramp with the low passed active current: full `acc` up to `i_stall`, down to 0 at 1.1 * i_stall (`stall` 1), then back toward zero, reaching `stall_dec` at 1.3 * i_stall (`stall` 2). Proportional, so the frequency never steps. As the magnetizing current does not count, i_stall is a load limit and works near base speed too.
+* - Decel stall prevention: `vel` stops falling while the dc link is above `dc_hold`, the motor regenerating into the link (`stall` -1).
+* - `scale` (fault0.scale) lowers i_stall, so a derate slows the motor instead of cutting its flux.
+*
+* 2. **Voltage**:
+* - `u_cmd` = u_n * abs(vel + slip) / vel_n plus a boost u_boost that fades linearly to 0 at boost_vel. Phase peak volts, like every volt mode d_cmd.
+* - Capped at duty * pwm_volt (hv0.pwm_volt, live from the dc link): above that speed the flux falls as 1/f, field weakening, and `u_lim` is 1.
+* - The vf template sets u_boost 12 V: it covers the dead time drop (no compensation in volt mode) plus r * the magnetizing current, so the encoder path starts from rest on the slip frequency alone (spindle IM06B50GC1, drop about 8.7 V).
+*
+* 3. **Stop at 0**:
+* - A `vel_cmd` below 0.5 rad/s (either sign) counts as 0, so noise on a 0 command does not keep the boost and the speed PI running. Once the command is 0 and the ramp has reached `vel` 0, `u_cmd` is 0 and, with the encoder, the slip and its integrator are 0 too, so the field stops and the rotor runs down. The damping states reset there as well, so `damp` and `vel_e` are exactly 0 and the next start begins clean. Without this the boost drove a dc current into the limit at standstill (21 A on the spindle), which only heats a cage motor, and the encoder path's speed PI on 0 hunted with the field near 0 Hz (spindle, 12-13 Oct: +-17 rad/s, 29 A peaks).
+* - A new command restarts the encoder path's PI from the open loop slip.
+*
+* 4. **Slip compensation** (open loop, `slip_n` > 0):
+* - `slip` = slip_n * i_act / cur_n from the low passed active current, clamped to 2 * slip_n, times the sign of vel: it adds in the direction of rotation when motoring and takes away when braking. Unfiltered, every current swing would move the field and feed the hunting.
+*
+* 5. **Encoder path** (`enc` 1, needs `vel_fb`): slip frequency control.
+* - The field turns at vel_fb + slip, and slip comes from a PI on the speed error vel - vel_fb (`enc_kp`, `enc_ki`), clamped to `slip_max` (2 * slip_n when 0). With slip_n and slip_max both 0 the clamp would be 0 and the field would sit on the rotor with no torque, so vf runs open loop instead.
+* - The ramp, stall prevention and dc_hold still shape `vel`, which becomes the speed reference. The slip clamp bounds the torque, so the rotor cannot pull out; the integrator holds while clamped, and vel stays within slip_max of vel_fb, so a ramp faster than the motor can follow just slows down.
+* - It replaces the slip compensation and the damping (k_damp, k_vel): the field is tied to the rotor. Switched on while running, the integrator starts from the open loop slip.
+* - With the encoder the voltage (u_n * abs(vel_fb + slip) / vel_n) and the boost fade (on abs(vel_fb)) use the rotor speed vel_fb in place of vel, so the boost does not fade with the reference at standstill.
+*
+* 6. **Damping** (optional, open loop only):
+* - Open loop V/f on a lightly loaded motor hunts, the rotor swinging against the field. `damp` = k_damp * the active current band passed between damp_hz and damp_lp_hz moves the field frequency with the swing and damps it. The term is multiplied by the sign of vel, like the slip, so it damps the same in reverse. The high pass keeps steady slip and the ramp's acceleration current out, the low pass the pwm and current loop ripple. Frequency only, the voltage stays on vel + slip. Clamped to 5 % of vel_n. Positive k_damp damps.
+* - Speed damping (needs a speed feedback): `k_vel` times the rotor speed swing (vel_fb - vel, same band pass) adds to `damp`. With an encoder this measures the swing directly, to find the damping law that an estimate can then replace.
+* - `vel_src` 1 uses an estimate instead, no encoder: the air gap torque `torque` = 1.5 * (u * i_act - r * (id^2 + iq^2)) / signed synchronous speed (at least 5 rad/s) over `j` is the rotor acceleration; less the field's own acceleration (the ramp, stall prevention, slip, damp), high passed at damp_hz and integrated (leaky at damp_hz), it gives the swing of the rotor against the field, `w_est`. Needs `j` > 0.
+*
+* 7. **Output**:
+* - `vel_e` = (vel + slip + damp) * polecount (vel_fb in place of vel with the encoder), the synchronous electrical speed for angle0.vel_cmd, so hv0.vel is right and the f3 extrapolates between packets.
+*
+* {{% hint warning %}}
+* - vf has no speed clamp and the vf template does not link conf0.max_vel, so limit vel_cmd at its source. Under load it is usable from about boost_vel (below it r and the dead time drop eat most of the small voltage) to about vel_n; above the voltage cap the flux falls as 1/f and the breakdown torque as 1/f^2.
+* - vel_fb must have the field's sign and mechanical scale; a reversed encoder runs away against the slip clamp, so check vel_fb (vel0.vel against vf0.vel, conf0.mot_fb_rev) with enc 0 before the first run.
+* - Speed commands below 0.5 rad/s mech (about 5 rpm) are not possible: they count as 0 and stop the field.
+* {{% /hint %}}
 */
 
 HAL_COMP(vf);
 
-HAL_PIN(en);         // *input*, 0 = frequency back to 0 at once
-HAL_PIN(vel_cmd);    // *input*, speed command [rad/s mech]
-HAL_PIN(polecount);  // *parameter*, pole pairs
-HAL_PIN(u_n);        // *parameter*, phase peak volts at vel_n
-HAL_PIN(vel_n);      // *parameter*, base speed [rad/s mech]
-HAL_PIN(u_boost);    // *parameter*, low speed boost at standstill [V]
-HAL_PIN(boost_vel);  // *parameter*, speed where the boost has faded out [rad/s mech]
-HAL_PIN(slip_n);     // *parameter*, rated slip [rad/s mech] at active current cur_n, 0 = off
-HAL_PIN(cur_n);      // *parameter*, rated active current [A peak]
-HAL_PIN(acc);        // *parameter*, acceleration [rad/s^2 mech]
-HAL_PIN(dec);        // *parameter*, deceleration [rad/s^2 mech]
-HAL_PIN(i_stall);    // *parameter*, accel stall active current [A peak], 0 = off
-HAL_PIN(stall_dec);  // *parameter*, deceleration while stalled [rad/s^2 mech]
-HAL_PIN(dc_hold);    // *parameter*, dc link volts that hold deceleration, 0 = off
-HAL_PIN(scale);      // *input*, derate, 1 = none
-HAL_PIN(k_damp);     // *parameter*, damping gain [rad/s mech per A], 0 = off
-HAL_PIN(damp_hz);    // *parameter*, damping high pass corner [Hz]
-HAL_PIN(damp_lp_hz); // *parameter*, damping low pass corner [Hz]
-HAL_PIN(k_vel);      // *parameter*, speed damping gain [1], 0 = off
-HAL_PIN(vel_fb);     // *input*, rotor speed [rad/s mech], for k_vel
-HAL_PIN(vel_src);    // *parameter*, k_vel input: 0 vel_fb, 1 estimate
-HAL_PIN(j);          // *parameter*, inertia [kg m^2], conf0.j, for the estimate
-HAL_PIN(r);          // *parameter*, phase resistance [ohm], conf0.r, for the estimate
+HAL_PIN(en);         // *input*, Enable, 0 = frequency back to 0 at once (fault0.en_out)
+HAL_PIN(vel_cmd);    // *input*, Speed command (rad/s mech)
+HAL_PIN(polecount);  // *parameter*, Pole pairs (conf0.polecount, default 2)
+HAL_PIN(u_n);        // *parameter*, Phase peak voltage at vel_n (V, default 90)
+HAL_PIN(vel_n);      // *parameter*, Base speed (rad/s mech, default 246.3)
+HAL_PIN(u_boost);    // *parameter*, Low speed voltage boost at standstill (V, default 0, vf template 12)
+HAL_PIN(boost_vel);  // *parameter*, Speed where the boost has faded out (rad/s mech, default 25)
+HAL_PIN(slip_n);     // *parameter*, Rated slip at active current cur_n, 0 = off (rad/s mech, default 0)
+HAL_PIN(cur_n);      // *parameter*, Rated active current (A peak, default 10)
+HAL_PIN(acc);        // *parameter*, Acceleration (rad/s^2 mech, default 50)
+HAL_PIN(dec);        // *parameter*, Deceleration (rad/s^2 mech, default 50)
+HAL_PIN(i_stall);    // *parameter*, Accel stall prevention active current, 0 = off (A peak, default 0)
+HAL_PIN(stall_dec);  // *parameter*, Deceleration while stalled (rad/s^2 mech, default 50)
+HAL_PIN(dc_hold);    // *parameter*, DC link voltage above which deceleration holds, 0 = off (V, default 0, vf template conf0.high_dc_volt)
+HAL_PIN(scale);      // *input*, Derate of i_stall, 1 = none (fault0.scale, default 1)
+HAL_PIN(k_damp);     // *parameter*, Current damping gain, 0 = off (rad/s mech per A, default 0)
+HAL_PIN(damp_hz);    // *parameter*, Damping high pass and active current low pass corner (Hz, default 3)
+HAL_PIN(damp_lp_hz); // *parameter*, Damping low pass corner (Hz, default 20)
+HAL_PIN(k_vel);      // *parameter*, Speed damping gain, 0 = off (1, default 0)
+HAL_PIN(vel_fb);     // *input*, Rotor speed for k_vel and the encoder path (rad/s mech, vf_enc template vel0.vel)
+HAL_PIN(vel_src);    // *parameter*, k_vel input, 0 = vel_fb, 1 = estimate (default 0)
+HAL_PIN(j);          // *parameter*, Inertia for the estimate, e.g. conf0.j (kg m^2, default 0)
+HAL_PIN(r);          // *parameter*, Phase resistance for the estimate, e.g. conf0.r (ohm, default 0)
 
-HAL_PIN(id);         // *input*, hv0.id_fb
-HAL_PIN(iq);         // *input*, hv0.iq_fb
-HAL_PIN(ud);         // *input*, hv0.ud_fb
-HAL_PIN(uq);         // *input*, hv0.uq_fb
-HAL_PIN(dc_volt);    // *input*, hv0.dc_volt
-HAL_PIN(pwm_volt);   // *input*, hv0.pwm_volt [V peak], 0 = no voltage cap
-HAL_PIN(duty);       // *parameter*, voltage cap as a fraction of pwm_volt
-HAL_PIN(enc);        // *parameter*, 1 = slip frequency control on vel_fb, 0 = open loop
-HAL_PIN(enc_kp);     // *parameter*, slip per speed error [1]
-HAL_PIN(enc_ki);     // *parameter*, slip integral gain [1/s]
-HAL_PIN(slip_max);   // *parameter*, slip clamp [rad/s mech], 0 = 2 * slip_n
+HAL_PIN(id);         // *input*, D current feedback (A, hv0.id_fb)
+HAL_PIN(iq);         // *input*, Q current feedback (A, hv0.iq_fb)
+HAL_PIN(ud);         // *input*, D voltage feedback (V, hv0.ud_fb)
+HAL_PIN(uq);         // *input*, Q voltage feedback (V, hv0.uq_fb)
+HAL_PIN(dc_volt);    // *input*, DC link voltage (V, hv0.dc_volt)
+HAL_PIN(pwm_volt);   // *input*, Usable phase voltage, 0 = no voltage cap (V peak, hv0.pwm_volt)
+HAL_PIN(duty);       // *parameter*, Voltage cap as a fraction of pwm_volt (default 0.9)
+HAL_PIN(enc);        // *parameter*, 1 = slip frequency control on vel_fb, 0 = open loop (default 0, vf_enc template 1)
+HAL_PIN(enc_kp);     // *parameter*, Encoder path slip per speed error (1, default 0.25)
+HAL_PIN(enc_ki);     // *parameter*, Encoder path slip integral gain (1/s, default 5)
+HAL_PIN(slip_max);   // *parameter*, Encoder path slip clamp, 0 = 2 * slip_n (rad/s mech, default 0)
 
-HAL_PIN(vel);        // *output*, stator frequency, less slip [rad/s mech]
-HAL_PIN(vel_e);      // *output*, synchronous electrical speed [rad/s], to angle0.vel_cmd
-HAL_PIN(u_cmd);      // *output*, phase peak volts, to hv0.d_cmd
-HAL_PIN(i_act);      // *output*, active current [A], negative when braking
-HAL_PIN(slip);       // *output*, slip compensation [rad/s mech]
-HAL_PIN(stall);      // *output*, 1 accel held, 2 accel reversed, -1 decel held
-HAL_PIN(damp);       // *output*, damping frequency offset [rad/s mech]
-HAL_PIN(torque);     // *output*, air gap torque estimate [Nm]
-HAL_PIN(w_est);      // *output*, estimated rotor speed swing [rad/s mech]
+HAL_PIN(vel);        // *output*, Ramped stator frequency less slip, the speed reference (rad/s mech)
+HAL_PIN(vel_e);      // *output*, Synchronous electrical speed, to angle0.vel_cmd (rad/s)
+HAL_PIN(u_cmd);      // *output*, Phase peak voltage, to hv0.d_cmd (V)
+HAL_PIN(i_act);      // *output*, Active current, negative when braking (A)
+HAL_PIN(slip);       // *output*, Slip compensation or encoder path slip (rad/s mech)
+HAL_PIN(stall);      // *output*, Stall prevention, 1 = accel held, 2 = accel reversed, -1 = decel held, 0 = none
+HAL_PIN(damp);       // *output*, Damping frequency offset (rad/s mech)
+HAL_PIN(torque);     // *output*, Air gap torque estimate (Nm)
+HAL_PIN(w_est);      // *output*, Estimated rotor speed swing (rad/s mech)
 HAL_PIN(u_lim);      // *output*, 1 = u_cmd capped at duty * pwm_volt
 
 struct vf_ctx_t {
