@@ -5,8 +5,8 @@
 
 uint32_t call_cmd(char *s) {
   char c[64];
-  char a[64];
-  uint32_t matches = sscanf(s, " %[a-zA-Z_0-9] %[ -~]", c, a);
+  char a[128];  // argument: the rest of a terminal line (up to 127 bytes)
+  uint32_t matches = sscanf(s, " %63[a-zA-Z_0-9] %127[ -~]", c, a);
   switch(matches) {
     case 0:
       return (0);

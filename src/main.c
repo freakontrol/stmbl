@@ -214,6 +214,12 @@ int main(void) {
   extern void *g_pfnVectors;
   SCB->VTOR = (uint32_t)&g_pfnVectors;
 
+  // .ccm is NOLOAD, so the startup leaves it alone: zero it like .bss
+  extern uint32_t _sccm, _eccm;
+  for(uint32_t *p = &_sccm; p < &_eccm; p++) {
+    *p = 0;
+  }
+
   setup();
   hal_init(0.0002, 0.00005);
   // hal load comps

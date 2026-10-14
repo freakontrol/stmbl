@@ -73,6 +73,7 @@ int rb_getline(struct ringbuf *rb, char *ptr, int len) {
   if(len > 0 && avail >= (unsigned)len) {
     unsigned d = rb->rd + (unsigned)len;
     rb->rd     = d >= rb->bufsize ? d - rb->bufsize : d;
+    return -1;  // tell the caller, so it can drop the rest of the line too
   }
   return 0;
 }

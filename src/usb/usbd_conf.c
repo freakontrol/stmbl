@@ -5,7 +5,7 @@
 #include "usbd_core.h"
 #include "usbd_cdc.h"
 
-PCD_HandleTypeDef hpcd_fs;
+PCD_HandleTypeDef hpcd_fs __attribute__((section(".ccm")));  // dma_enable 0 below
 
 void cdc_sof(void);
 

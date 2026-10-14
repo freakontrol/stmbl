@@ -98,7 +98,7 @@ static uint32_t flash_program_byte(uint32_t addr, uint8_t data) {
   return err;
 }
 
-char config[15 * 1024];
+char config[15 * 1024] __attribute__((section(".ccm")));  // CCM: written to flash by the CPU, no DMA
 const char *config_ro = (char *)0x08008000;
 
 void confcrc(char *ptr) {
