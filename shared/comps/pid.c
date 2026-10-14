@@ -90,6 +90,22 @@ HAL_PIN(vel_sat);
 HAL_PIN(torque_sat);
 HAL_PIN(sat);  // (s)
 
+HAL_PIN(hold_en);    // *parameter*, 1 = standstill hold, 2 = hold flag and frozen integrator only (dob0 does the slew), default 0
+HAL_PIN(hold_o);     // *parameter*, Torque the hold moves to at rest (Nm), conf0.o
+HAL_PIN(hold_win);   // *parameter*, Position error window for the hold (rad), default 0.002
+HAL_PIN(hold_arm);   // *parameter*, Position error the hold starts inside (rad), default 0.0001
+HAL_PIN(hold_stk);   // *parameter*, Time the error has not shrunk before the hold starts anywhere inside hold_win (s), default 0.3
+HAL_PIN(hold_t);     // *parameter*, Time at rest before the hold starts (s), default 0.1
+HAL_PIN(hold_rate);  // *parameter*, Slew rate of the torque to hold_o (Nm/s), default 20
+HAL_PIN(hold);       // *output*, 1 while the hold is active
+
+struct pid_ctx_t {
+  float rest;  // time the external command has been at rest (s)
+  int drop;    // the hold ended on the window: off until the next move
+  float emin;  // smallest abs(pos_error) at rest so far (rad)
+  float still; // time abs(pos_error) has not set a new emin (s)
+};
+
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct pid_ctx_t *ctx      = (struct pid_ctx_t *)ctx_ptr;
   struct pid_pin_ctx_t *pins = (struct pid_pin_ctx_t *)pin_ptr;
@@ -103,10 +119,16 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(torque_g) = 1.0;
 
   PIN(scale) = 1.0;
+
+  PIN(hold_win)  = 0.002;
+  PIN(hold_arm)  = 0.0001;
+  PIN(hold_stk)  = 0.3;
+  PIN(hold_t)    = 0.1;
+  PIN(hold_rate) = 20.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
-  //struct pid_ctx_t *ctx      = (struct pid_ctx_t *)ctx_ptr;
+  struct pid_ctx_t *ctx      = (struct pid_ctx_t *)ctx_ptr;
   struct pid_pin_ctx_t *pins = (struct pid_pin_ctx_t *)pin_ptr;
 
   float lpf = LP_HZ(MAX(PIN(j_lpf), 0.0));
@@ -139,7 +161,34 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       // limit cycle. The torque clamp below is the limit.
       PIN(acc_cmd)   = PIN(vel_error) * PIN(vel_bw) * PIN(scale);
 
-      PIN(torque_sum) += PIN(vel_error) * PIN(vel_bw) * PIN(vel_bw) * PIN(scale) * PIN(scale) / MAX(PIN(vel_d), 0.1) * (PIN(j_mot) + PIN(j_sys)) * period;  // i
+      // standstill hold: at rest the integrator is frozen and slewed so the
+      // torque moves to hold_o (the last tick's torque_cmd)
+      if(PIN(hold_en) > 0.0 && !stop && ABS(PIN(vel_ext_cmd)) < PIN(max_vel) * 0.001 && ABS(PIN(acc_ext_cmd)) < 1.0) {
+        ctx->rest += period;
+      } else {
+        ctx->rest = 0.0;
+        ctx->drop = 0;
+        ctx->emin = 1e9;
+      }
+      if(ABS(PIN(pos_error)) < ctx->emin) {
+        ctx->emin  = ABS(PIN(pos_error));
+        ctx->still = 0.0;
+      } else {
+        ctx->still += period;
+      }
+      if(PIN(hold) > 0.0 && ABS(PIN(pos_error)) >= PIN(hold_win)) {
+        ctx->drop = 1;
+      }
+      // start inside hold_arm, or inside hold_win once the error has stopped shrinking for hold_stk (stuck)
+      float hold_lim = PIN(hold) > 0.0 || ctx->still >= PIN(hold_stk) ? PIN(hold_win) : MIN(PIN(hold_arm), PIN(hold_win));
+      PIN(hold)      = PIN(hold_en) > 0.0 && !ctx->drop && ctx->rest >= PIN(hold_t) && ABS(PIN(pos_error)) < hold_lim;
+      float hold_err = PIN(torque_cmd) - PIN(hold_o);
+      if(PIN(hold) == 0.0) {
+        PIN(torque_sum) += PIN(vel_error) * PIN(vel_bw) * PIN(vel_bw) * PIN(scale) * PIN(scale) / MAX(PIN(vel_d), 0.1) * (PIN(j_mot) + PIN(j_sys)) * period;  // i
+      }
+      if(PIN(hold) > 0.0 && PIN(hold_en) < 1.5) {
+        PIN(torque_sum) -= CLAMP(hold_err, -PIN(hold_rate) * period, PIN(hold_rate) * period);
+      }
     } else {
       PIN(vel_error)  = 0.0;
       PIN(acc_cmd)    = 0.0;
@@ -186,6 +235,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(fb_torque_cmd) = 0.0;
     PIN(ff_torque_cmd) = 0.0;
     PIN(torque_cmd)    = 0.0;
+    PIN(hold)          = 0.0;
+    ctx->rest          = 0.0;
+    ctx->drop          = 0;
+    ctx->emin          = 1e9;
+    ctx->still         = 0.0;
   }
 }
 
@@ -199,6 +253,6 @@ hal_comp_t pid_comp_struct = {
     .frt_start = 0,
     .rt_stop   = 0,
     .frt_stop  = 0,
-    .ctx_size  = 0,
+    .ctx_size  = sizeof(struct pid_ctx_t),
     .pin_count = sizeof(struct pid_pin_ctx_t) / sizeof(struct hal_pin_inst_t),
 };

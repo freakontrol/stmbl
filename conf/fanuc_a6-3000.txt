@@ -85,6 +85,12 @@ conf0.j_sys = 0.001034 # [id] id_sys, load
 conf0.f = 2.691968 # [id] id_sys, screw + guides
 conf0.d = 0.008362 # [id] id_sys
 conf0.o = 4.5907 # [id] id_sys, gravity, Nm
+# standstill hold: without it Z stands at 17.9 A after an up stop
+# and 3.3 A after a down stop (sim, friction measured 22 Oct).
+# no dob: hold_en 1 (10.8 / 10.8 A). with dob (link filters,
+# conf0.f/d 0, dob0.max 8) use hold_en 2 (bench 23 Oct: 10.8 A,
+# arms at one count in 0.2 s, rest 0.5 mrad of elastic sag)
+pid0.hold_en = 1
 conf0.j_lpf = 0 # [id] id_frf: no mode below 60 Hz
 # id_pid with ids0.max_acc = 200, ids0.max_vel = 50:
 # the default 500 rad/s2 needs ~11 Nm going up
