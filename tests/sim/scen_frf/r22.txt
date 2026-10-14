@@ -4,7 +4,6 @@ plant ring_hz=22 ring_zeta=0.15
 f4 link id_frf
 lcnc scale 10
 at 0.05 lcnc enable 1
-at 0.3 f4 frf0.start = 1
 trace frf0.freq frf0.state frf0.pos_cmd frf0.vel_cmd pid0.pos_error plant.vel plant.pos hv0.iq_fb fb_switch0.pos_fb
 expect max fault0.last_fault < 0.5 from 0.06
 expect final frf0.state > 1.5

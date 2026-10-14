@@ -1,0 +1,13 @@
+title frf: starts on enable, enable loss stops it, re-enable restarts
+config conf/fanuc_a3-3000.txt
+plant ring_hz=38 ring_zeta=0.2
+f4 link id_frf
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 5 lcnc enable 0
+at 6 lcnc enable 1
+trace frf0.freq frf0.state plant.pos pid0.pos_error
+expect max frf0.state < 0.5 from 5.2 to 5.9
+expect max fault0.last_fault < 0.5 from 0.06
+expect final frf0.state > 1.5
+run 75

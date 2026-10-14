@@ -6,7 +6,6 @@ lcnc scale 10
 at 0.05 lcnc enable 1
 f4 frf0.creep_vel = 5
 f4 frf0.amp = 0.5
-at 0.3 f4 frf0.start = 1
 trace frf0.freq frf0.state frf0.pos_cmd frf0.vel_cmd pid0.pos_error plant.vel hv0.iq_fb
 expect max fault0.last_fault < 0.5 from 0.06
 run 80
