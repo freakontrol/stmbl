@@ -11,7 +11,7 @@ f4 idacim0.n_freq = 78.4
 f4 idacim0.n_cur = 19
 f4 idacim0.n_pp = 2
 f4 idacim0.spin = 1
-plant r=0.19 ld=0.0008 lmr=0.0124 tr=0.09 i_knee=0 lmr_sat=0 tr_sat=0 i_dip=0 lmr_dip=0 tr_dip=0 jm=0.0118 f=0.5 d=0.0013 dt_shape=1 dt_i0=0.85 dt_eff=1.77e-6
+plant jl=0 r=0.19 ld=0.0008 lmr=0.0124 tr=0.09 i_knee=0 lmr_sat=0 tr_sat=0 i_dip=0 lmr_dip=0 tr_dip=0 jm=0.0118 f=0.5 d=0.0013 dt_shape=1 dt_i0=0.85 dt_eff=1.77e-6
 at 0.1 f4 fault0.en = 1
 at 0.2 f4 idacim0.state = 1.2
 at 21 f4 idacim0.state = 4.2

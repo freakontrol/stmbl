@@ -12,5 +12,6 @@ expect max fault0.last_fault < 0.5 from 0.5
 expect final plant.vel > 830 from 9.9 to 10.0
 expect final plant.vel < -295 from 21.9 to 22.0
 expect absmax plant.vel < 5 from 26.5
-expect min sl_seq0.state > 2.5 from 1 to 18
+# handover at about 1.02 s (align 3 tr, tr 0.101 from the 13 Oct idacim)
+expect min sl_seq0.state > 2.5 from 1.1 to 18
 run 26.6
