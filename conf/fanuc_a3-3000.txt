@@ -86,5 +86,8 @@ conf0.d = 0.010228 # [id] Nm s/rad
 conf0.o = -0.001081 # [id] Nm
 conf0.j_lpf = 17.551064 # [id] screw ring, Hz
 conf0.pos_bw = 25 # [id] id_pid
+# position axis: velocity feedback and velocity ff without timing lag
+vel1.vel_p = 1
+vel_int0.vel_ip = 1
 conf0.vel_bw = 400 # [id] cap cur_bw / 7.5
 conf0.vel_d = 5 # [id] id_pid

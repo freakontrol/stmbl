@@ -21,6 +21,12 @@ HAL_PIN(torque);
 HAL_PIN(vel_ff);
 HAL_PIN(en);
 HAL_PIN(pos_error);
+// vel is the tracking loop's integrator, which trails the speed by 2 d / w
+// in steady acceleration (1.8 ms at w 1000, d 0.9). vel_p 1 adds the loop's
+// proportional term, so vel is the derivative of pos_out and has no lag; it
+// passes more encoder noise. 0 = integrator only (default; set 1 for a
+// position axis, not a spindle).
+HAL_PIN(vel_p);
 
 struct vel_ctx_t {
   float last_acc;
@@ -39,6 +45,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(j)  = 0.00001;
   PIN(lp) = 50.0;
   PIN(en) = 1.0;
+  PIN(vel_p) = 0.0;
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -68,10 +75,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   ctx->acc_sum += acc_ff * period;
 
-  PIN(vel) = ctx->acc_sum + vel_ff;
   PIN(acc) = acc_ff;
 
   vel_ff = 2.0 * d * w * pos_error;
+  PIN(vel) = ctx->acc_sum + PIN(vel_ff) * PIN(h) + vel_ff * CLAMP(PIN(vel_p), 0.0, 1.0);
 
   ctx->vel_sum += vel_ff * period;
   ctx->vel_sum = mod(ctx->vel_sum);

@@ -11,6 +11,8 @@ HAL_PIN(in);
 HAL_PIN(out);
 HAL_PIN(in_d);
 HAL_PIN(out_d);
+HAL_PIN(in_dd);  // second derivative (acceleration), sign follows rev like in_d
+HAL_PIN(out_dd);
 HAL_PIN(rev);
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -19,10 +21,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   if(PIN(rev) > 0.0) {
     PIN(out)   = minus(0, PIN(in));
-    PIN(out_d) = -PIN(in_d);
+    PIN(out_d)  = -PIN(in_d);
+    PIN(out_dd) = -PIN(in_dd);
   } else {
     PIN(out)   = PIN(in);
-    PIN(out_d) = PIN(in_d);
+    PIN(out_d)  = PIN(in_d);
+    PIN(out_dd) = PIN(in_dd);
   }
 }
 

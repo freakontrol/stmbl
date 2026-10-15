@@ -1,0 +1,20 @@
+# LinuxCNC frames with 100 us of arrival jitter (Kira's hm2 read spread is
+# about +-22 us sd, max ~200 us): 150 mm at 200 mm/s. vel_int0 snapping to
+# each frame (sync_k 1) puts a sawtooth of vel x timing error on the
+# command; the frame clock (sync_k 0.05) keeps it a straight line.
+title Y cruise with jittered frames
+config conf/fanuc_a3-3000.txt
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
+lcnc scale 10
+lcnc jitter 0.0001
+f4 vel_int0.sync_k = 0.05
+at 0.05 lcnc enable 1
+at 0.1 lcnc move 150 200 1500
+trace lcnc.pos plant.pos_mm plant.vel pid0.pos_error vel_int0.sync_err hv0.iq_fb
+expect max fault0.last_fault < 0.5 from 0.06
+# cruise 0.4..0.75 s
+expect std pid0.pos_error < 0.003 from 0.4 to 0.75
+expect final plant.pos_mm > 149.95
+expect final plant.pos_mm < 150.05
+run 1.0
