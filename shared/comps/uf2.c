@@ -1,3 +1,8 @@
+// deprecated: use vf (open loop) or vf with enc (vf_enc) instead.
+// Known faults, kept as is: the slip uses the unsigned cur (hv0.abs_cur), so
+// it adds the wrong way reversing or braking; scale (fault0.scale in uf.txt)
+// scales the voltage too; polecount and scale have no defaults; registers as
+// "uf", the same name as the unused uf.c
 #include "uf2_comp.h"
 #include "hal.h"
 #include "defines.h"
