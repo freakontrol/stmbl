@@ -3,6 +3,9 @@
 # encoder 150 us late; adv lands at the forward run's 332 us (old code: 0, ran forward).
 title id_tune adv, test_vel negative
 config conf/fanuc_a3-3000.txt
+f4 pid0.hold_en = 0
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
 f4 link id_tune
 f4 idtune0.test_vel = -50
 f4 idtune0.ki = 20

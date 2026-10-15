@@ -1,9 +1,14 @@
-# The same move with the screw as a second mass: Y's coupling ring
-# (bench: 18.8-21.3 Hz, zeta 0.15-0.23) at 20 Hz, zeta 0.2. pid0 filters
-# the inertia feedforward at conf0.j_lpf (17.55 Hz).
-title Y move with a 20 Hz load ring
+# The same move with the screw as a second mass. ring_hz is the free
+# two-mass resonance: Y's FRF (12 and 15 Oct) has the peak at 26-29 Hz and
+# the anti-resonance near 14 Hz. With the config's inertias (j_sys/j 1.42)
+# the model can not place both; 27.5 Hz keeps the peak, the dip lands near
+# 17.6 Hz. zeta 0.2. pid0 filters the inertia feedforward at conf0.j_lpf.
+title Y move with the load ring (27.5 Hz free resonance)
 config conf/fanuc_a3-3000.txt
-plant ring_hz=20 ring_zeta=0.2
+f4 pid0.hold_en = 0
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
+plant ring_hz=27.5 ring_zeta=0.2
 lcnc scale 10
 at 0.05 lcnc enable 1
 at 0.1 lcnc move 20 200 1500

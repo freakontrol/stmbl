@@ -3,6 +3,9 @@
 # The step reaches the F3 as the ls0 ramp over one packet (3 ticks).
 title Y current step 5 A
 config conf/fanuc_a3-3000.txt
+f4 pid0.hold_en = 0
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
 lcnc scale 10
 sample f3
 at 0.05 lcnc enable 1

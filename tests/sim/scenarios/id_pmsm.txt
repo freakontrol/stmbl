@@ -2,6 +2,9 @@
 # that differ from the config's (r, Ld, Lq, psi), on the Y motor's config.
 title idpmsm against a known PMSM plant
 config conf/fanuc_a3-3000.txt
+f4 pid0.hold_en = 0
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
 f4 link id_pmsm
 f4 idpmsm0.test_cur = 6
 f4 fault0.en = 0

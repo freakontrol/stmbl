@@ -1,0 +1,47 @@
+# torque command filters, opt-in: link filters
+# (after link pmsm). pid0.torque_cmd -> biquad0
+# -> dob0 -> pmsm_ttc0; both pass through as set
+# here (biquad0.type 0, dob0.k 0).
+# rt_prio must be set before start: a comp
+# loaded at runtime without it never runs
+# (torque 0, fault 6 at enable). At runtime:
+# stop, link filters, start.
+# acim/dc: relink acim_ttc0 / acim_foc0 /
+# dc_ttc0 .torque to dob0.out instead.
+load biquad
+load dob
+biquad0.rt_prio = 8.3
+dob0.rt_prio = 8.4
+biquad0.in = pid0.torque_cmd
+dob0.in = biquad0.out
+pmsm_ttc0.torque = dob0.out
+# observers see the filtered command
+vel1.torque = dob0.out
+vel2.torque = dob0.out
+pe0.torque = dob0.out
+# notch: type 1, f0 = frf0.f_res from an
+# id_frf sweep that brackets one mode,
+# q 2, depth 0..0.1. Only above crossover.
+biquad0.type = 0
+# dob: j = total inertia (id_frf 5-60 Hz
+# total, or conf0.j + conf0.j_sys). k 1 needs
+# conf0.f/d/o = 0: dob estimates friction too
+# and k 1 with the friction ff counts it twice.
+# dob0.k = 0 before id_mot / id_sys: dob cancels
+# the friction and offset they measure.
+dob0.vel = vel1.vel
+# j_sys is a safe lower bound (j 0 with k 1
+# feeds the command back on itself); set the
+# total per axis before k 1
+dob0.j = conf0.j_sys
+dob0.en = fault0.en_pid
+dob0.bw = 20
+dob0.k = 0
+dob0.max = conf0.max_force
+# standstill hold with dob: pid0.hold_en 2. the
+# hold slews the compensation so the torque goes
+# to hold_o; with conf0.o 0 on a vertical axis
+# set dob0.hold_o to the id_sys o. dob0.max must
+# leave room: abs(o) + f or more
+dob0.hold = pid0.hold
+dob0.hold_o = conf0.o

@@ -2,6 +2,9 @@
 # keeps (13 Oct: vel_bw may also step down when its first raise fails).
 title id_pid on the y config
 config conf/fanuc_a3-3000.txt
+f4 pid0.hold_en = 0
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
 f4 fault0.en = 0
 f4 link id_pid
 f4 pid0.pos_en = 1
