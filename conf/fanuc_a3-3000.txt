@@ -32,6 +32,7 @@
 #   psi 0.0702 = 0.91 x datasheet
 link pid
 link pmsm
+link filters
 link misc
 link fanuc_fb0
 link ocdac
@@ -81,10 +82,18 @@ hv io0.sbrake_cur = 8 # f3 chop
 # load + loop: axis specific, redo per machine
 # id_sys / id_lpf / id_pid, 9 Oct 2026
 conf0.j_sys = 0.002310 # [id] motor + load
-conf0.f = 0.526805 # [id] Nm
-conf0.d = 0.010228 # [id] Nm s/rad
-conf0.o = -0.001081 # [id] Nm
-conf0.j_lpf = 17.551064 # [id] screw ring, Hz
+# friction ff off: dob0 estimates friction too
+# (id_sys: f 0.526805, d 0.010228, o -0.001081)
+conf0.f = 0
+conf0.d = 0
+conf0.o = 0
+# dob: load torque observer, 15 Oct 2026
+# 2-30x load stiffness at 2-25 Hz, LinuxCNC
+# f-error ~1 um rms worse than friction ff
+dob0.j = 0.003935 # [id] id_frf total
+dob0.max = 3
+dob0.k = 1
+conf0.j_lpf = 13 # [bench] Y FRF, id_lpf 17.55, Hz
 conf0.pos_bw = 25 # [id] id_pid
 # position axis: velocity feedback and velocity ff without timing lag
 vel1.vel_p = 1

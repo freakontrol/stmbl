@@ -2,7 +2,11 @@
 # inertia, coulomb and viscous friction and a constant offset torque.
 title id_mot against a known inertia and friction
 config conf/fanuc_a3-3000.txt
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
 f4 link id_mot
+# dob would cancel the offset and friction idm measures
+f4 dob0.k = 0
 f4 fault0.en = 0
 # The bridge's dead-time curve matches hv0.drop_k/drop_knee, so the check is
 # the algorithm. With the default tanh curve f reads 0.137 (+14%) and j +8%:

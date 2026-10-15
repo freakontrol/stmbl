@@ -4,6 +4,8 @@
 # about acc * J / (vel_bw J) / pos_bw ~ 0.1 rad, as the review estimated.
 title Y move 20 mm, 1500 mm/s2
 config conf/fanuc_a3-3000.txt
+# Y friction is the plant's: the config runs dob with friction ff 0
+plant f=0.526805 d=0.010228
 lcnc scale 10
 at 0.05 lcnc enable 1
 at 0.1 lcnc move 20 200 1500

@@ -48,4 +48,5 @@ packet-to-F3 time.
 
 No rt CPU time, no ISR races, no recon/PLL/fault pin, averaged PWM (dead time as tanh voltage loss),
 real hardware drivers replaced by pin-compatible stand-ins (comps_f4/hv.c, comps_f3/ls.c, io.c,
-generated shells). The coupling ring is a plant input, not validated against bench captures.
+generated shells). ring_hz is the free two-mass resonance; y_ring uses Y's FRF peak (27.5 Hz), so
+its anti-resonance (~17.6 Hz) sits above the FRF's ~14 Hz: the config's j_sys/j split can not hold both.
