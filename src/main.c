@@ -54,8 +54,17 @@ uint32_t HAL_GetTick(void) {
   return (uint32_t)systime;
 }
 
+// encf req_sync: request word to send on the next frt timer edge, 0 = none.
+// Written first thing in the highest priority interrupt, so the encoder
+// latches at a fixed time after the timer update, whatever the rt is doing.
+volatile uint16_t fb0_req_word;
+
 //20kHz
 void TIM_SLAVE_HANDLER(void) {
+  if(fb0_req_word) {
+    SPI3->DR     = fb0_req_word;
+    fb0_req_word = 0;
+  }
   LL_TIM_ClearFlag_UPDATE(TIM_SLAVE);
   hal_run_frt();
   if(LL_TIM_IsActiveFlag_UPDATE(TIM_SLAVE)) {
