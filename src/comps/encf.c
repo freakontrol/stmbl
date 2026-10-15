@@ -73,6 +73,7 @@ HAL_PIN(bit_ticks);   // *output*, Timer ticks per bit (84e6 / freq)
 static volatile uint32_t sendf;
 static uint32_t send_counterf;
 static volatile uint16_t tim_data[160];
+static uint16_t cap[160];  // rt copy of tim_data, decoded after the next request is out
 
 #pragma pack(push, 1)
 typedef struct {
@@ -277,6 +278,19 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   uint32_t count = ARRAY_SIZE(tim_data) - LL_DMA_GetDataLength(DMA1, LL_DMA_STREAM_0);
   PIN(dma)       = count;
 
+  // Request the next frame first, at a fixed point after the rt starts: the
+  // encoder latches its position on the request, and sending it after the
+  // decode below let the latch time wander with the frame's bit pattern
+  // (Y, 15 Oct: ~1 us rms, 0.24 rad/s of vel1 noise and 0.8 A of iq noise
+  // at 126 rad/s). The capture buffer is copied out before the DMA restarts.
+  memcpy(cap, (void *)tim_data, MIN(count, ARRAY_SIZE(cap)) * sizeof(cap[0]));
+  FB0_ENC_TIM->CNT  = 0;
+  FB0_ENC_TIM->CCR1 = 0;
+  FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;
+  SPI3->DR = PIN(req_len);  // 1/(42e6/32)*11 = 8.4 us request pulse
+  dma_stream_stop(DMA1_Stream0);
+  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_0);
+
   // TIM4 counts at 84 MHz (APB1 42 MHz x2): 1 bit = 82.03 ticks at 1.024 Mbit/s.
   // 82 MHz here would put the default freq 1.2% from the CRC-clean edge
   // (bench sweep on X: clean for freq 962k-1036k, centre ~999k).
@@ -289,10 +303,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   uint32_t w[3]      = {0, 0, 0};
   const int max_bits = sizeof(data.enc_data) * 8;
   int bits_sum       = 0;
-  uint16_t prev      = tim_data[0];
-  for(uint32_t i = 1; i < count; i++) {  //each capture form dma
+  uint16_t prev      = cap[0];
+  for(uint32_t i = 1; i < MIN(count, ARRAY_SIZE(cap)); i++) {  //each capture form dma
     //time between edges, rounded to a number of bits
-    uint16_t t = tim_data[i];
+    uint16_t t = cap[i];
     int bits   = (float)(uint16_t)(t - prev) * per_bit + 0.5;
     prev       = t;
     int end    = MIN(bits_sum + bits, max_bits);
@@ -423,16 +437,6 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(error) = 1;
     PIN(state) = 1;
   }
-  //reset timer
-  FB0_ENC_TIM->CNT  = 0;
-  FB0_ENC_TIM->CCR1 = 0;
-  FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;  // enable tim
-
-  //send request, 1/(42e6/32)*11 = 8.4uS
-  SPI3->DR = PIN(req_len);
-  //start DMA
-  dma_stream_stop(DMA1_Stream0);
-  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_0);
 }
 
 static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
