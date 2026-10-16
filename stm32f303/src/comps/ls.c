@@ -329,7 +329,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // TODO: sin = 0.5
   switch((uint16_t)PIN(phase_mode)) {
     case PHASE_90_3PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) / M_SQRT2 * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_2 * 0.95;
       break;
 
     case PHASE_90_4PH:  // 90°
@@ -337,7 +337,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       break;
 
     case PHASE_120_3PH:  // 120°
-      PIN(pwm_volt) = PIN(dc_volt) / M_SQRT3 * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_3 * 0.95;
       break;
 
     case PHASE_180_2PH:  // 180°

@@ -54,7 +54,10 @@ HAL_PIN(sat);
 HAL_PIN(max_sat);
 
 HAL_PIN(mot_brake);
+HAL_PIN(brake_during_phasing);
 HAL_PIN(dc_brake);
+HAL_PIN(brake_en_delay);
+HAL_PIN(brake_dis_delay);
 
 HAL_PIN(hv_fan);
 HAL_PIN(mot_fan);
@@ -65,6 +68,7 @@ HAL_PIN(brake_release);
 
 HAL_PIN(warn_timer);
 HAL_PIN(error_timer);
+HAL_PIN(brake_timer);
 
 //fault strings for fault_t form common.h
 static const char *fault_string[] = {
@@ -141,7 +145,28 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       }
       break;
 
+    case DELAYED_DISABLED:
+      if (PIN(brake_timer) <= 0.0) {
+        ctx->state = DISABLED;
+      }
+      break;
+
     case ENABLED:
+      if(PIN(en) <= 0.0) {
+        if (PIN(brake_dis_delay) > 0.0) {
+          ctx->state = DELAYED_DISABLED;
+          PIN(brake_timer) = PIN(brake_dis_delay);
+        } else {
+          ctx->state = DISABLED;
+        }
+      }
+      break;
+
+    case DELAYED_ENABLED:
+      if (PIN(brake_timer) <= 0.0) {
+        ctx->state = ENABLED;
+      }
+
       if(PIN(en) <= 0.0) {
         ctx->state = DISABLED;
       }
@@ -149,7 +174,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     case PHASING:
       if(PIN(fb_ready) > 0.0) {
-        ctx->state = ENABLED;
+        if (PIN(brake_en_delay) > 0.0) {
+          ctx->state = DELAYED_ENABLED;
+          PIN(brake_timer) = PIN(brake_en_delay);
+        } else {
+          ctx->state = ENABLED;
+        }
       }
 
       if(PIN(en) <= 0.0) {
@@ -267,6 +297,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(en_pid)    = 0.0;
       break;
 
+    case DELAYED_DISABLED:
+    case DELAYED_ENABLED:
+      PIN(mot_brake) = 0.0;
+      PIN(en_out)    = 1.0;
+      PIN(en_fb)     = 1.0;
+      PIN(en_pid)    = 1.0;
+      ctx->fault     = NO_ERROR;
+      break;
+
     case ENABLED:
       PIN(mot_brake)  = 1.0;
       PIN(en_out)     = 1.0;
@@ -277,7 +316,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       break;
 
     case PHASING:
-      PIN(mot_brake) = 1.0;
+      PIN(mot_brake) = !PIN(brake_during_phasing);
       ctx->fault     = NO_ERROR;
       PIN(en_pid)    = 0.0;
       PIN(en_fb)     = 1.0;
@@ -295,6 +334,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(warn_timer)  = MAX(PIN(warn_timer) - period, 0.0);
   PIN(error_timer) = MAX(PIN(error_timer) - period, 0.0);
+  if (ctx->state == DELAYED_ENABLED || ctx->state == DELAYED_DISABLED) {
+    PIN(brake_timer) = MAX(PIN(brake_timer) - period, 0.0);
+  }
 }
 
 
@@ -327,8 +369,16 @@ static void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         printf("INFO: Disabled \n");
         break;
 
+      case DELAYED_DISABLED:
+        printf("INFO: Delayed disabled \n");
+        break;
+
       case ENABLED:
         printf("INFO: Enabled \n");
+        break;
+
+      case DELAYED_ENABLED:
+        printf("INFO: Delayed enabled \n");
         break;
 
       case PHASING:

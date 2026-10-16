@@ -127,7 +127,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float slip     = 0.0;
   float cmd_mode = 0;
 
-  float id_n = cur_n / sqrtf(2.0);
+  float id_n = cur_n * M_SQRT1_2;
 
   PIN(scale) += (PIN(duty_setpoint) - PIN(duty)) * PIN(ki) * period;
   PIN(scale) = CLAMP(PIN(scale), 0.01, 1);
@@ -164,7 +164,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     case 2:          // u/f slip
       cmd_mode = 0;  // volt cmd
       slip     = slip_n / t_n * torque;
-      d_cmd    = MAX(u_n / freq_n * ABS(vel / 2.0 / M_PI), u_boost);
+      d_cmd    = MAX(u_n / freq_n * ABS(vel / 2.0 * M_1_PI), u_boost);
       q_cmd    = 0.0;
       break;
 

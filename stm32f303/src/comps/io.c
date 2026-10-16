@@ -93,22 +93,15 @@ struct io_ctx_t {
 
 #define AMP(a, gain) (((a)*AREF / ARES / (gain)-AREF / (SHUNT_PULLUP + SHUNT_SERIE) * SHUNT_SERIE) / (SHUNT * SHUNT_PULLUP) * (SHUNT_PULLUP + SHUNT_SERIE))
 
-
 float r2temp(float r) {
-  r               = r / 1000;
-  const int step  = 10;
-  const int start = -10;
-  //-10..100
-  const float temp[] = {500.0, 250.0, 200.0, 125.00, 65, 50, 29.972, 20.515, 14.315, 10.169, 7.345, 5.388, 4.009, 3.024, 2.639};
+    if (r < 1000)
+      return 0;
 
-  for(int i = 1; i < ARRAY_SIZE(temp); i++) {
-    if(temp[i] < r) {
-      float a = temp[i - 1];
-      float b = temp[i];
-      return (-(r - b) / (a - b) * step + i * step + start);
-    }
-  }
-  return (temp[ARRAY_SIZE(temp) - 1] + step);  // TODO fix
+    const float B  = 4092.0;      // Beta coefficient
+    const float T0 = 298.15;      // reference temp in Kelvin (25 degC)
+    const float R0 = 85000.0;     // resistance at 25 degC, in ohms
+    float tempK = 1.0 / (1.0 / T0 + (1.0 / B) * log(r / R0));
+    return tempK - 273.15;        // convert to Celsius
 }
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {

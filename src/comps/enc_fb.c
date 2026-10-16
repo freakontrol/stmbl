@@ -203,7 +203,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(PIN(amp) > 0.25 || ABS(PIN(vel)) > 0.15) {
     PIN(error) = 0.0;
     PIN(state) = MAX(PIN(state), 1.0);
-    PIN(ipos)  = mod(p + ((int)(ir * mod(atan2f(s, c) * 4.0 + M_PI) / M_PI)) / ir * M_PI / (float)ctx->e_res);
+    PIN(ipos)  = mod(p + ((int)(ir * mod(atan2f(s, c) * 4.0 + M_PI) * M_1_PI)) / ir * M_PI / (float)ctx->e_res);
   } else {
     PIN(error) = 1.0;
     PIN(state) = 0.0;

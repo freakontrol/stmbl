@@ -133,6 +133,8 @@ typedef enum {
   SOFT_FAULT,
   HARD_FAULT,
   LED_TEST,
+  DELAYED_ENABLED,
+  DELAYED_DISABLED
 } state_t;
 
 //fault error codes

@@ -19,7 +19,10 @@ HAL_PIN(state);
 HAL_PIN(turns);
 HAL_PIN(com_pos);
 HAL_PIN(index);
+HAL_PIN(batt);
 HAL_PIN(req_len);
+
+HAL_PIN(pos_offset);
 
 HAL_PIN(send_step);
 HAL_PIN(crc_ok);
@@ -34,9 +37,9 @@ static volatile uint16_t tim_data[160];
 
 #pragma pack(push, 1)
 typedef struct {
-  uint32_t flag0 : 4;  // 0101
-  uint32_t bat : 2;
-  uint32_t flag1 : 3;  // 101
+  uint32_t flag0 : 6;  // 0101
+  uint32_t bat : 1;
+  uint32_t flag1 : 2;  // 101
   uint32_t no_index : 1;
   uint32_t flag2 : 1;  // 0
   uint32_t pos_lo : 6;
@@ -177,6 +180,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
 
   pos_offset    = 0;
+  PIN(pos_offset) = 0;
   PIN(req_len)  = 2046;
   state_counter = 0;
   PIN(freq)     = 1024000;
@@ -241,6 +245,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ++;
       int32_t pos = data.fanuc.pos_lo + (data.fanuc.pos_hi << 6);
       PIN(index)  = data.fanuc.no_index;
+      PIN(batt)   = data.fanuc.bat;
 
       PIN(abs_pos) = mod((float)pos * 2.0 * M_PI / (1 << 22));
 
@@ -255,11 +260,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         PIN(pos)      = PIN(abs_pos);
       } else {
         state_counter = 3;
-        PIN(pos)      = mod((float)(pos + pos_offset) * 2.0 * M_PI / (1 << 22));
+        PIN(pos)      = mod((float)(pos + pos_offset + ((uint32_t)PIN(pos_offset) << 6)) * 2.0 * M_PI / (1 << 22));
         PIN(state)    = 3;
       }
 
-      PIN(turns)   = data.fanuc.turns;
+      if (data.fanuc.turns > 32767) {
+        PIN(turns) = (int32_t)data.fanuc.turns % 32768 - 32768;
+      } else {
+        PIN(turns) = data.fanuc.turns;
+      }
+
       pos          = data.fanuc.com_pos;
       PIN(com_pos) = mod(pos * 2.0 * M_PI / 1024);
       PIN(error)   = 0;
