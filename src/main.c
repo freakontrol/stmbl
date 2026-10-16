@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include "main.h"
 #include "commands.h"
+#include "hw/hw.h"
 
 extern RCC_ClocksTypeDef RCC_Clocks;
 
@@ -58,14 +59,36 @@ void TIM_SLAVE_HANDLER(void) {
   }
 }
 
+// fb0 encoder counter and A/B pins, latched as close to the sin/cos samples
+// as the rt can get, for enc_fb. Reading them has no side effects, so this
+// runs whichever fb0 component is loaded.
+volatile uint32_t fb0_cnt_latch;
+volatile uint32_t fb0_idr_latch;
+
 //5 kHz interrupt for hal. at this point all ADCs have been sampled,
 //see setup_res() in setup.c if you are interested in the magic behind this.
 void DMA2_Stream0_IRQHandler(void) {
+  fb0_cnt_latch = FB0_ENC_TIM->CNT;
+  fb0_idr_latch = FB0_A_PORT->IDR;
   DMA_ClearITPendingBit(DMA2_Stream0, DMA_IT_TCIF0);
   hal_run_rt();
   if(DMA_GetITStatus(DMA2_Stream0, DMA_IT_TCIF0) == SET) {
     hal_stop();
     hal.hal_state = RT_TOO_LONG;
+  }
+}
+
+// RM0090 13.8.1: an ADC overrun blocks the DMA requests and ignores further
+// triggers until the ADC and DMA are set up again, so the rt (the DMA TC)
+// would stop for good with nothing else noticing. Stop the hal and say so.
+void ADC_IRQHandler(void) {
+  if((ADC1->SR | ADC2->SR) & ADC_SR_OVR) {
+    ADC1->CR1 &= ~ADC_CR1_OVRIE;
+    ADC2->CR1 &= ~ADC_CR1_OVRIE;
+    ADC1->SR = ~ADC_SR_OVR;
+    ADC2->SR = ~ADC_SR_OVR;
+    hal_stop();
+    hal.hal_state = MISC_ERROR;
   }
 }
 

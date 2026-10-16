@@ -1,0 +1,80 @@
+# induction motor, open loop V/f, no feedback needed.
+# replaces uf for new configs. speed: vf0.vel_cmd [rad/s mech]
+# set vf0.u_n (phase peak V at vf0.vel_n), u_boost, i_stall
+# encoder slip control: link vf_enc instead (or vf0.vel_fb = <rotor speed>,
+# vf0.enc 1, vf0.slip_max (0 = 2 * slip_n); tune vf0.enc_kp / enc_ki.
+load adc
+load fault
+load hv
+load sim
+load io
+load iit
+load vf
+load angle
+link conf
+adc0.rt_prio = 1
+io0.rt_prio = 7
+vf0.rt_prio = 8
+angle0.rt_prio = 9.5
+hv0.rt_prio = 10
+fault0.rt_prio = 10
+iit0.rt_prio = 13
+sim0.rt_prio = 13
+term0.rt_prio = 16
+fault0.max_dc_cur = conf0.max_dc_cur
+fault0.max_ac_cur = conf0.max_ac_cur
+fault0.max_dc_volt = conf0.max_dc_volt
+fault0.high_dc_volt = conf0.high_dc_volt
+fault0.min_dc_volt = conf0.low_dc_volt
+fault0.max_hv_temp = conf0.max_hv_temp
+fault0.max_mot_temp = conf0.max_mot_temp
+fault0.high_hv_temp = conf0.high_hv_temp
+fault0.high_mot_temp = conf0.high_mot_temp
+fault0.fan_hv_temp = conf0.fan_hv_temp
+fault0.fan_mot_temp = conf0.fan_mot_temp
+fault0.ac_cur = hv0.abs_cur
+fault0.dc_volt = hv0.dc_volt
+fault0.hv_temp = hv0.hv_temp
+fault0.dc_cur = hv0.dc_cur
+fault0.hv_error = hv0.fault
+fault0.fb_ready = 1
+fault0.mot_temp = iit0.temp
+hv0.rev = conf0.out_rev
+hv0.r = conf0.r
+hv0.l = conf0.l
+hv0.lq = conf0.lq
+hv0.psi = 0
+hv0.cur_bw = conf0.cur_bw
+hv0.max_cur = conf0.max_ac_cur
+hv0.en = fault0.en_out
+hv0.scale = fault0.scale
+hv0.cmd_mode = 0
+hv0.phase_mode = 2
+vf0.en = fault0.en_out
+vf0.polecount = conf0.polecount
+vf0.scale = fault0.scale
+vf0.id = hv0.id_fb
+vf0.iq = hv0.iq_fb
+vf0.ud = hv0.ud_fb
+vf0.uq = hv0.uq_fb
+vf0.dc_volt = hv0.dc_volt
+vf0.pwm_volt = hv0.pwm_volt
+vf0.dc_hold = conf0.high_dc_volt
+# standstill boost: covers the dead time drop (no compensation in volt
+# mode) plus r * the magnetizing current, so the encoder path (enc 1) starts
+# from rest on the slip frequency alone. 12 V on the spindle (IM06B50GC1,
+# drop ~8.7 V); set it in the config for other motors
+vf0.u_boost = 12
+angle0.src = 3
+angle0.vel_cmd = vf0.vel_e
+hv0.d_cmd = vf0.u_cmd
+hv0.q_cmd = 0
+hv0.pos = angle0.pos
+hv0.vel = angle0.vel
+io0.fan = fault0.hv_fan
+io0.fault = fault0.fault
+io0.state = fault0.state
+iit0.max_temp = conf0.max_mot_temp
+iit0.high_temp = conf0.high_mot_temp
+iit0.max_cur = conf0.max_ac_cur
+iit0.cur = hv0.abs_cur

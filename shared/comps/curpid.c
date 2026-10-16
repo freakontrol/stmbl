@@ -55,18 +55,20 @@ HAL_PIN(iq_error);
 struct curpid_ctx_t {
   float id_error_sum;
   float iq_error_sum;
+  float cur_scale;  // volt mode current limit, per unit
 };
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
-  // struct curpid_ctx_t * ctx = (struct curpid_ctx_t *)ctx_ptr;
+  struct curpid_ctx_t *ctx      = (struct curpid_ctx_t *)ctx_ptr;
   struct curpid_pin_ctx_t *pins = (struct curpid_pin_ctx_t *)pin_ptr;
 
+  ctx->cur_scale = 1.0;
   PIN(r)      = 0.5;
   PIN(ld)     = 0.01;
   PIN(lq)     = 0.01;
   PIN(psi)    = 0.05;
   PIN(cur_bw) = 250.0;
-  PIN(kci)    = 500.0;
+  PIN(kci)    = 2000.0;  // per unit [1/s]: 1.3x overshoot cuts the voltage in ~1 ms at 15 kHz
   PIN(ksp)    = 1.0;
   PIN(scale)  = 1.0;
 }
@@ -98,14 +100,25 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float absvolt;
 
   if(PIN(cmd_mode) == VOLT_MODE) {
-    absvolt = idc * idc + iqc * iqc;  // clamp cmd
-    PIN(scale) *= sqrtf(CLAMP(max_volt * max_volt / MAX(absvolt, max_volt * 0.1), 0.0, 1.0));
+    // Two limits, the lower one wins. The voltage one is a plain clamp of
+    // the command. The current one integrates the feedback's overshoot in per
+    // unit, so kci [1/s] means the same on a 2 A and a 27 A motor: it used to
+    // integrate A^2, which on a spindle swung the voltage between 0 and full
+    // every tick, and it undid the voltage clamp whenever current was low.
+    absvolt          = idc * idc + iqc * iqc;  // clamp cmd
+    float volt_scale = __builtin_sqrtf(CLAMP(max_volt * max_volt / MAX(absvolt, max_volt * max_volt * 0.01), 0.0, 1.0));
 
     abscur = id * id + iq * iq;  // clamp over fb
-    PIN(scale) += (max_cur * max_cur - abscur) * PIN(kci) * period;
+    ctx->cur_scale += (1.0 - abscur / (max_cur * max_cur)) * PIN(kci) * period;
+    ctx->cur_scale = CLAMP(ctx->cur_scale, 0.0, 1.0);
+
+    PIN(scale) = MIN(volt_scale, ctx->cur_scale);
   } else {
-    abscur     = idc * idc + iqc * iqc;  // clamp cmd
-    PIN(scale) = sqrtf(max_cur * max_cur / MAX(abscur, max_cur * 0.1));
+    ctx->cur_scale = 1.0;
+    // clamp cmd. __builtin_sqrtf is the FPU's vsqrt: with -fno-builtin plain
+    // sqrtf is a software routine that cost several us of the f3's tick
+    abscur     = idc * idc + iqc * iqc;
+    PIN(scale) = abscur > max_cur * max_cur ? max_cur / __builtin_sqrtf(abscur) : 1.0;
   }
   PIN(scale) = CLAMP(PIN(scale), 0.0, 1.0);
 
@@ -138,6 +151,21 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   ud += ctx->id_error_sum;
   uq += ctx->iq_error_sum;
+
+  // One voltage vector, limited as a vector with d first: per-axis clamps
+  // let |u| reach sqrt(2) pwm_volt, which hv0 then scaled down in the phase
+  // domain behind the loop's back (the predictor, the integrators and
+  // ud_fb/uq_fb all saw the unlimited vector). d keeps what it needs for
+  // the flux, q gets the rest of the circle. Back-calculation: an integrator
+  // takes whatever the limit cut from its axis, so it holds at the limit
+  // instead of winding up.
+  float ud_lim = LIMIT(ud, max_volt);
+  float uq_max = __builtin_sqrtf(MAX(max_volt * max_volt - ud_lim * ud_lim, 0.0));
+  float uq_lim = LIMIT(uq, uq_max);
+  ctx->id_error_sum += ud_lim - ud;
+  ctx->iq_error_sum += uq_lim - uq;
+  ud = ud_lim;
+  uq = uq_lim;
 
   if(PIN(cmd_mode) == VOLT_MODE) {
     ud                = idc;

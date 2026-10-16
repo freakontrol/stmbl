@@ -10,7 +10,12 @@ pid0.acc_ext_cmd = idm0.acc_cmd
 pid0.j_mot = idm0.inertia
 pid0.d = idm0.damping
 pid0.f = idm0.friction
-pid0.l = idm0.load
+pid0.o = idm0.offset
+
+# idm's estimators converge only with each estimate fed back into the
+# feedforward, offset included. li 0.005 gives the offset loop a 25 s time
+# constant, inside 1% on a ~110 s run.
+idm0.li = 0.005
 
 pid0.pos_bw = idm0.pos_bw
 pid0.vel_bw = idm0.vel_bw
@@ -21,6 +26,9 @@ idm0.fb_torque = pid0.fb_torque_cmd
 
 vel1.torque = 0
 vel2.torque = 0
+
+# the bare motor: conf0.j_sys would add the coupled axis's inertia
+pid0.j_sys = 0
 
 conf0.max_pos_error = 0
 conf0.max_sat = 10

@@ -6,6 +6,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 
 HAL_COMP(smartabs);
@@ -351,7 +352,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   USART_HalfDuplexCmd(USART6, ENABLE);
 
   // DMA-Disable
-  DMA_Cmd(DMA2_Stream1, DISABLE);
+  dma_stream_stop(DMA2_Stream1);
   DMA_DeInit(DMA2_Stream1);
 
   // DMA2-Config
@@ -381,8 +382,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct smartabs_pin_ctx_t *pins = (struct smartabs_pin_ctx_t *)pin_ptr;
 
   //stop rx dma
-  DMA_Cmd(DMA2_Stream1, DISABLE);
-  DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF1);
+  dma_stream_stop(DMA2_Stream1);
 
   uint8_t crc = calc_crc8((uint8_t *)&ctx->rxbuf.reply.cf, 6, smartabs_crc8_table);
 

@@ -1,0 +1,17 @@
+# id_sys without the encoder: link pid, link acim_foc, link sl_acim, link id_sys_sl.
+# idm sweeps vel_offset +- max_vel (default 125 +- 75 = 50..200 rad/s), one
+# direction, so sl_seq stays on the observer. idm starts once pid is enabled.
+# J and d come out as usual. f and o are both a constant torque here and
+# split arbitrarily: read f + o, and take f from an encoder run.
+# Set sl_seq0.acc >= idm0.max_acc, or sl_seq's ramp cuts the profile.
+link id_sys
+idm0.en = sl_seq0.pid_en
+idm0.vel_offset = 125
+idm0.max_vel = 75
+idm0.min_pos = -50
+idm0.max_pos = 50
+# id_mot sets pid0.vel_bw = idm0.vel_bw (40): too fast on the observer
+idm0.vel_bw = 20
+sl_seq0.vel_cmd = idm0.vel_out
+pid0.vel_ext_cmd = sl_seq0.vel_ref
+pid0.acc_ext_cmd = sl_seq0.acc_ref

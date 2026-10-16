@@ -1,7 +1,7 @@
 # Optimization level, can be [0, 1, 2, 3, s].
 #     0 = turn off optimization. s = optimize for size.
 #
-OPT = -O3
+OPT = -O2  # -O3 only added 2.4 KB of flash and 40 B of CCM (2026-10-03)
 # OPT = -O1         # for debugging
 
 # Object files directory
@@ -29,6 +29,9 @@ SOURCES += stm32f303/src/version.c
 SOURCES += stm32f303/src/hal_tbl.c
 
 CFLAGS += -DHAL_MAX_CTX=1024
+CFLAGS += -DHAL_WATCHDOG
+# term.c's ring is 64 on the f4; 8 here keeps the f3's HAL ctx inside 1024
+CFLAGS += -DTERM_BUF_SIZE=8
 
 include stm32f303/comps.mak
 
@@ -226,6 +229,16 @@ clean:
 # Include the base rules
 #
 include base.mak
+
+# Rebuild every object when the compiler flags change: make only tracks
+# sources and headers, and a stale hal.o without HAL_WATCHDOG's kicks resets
+# the f3 every 5 ms.
+FLAGS_STAMP = $(OBJDIR)/flags.stamp
+$(FLAGS_STAMP): FORCE
+	@mkdir -p $(OBJDIR)
+	@echo '$(CC) $(CPPFLAGS) $(CFLAGS) $(ASFLAGS)' | cmp -s - $@ || echo '$(CC) $(CPPFLAGS) $(CFLAGS) $(ASFLAGS)' > $@
+$(OBJECTS): $(FLAGS_STAMP)
+FORCE:
 
 # Include the dependency files
 #

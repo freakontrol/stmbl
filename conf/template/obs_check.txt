@@ -1,0 +1,26 @@
+# observer shadow check, on the encoder: link pid, link pmsm, link obs_check.
+# obs0.pos_err: f4 observer minus the encoder angle. For the f3 observer
+# (15 kHz) as well, set hv0.obs_mode = 1 and scope hv0.obs_err.
+load obs
+obs0.rt_prio = 9.4
+obs0.r = conf0.r
+obs0.ld = conf0.l
+obs0.lq = conf0.lq
+obs0.polecount = conf0.polecount
+obs0.adv = hv0.adv
+obs0.id = hv0.id_fb
+obs0.iq = hv0.iq_fb
+obs0.ud = hv0.ud_fb
+obs0.uq = hv0.uq_fb
+obs0.pos_ref = angle0.pos
+obs0.vel_ref = angle0.vel
+obs0.slip = 0
+obs0.track = 0
+term0.wave0 = obs0.pos_err
+term0.wave1 = obs0.err
+term0.wave2 = obs0.eq
+term0.wave3 = obs0.ok
+term0.gain0 = 10
+term0.gain1 = 10
+term0.gain2 = 0.1
+term0.gain3 = 1

@@ -41,7 +41,7 @@ void MX_DAC_Init(void) {
   /**DAC channel OUT1 config 
     */
   sConfig.DAC_Trigger      = DAC_TRIGGER_NONE;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_DISABLE;  // the buffer only reaches down to 0.2 V; the comparators need ~0.1-0.3 V
   if(HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_1) != HAL_OK) {
     Error_Handler();
   }

@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 
 /*
@@ -118,7 +119,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   dma_rx_config.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
   dma_rx_config.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
 
-  DMA_Cmd(DMA1_Stream7, DISABLE);
+  dma_stream_stop(DMA1_Stream7);
   DMA_DeInit(DMA1_Stream7);
   DMA_Init(DMA1_Stream7, &dma_rx_config);
 
@@ -206,7 +207,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct encs_pin_ctx_t *pins = (struct encs_pin_ctx_t *)pin_ptr;
 
   int count = ARRAY_SIZE(tim_data) - DMA1_Stream7->NDTR;
-  DMA_Cmd(DMA1_Stream7, DISABLE);
+  dma_stream_stop(DMA1_Stream7);
 
   for(int i = 0; i < 10; i++) {
     data.enc_data[i] = 0;
@@ -245,8 +246,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_1;
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_0;  //set tx pin to output
   TIM8->ARR = 32;                             //2.545 Mhz
-  DMA_Cmd(DMA2_Stream1, DISABLE);
-  DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF1);
+  dma_stream_stop(DMA2_Stream1);
   DMA_Cmd(DMA2_Stream1, ENABLE);
   //wait for DMA transfer complete
   while(DMA_GetFlagStatus(DMA2_Stream1, DMA_FLAG_TCIF1) == RESET)
@@ -263,8 +263,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;  // enable tim
 
   //start rx DMA
-  DMA_Cmd(DMA1_Stream7, DISABLE);
-  DMA_ClearFlag(DMA1_Stream7, DMA_FLAG_TCIF7);
+  dma_stream_stop(DMA1_Stream7);
   DMA_Cmd(DMA1_Stream7, ENABLE);
 }
 

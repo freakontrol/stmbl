@@ -18,6 +18,14 @@ HAL_PIN(d_cmd);
 HAL_PIN(q_cmd);
 HAL_PIN(pos);
 HAL_PIN(vel);
+// The angle the voltage computed this tick lands at, on average: the
+// compares are preloaded, so it is applied over the next period, 1.5
+// periods after the current sample that dq0 transforms at pos. idq0 and
+// hv0's dead-time reference use it; hv0.adv on the f4 is then the encoder
+// to sample latency alone. v_lead in periods, default 1.5, 0 = old
+// behaviour (one angle for both).
+HAL_PIN(conf_ok);  // every config word received once since boot
+HAL_PIN(v_lead);
 HAL_PIN(en);
 
 // config data from LS
@@ -25,6 +33,7 @@ HAL_PIN(cmd_mode);
 HAL_PIN(phase_mode);
 HAL_PIN(r);
 HAL_PIN(l);
+HAL_PIN(lq);  // q axis inductance for curpid0.lq: config lq, or l when that is 0
 HAL_PIN(psi);
 HAL_PIN(cur_bw);
 HAL_PIN(cur_ff);
@@ -32,6 +41,14 @@ HAL_PIN(cur_ind);
 HAL_PIN(max_y);
 HAL_PIN(max_cur);
 HAL_PIN(dac);
+HAL_PIN(drop_k);
+HAL_PIN(emf_run);
+HAL_PIN(emf_sel);
+HAL_PIN(emf_pp);
+HAL_PIN(drop_knee);
+HAL_PIN(obs_en);   // obs0 runs, obs_mode 1 or 2
+HAL_PIN(obs_src);  // angle0.src, 2 when obs_mode is 2
+HAL_PIN(obs_bw);
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -45,14 +62,24 @@ HAL_PIN(hv_temp);
 HAL_PIN(mot_temp);
 HAL_PIN(core_temp);
 HAL_PIN(fault_in);  //fault code send to f4
+
+// short-circuit braking request for io0: follows the f4's flag, and on a
+// link loss brakes for sbrake_time if the f4 last sent sbrake_arm
+HAL_PIN(sbrake);
+HAL_PIN(sbrake_arm);
+HAL_PIN(sbrake_time);  // [s], default 1
 HAL_PIN(ignore_fault_pin);
 HAL_PIN(y);
 HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
+HAL_PIN(emf_val);
+HAL_PIN(obs_err);
+HAL_PIN(obs_vel);
 
 // misc
 HAL_PIN(pwm_volt);
+HAL_PIN(duty_max);  // from hv0: what min_on/min_off leave of the link, 0 = unwired
 HAL_PIN(crc_error);
 HAL_PIN(crc_ok);
 HAL_PIN(timeout);
@@ -68,7 +95,9 @@ HAL_PIN(window);
 
 struct ls_ctx_t {
   uint32_t timeout;
+  uint32_t sbrake_loss;  // brake for this link loss
   uint32_t tx_addr;
+  uint32_t conf_seen;  // bit per config word written since boot
   uint8_t send;
   volatile packet_to_hv_t packet_to_hv;
   volatile packet_from_hv_t packet_from_hv;
@@ -83,7 +112,7 @@ f3_state_data_t state;
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_ctx_t *ctx = (struct ls_ctx_t *)ctx_ptr;
-  // struct ls_pin_ctx_t * pins = (struct ls_pin_ctx_t *)pin_ptr;
+  struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   GPIO_InitTypeDef GPIO_InitStruct;
 
@@ -143,6 +172,15 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.max_y   = 0.0;
   config.pins.max_cur = 0.0;
   config.pins.dac     = 0.0;
+  config.pins.drop_k  = 0.0;
+  config.pins.lq      = 0.0;
+  config.pins.emf_run = 0.0;
+  config.pins.emf_sel = 0.0;
+  config.pins.emf_pp  = 0.0;
+  config.pins.drop_knee = 0.0;
+  PIN(v_lead) = 1.5;
+  config.pins.obs_mode  = 0.0;
+  config.pins.obs_bw    = 200.0;
 
   USART3->RTOR = 16;               // 16 bits timeout
   USART3->CR2 |= USART_CR2_RTOEN;  // timeout en
@@ -158,11 +196,16 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   ctx->timeout     = 0;
+  ctx->sbrake_loss = 0;
   ctx->tx_addr     = 0;
+  ctx->conf_seen   = 0;
   ctx->send        = 0;
   PIN(crc_error)   = 0.0;
   PIN(crc_ok)      = 0.0;
   PIN(timeout)     = 0.0;
+  PIN(sbrake)      = 0.0;
+  PIN(sbrake_arm)  = 0.0;
+  PIN(sbrake_time) = 1.0;
   PIN(idle)        = 0.0;
   PIN(dma_pos_cmd) = 4;
   PIN(inc)         = 5;
@@ -192,17 +235,24 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&(ctx->packet_to_hv.header.slave_addr), sizeof(packet_to_hv_t) / 4 - 1);
     if(ctx->packet_to_hv.header.slave_addr == 0 && ctx->packet_to_hv.header.len == (sizeof(packet_to_hv_t) - sizeof(stmbl_talk_header_t)) / 4 && crc == ctx->packet_to_hv.header.crc) {
       //
-      uint8_t a = ctx->packet_to_hv.header.conf_addr;
-      a         = CLAMP(a, 0, sizeof(config) / 4);
+      // an address past this image's config is a newer f4's word: ignore it
+      uint8_t a     = ctx->packet_to_hv.header.conf_addr;
+      uint8_t valid = a < sizeof(config) / 4;
+      a             = CLAMP(a, 0, sizeof(config) / 4 - 1);
 
       switch(ctx->packet_to_hv.header.flags.cmd) {
         case NO_CMD:
           break;
         case WRITE_CONF:
-          config.data[a] = ctx->packet_to_hv.header.config.f32;  // TODO: first enable after complete update
+          if(valid) {
+            config.data[a] = ctx->packet_to_hv.header.config.f32;
+            ctx->conf_seen |= 1u << a;
+          }
           break;
         case READ_CONF:
-          ctx->tx_addr = a;
+          if(valid) {
+            ctx->tx_addr = a;
+          }
           break;
         case DO_RESET:
           NVIC_SystemReset();
@@ -213,10 +263,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           break;
       }
 
-      PIN(en)               = ctx->packet_to_hv.flags.enable;
+      // no enable before every config word has arrived once since boot: the
+      // f4 cycles through them one per packet, and until then r, l, max_cur,
+      // dac etc. are still 0
+      PIN(conf_ok) = ctx->conf_seen == (1u << (sizeof(config) / 4)) - 1u;
+      PIN(en)      = PIN(conf_ok) > 0.0 ? ctx->packet_to_hv.flags.enable : 0;
       PIN(phase_mode)       = ctx->packet_to_hv.flags.phase_type;
       PIN(cmd_mode)         = ctx->packet_to_hv.flags.cmd_type;
       PIN(ignore_fault_pin) = ctx->packet_to_hv.flags.ignore_fault_pin;
+      PIN(sbrake)           = ctx->packet_to_hv.flags.sbrake;
+      PIN(sbrake_arm)       = ctx->packet_to_hv.flags.sbrake_arm;
       PIN(d_cmd)            = ctx->packet_to_hv.d_cmd;
       PIN(q_cmd)            = ctx->packet_to_hv.q_cmd;
       PIN(pos)              = ctx->packet_to_hv.pos;
@@ -236,6 +292,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(max_y)   = config.pins.max_y;
       PIN(max_cur) = config.pins.max_cur;
       PIN(dac)     = config.pins.dac;
+      PIN(drop_k)  = config.pins.drop_k;
+      PIN(lq)      = config.pins.lq > 0.0 ? config.pins.lq : config.pins.l;
+      PIN(emf_run) = config.pins.emf_run;
+      PIN(emf_sel) = config.pins.emf_sel;
+      PIN(emf_pp)  = config.pins.emf_pp;
+      PIN(drop_knee) = config.pins.drop_knee;
+      PIN(obs_en)    = config.pins.obs_mode > 0.5 ? 1.0 : 0.0;
+      PIN(obs_src)   = config.pins.obs_mode > 1.5 ? 2.0 : 0.0;
+      PIN(obs_bw)    = config.pins.obs_bw;
       ctx->timeout = 0;
       PIN(crc_ok)
       ++;
@@ -287,6 +352,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     state.pins.y         = PIN(y);
     state.pins.dc_volt   = PIN(dc_volt);
     state.pins.pwm_volt  = PIN(pwm_volt);
+    state.pins.emf_val   = PIN(emf_val);
+    state.pins.obs_err   = PIN(obs_err);
+    state.pins.obs_vel   = PIN(obs_vel);
 
     // fill tx struct
     ctx->packet_from_hv.fault             = (uint8_t)PIN(fault_in);
@@ -314,35 +382,49 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     //ctx->send = 0;
   }
 
+  if(ctx->timeout == 6) {
+    // brake on the loss only if the motor was driven or already braking
+    ctx->sbrake_loss = PIN(sbrake_arm) > 0.0 && (PIN(en) > 0.0 || PIN(sbrake) > 0.0);
+  }
   if(ctx->timeout > 5) {  //disable driver
-    PIN(en)  = 0.0;
-    PIN(vel) = 0.0;
+    PIN(en)     = 0.0;
+    PIN(vel)    = 0.0;
+    PIN(sbrake) = ctx->sbrake_loss && (float)(ctx->timeout - 5) * period < PIN(sbrake_time);
     PIN(timeout)
     ++;
     fault = 1;
   }
-  ctx->timeout++;
+  if(ctx->timeout < 0x7FFFFFFF) {  // saturate: a wrap would re-enable for a few ticks
+    ctx->timeout++;
+  }
 
   PIN(fault) = MAX(fault, PIN(fault_in));
 
 
+  // The ceiling curpid may ask for. hv.c reserves min_on at one end of the
+  // period and min_off at the other, so the usable link is duty_max of it (0.91
+  // at the 3 us defaults, where the old fixed 0.95 promised 4% more than the
+  // clamp would pass, and the loop wound up against the clamp instead of its
+  // own limit). Falls back to 0.95 when the pin is not wired.
+  float duty = PIN(duty_max) > 0.0 ? PIN(duty_max) : 0.95;
+
   // TODO: sin = 0.5
   switch((uint16_t)PIN(phase_mode)) {
     case PHASE_90_3PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) / M_SQRT2 * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_2 * duty;
       break;
 
     case PHASE_90_4PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * duty;
       break;
 
     case PHASE_120_3PH:  // 120°
-      PIN(pwm_volt) = PIN(dc_volt) / M_SQRT3 * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * M_SQRT1_3 * duty;
       break;
 
     case PHASE_180_2PH:  // 180°
     case PHASE_180_3PH:  // 180°
-      PIN(pwm_volt) = PIN(dc_volt) * 0.95;
+      PIN(pwm_volt) = PIN(dc_volt) * duty;
       break;
 
     default:

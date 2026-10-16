@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include "common.h"
 #include "main.h"
@@ -17,13 +18,15 @@ HAL_PIN(d_cmd);
 HAL_PIN(q_cmd);
 HAL_PIN(pos);
 HAL_PIN(vel);
+HAL_PIN(adv);  // commutation advance [s], pos is sent as pos + vel * adv
 HAL_PIN(en);
 
 // config data from LS
 HAL_PIN(phase_mode);
 HAL_PIN(cmd_mode);
 HAL_PIN(r);
-HAL_PIN(l);
+HAL_PIN(l);   // d axis inductance, and q too while lq is 0
+HAL_PIN(lq);  // q axis inductance, 0 = same as l
 HAL_PIN(psi);
 HAL_PIN(cur_bw);
 HAL_PIN(cur_ff);
@@ -31,6 +34,13 @@ HAL_PIN(cur_ind);
 HAL_PIN(max_y);
 HAL_PIN(max_cur);
 HAL_PIN(dac);
+HAL_PIN(drop_k);     // dead time compensation, fraction of the ideal
+HAL_PIN(drop_knee);  // dead time compensation curve knee [A], 0 = latched sign
+HAL_PIN(emf_run);  // f3 emf0 back emf map: 1 sum, 0 hold, -1 clear
+HAL_PIN(emf_sel);  // which emf0 result comes back in emf_val
+HAL_PIN(emf_pp);   // pole pairs, for emf0's per pole bins
+HAL_PIN(obs_mode); // f3 obs: 0 off, 1 shadow, 2 the f3 commutates from it, ignoring pos
+HAL_PIN(obs_bw);   // f3 obs loop bandwidth [rad/s]
 
 // process data to LS
 HAL_PIN(dc_volt);
@@ -41,6 +51,8 @@ HAL_PIN(uq_fb);
 HAL_PIN(abs_cur);
 HAL_PIN(abs_volt);
 HAL_PIN(duty);
+HAL_PIN(power);   // electrical power into the motor [W], negative when braking
+HAL_PIN(dc_cur);  // dc link current [A], estimated from power balance, negative when braking
 
 // state data to LS
 HAL_PIN(hv_temp);
@@ -48,10 +60,15 @@ HAL_PIN(mot_temp);
 HAL_PIN(core_temp);
 HAL_PIN(fault);  //fault from hv
 HAL_PIN(ignore_fault_pin);
+HAL_PIN(sbrake);      // short-circuit braking request, fault0.sbrake
+HAL_PIN(sbrake_arm);  // lets the f3 brake on link loss, fault0.sbrake_en
 HAL_PIN(y);
 HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
+HAL_PIN(emf_val);  // emf0 result number emf_sel, from the f3
+HAL_PIN(obs_err);  // f3 obs angle minus the commutation frame [rad], shadow check
+HAL_PIN(obs_vel);  // f3 obs speed [rad/s electrical]
 
 // misc
 HAL_PIN(rev);
@@ -148,7 +165,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   USART_Cmd(UART_DRV, ENABLE);
 
   // DMA-Disable
-  DMA_Cmd(UART_DRV_TX_DMA, DISABLE);
+  dma_stream_stop(UART_DRV_TX_DMA);
   DMA_DeInit(UART_DRV_TX_DMA);
 
   // DMA2-Config
@@ -175,7 +192,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
 
   // DMA-Disable
-  DMA_Cmd(UART_DRV_RX_DMA, DISABLE);
+  dma_stream_stop(UART_DRV_RX_DMA);
   DMA_DeInit(UART_DRV_RX_DMA);
 
   // DMA2-Config
@@ -198,13 +215,16 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
 
   USART_DMACmd(UART_DRV, USART_DMAReq_Rx, ENABLE);
-  DMA_Cmd(UART_DRV_RX_DMA, DISABLE);
-  DMA_ClearFlag(UART_DRV_RX_DMA, UART_DRV_RX_DMA_TCIF);
+  dma_stream_stop(UART_DRV_RX_DMA);
   DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
   ctx->timeout          = 0;
   PIN(dac)              = 2500;
+  PIN(drop_k)           = 0;
+  PIN(lq)               = 0;
+  PIN(adv)              = 0;
+  PIN(obs_bw)           = 200;
   send_to_bootloader    = 0;
   flash_state           = SLAVE_IN_APP;
   ctx->send_state       = 0;
@@ -217,6 +237,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float e                   = PIN(en);
   float pos                 = PIN(pos);
   float vel                 = PIN(vel);
+  pos                       = mod(pos + vel * PIN(adv));
 
   ctx->config.pins.r       = PIN(r);
   ctx->config.pins.l       = PIN(l);
@@ -227,6 +248,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   ctx->config.pins.max_y   = PIN(max_y);
   ctx->config.pins.max_cur = PIN(max_cur) * PIN(scale);
   ctx->config.pins.dac     = PIN(dac);
+  ctx->config.pins.drop_k  = PIN(drop_k);
+  ctx->config.pins.lq      = PIN(lq);
+  ctx->config.pins.emf_run = PIN(emf_run);
+  ctx->config.pins.emf_sel = PIN(emf_sel);
+  ctx->config.pins.emf_pp  = PIN(emf_pp);
+  ctx->config.pins.drop_knee = PIN(drop_knee);
+  ctx->config.pins.obs_mode  = PIN(obs_mode);
+  ctx->config.pins.obs_bw    = PIN(obs_bw);
 
   uint32_t dma_count = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t)) - DMA_GetCurrDataCounter(UART_DRV_RX_DMA);
 
@@ -259,9 +288,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
                 PIN(duty) = PIN(abs_volt) / PIN(pwm_volt);
               }
 
-              uint16_t a         = ctx->from_hv.packet_from_hv.header.conf_addr;
-              a                  = CLAMP(a, 0, sizeof(f3_state_data_t) / 4);
-              ctx->state.data[a] = ctx->from_hv.packet_from_hv.header.config.f32;
+              // an address past this image's state is a newer f3's word: ignore it
+              uint16_t a = ctx->from_hv.packet_from_hv.header.conf_addr;
+              if(a < sizeof(f3_state_data_t) / 4) {
+                ctx->state.data[a] = ctx->from_hv.packet_from_hv.header.config.f32;
+              }
 
               PIN(dc_volt)   = ctx->state.pins.dc_volt;
               PIN(pwm_volt)  = ctx->state.pins.pwm_volt;
@@ -272,6 +303,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
               PIN(mot_temp)  = ctx->state.pins.mot_temp;
               PIN(core_temp) = ctx->state.pins.core_temp;
               PIN(y)         = ctx->state.pins.y;
+              PIN(emf_val)   = ctx->state.pins.emf_val;
+              PIN(obs_err)   = ctx->state.pins.obs_err;
+              PIN(obs_vel)   = ctx->state.pins.obs_vel;
+
+              // not measured: P = 3/2 (ud id + uq iq) from the commanded
+              // voltages, so inverter losses are left out
+              PIN(power) = 1.5 * (PIN(ud_fb) * PIN(id_fb) + PIN(uq_fb) * PIN(iq_fb)) * 0.5 + PIN(power) * 0.5;
+              if(PIN(dc_volt) > 1.0) {
+                PIN(dc_cur) = PIN(power) / PIN(dc_volt);
+              }
 
               PIN(value) = 1.0;
 
@@ -357,6 +398,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(PIN(rev) > 0.0) {
     q_cmd *= -1.0;
     pos = minus(0, pos);
+    vel *= -1.0;  // the f3 extrapolates pos and decouples with vel
   }
 
 
@@ -374,6 +416,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         ctx->to_hv.packet_to_hv.flags.enable = 0;
       }
       ctx->to_hv.packet_to_hv.flags.ignore_fault_pin = PIN(ignore_fault_pin) > 0.0;
+      ctx->to_hv.packet_to_hv.flags.sbrake           = e <= 0.0 && PIN(sbrake) > 0.0;
+      ctx->to_hv.packet_to_hv.flags.sbrake_arm       = PIN(sbrake_arm) > 0.0;
       ctx->to_hv.packet_to_hv.flags.cmd_type         = PIN(cmd_mode);
       ctx->to_hv.packet_to_hv.flags.phase_type       = PIN(phase_mode);
       ctx->to_hv.packet_to_hv.pos                    = pos;
@@ -412,6 +456,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ctx->to_hv.packet_to_hv.d_cmd        = 0.0;
       ctx->to_hv.packet_to_hv.q_cmd        = 0.0;
       ctx->to_hv.packet_to_hv.flags.enable = 0;
+      ctx->to_hv.packet_to_hv.flags.sbrake     = 0;
+      ctx->to_hv.packet_to_hv.flags.sbrake_arm = 0;
 
       tx_size = sizeof(packet_to_hv_t);
 
@@ -505,8 +551,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     ctx->to_hv.packet_to_hv.header.crc = CRC_CalcBlockCRC((uint32_t *)&(ctx->to_hv.packet_to_hv.header.slave_addr), tx_size / 4 - 1);
 
     //start DMA TX transfer
-    DMA_Cmd(UART_DRV_TX_DMA, DISABLE);
-    DMA_ClearFlag(UART_DRV_TX_DMA, UART_DRV_TX_DMA_TCIF);
+    dma_stream_stop(UART_DRV_TX_DMA);
     UART_DRV_TX_DMA->NDTR = tx_size;
     DMA_Cmd(UART_DRV_TX_DMA, ENABLE);
 
@@ -514,9 +559,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(uart_sr) = UART_DRV->SR;
     PIN(uart_dr) = UART_DRV->DR;
 
-    //start DMA RX transfer
-    DMA_Cmd(UART_DRV_RX_DMA, DISABLE);
-    DMA_ClearFlag(UART_DRV_RX_DMA, UART_DRV_RX_DMA_TCIF);
+    //start DMA RX transfer. The stream is usually stopped mid-transfer
+    //(sized for the larger bootloader packet), so set NDTR again rather than
+    //rely on the reload (RM0090 10.3.17 step 5)
+    dma_stream_stop(UART_DRV_RX_DMA);
+    UART_DRV_RX_DMA->NDTR = MAX(sizeof(packet_from_hv_t), sizeof(packet_bootloader_t));
     DMA_Cmd(UART_DRV_RX_DMA, ENABLE);
   }
 
