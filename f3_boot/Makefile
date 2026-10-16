@@ -16,8 +16,6 @@ TARGET = $(OBJDIR)/f3_boot
 # Define all C source files (dependencies are generated automatically)
 INCDIRS += f3_boot/inc
 SOURCES += f3_boot/src/main.c
-SOURCES += f3_boot/src/stm32f3xx_hal_msp.c
-SOURCES += f3_boot/src/tim.c
 SOURCES += f3_boot/src/stm32f3xx_it.c
 SOURCES += f3_boot/src/version.c
 
@@ -32,26 +30,14 @@ INCDIRS += lib/CMSIS/Device/ST/STM32F3xx/Include/
 SOURCES += lib/CMSIS/Device/ST/STM32F3xx/Source/Templates/gcc/startup_stm32f303xc.s
 SOURCES += lib/CMSIS/Device/ST/STM32F3xx/Source/Templates/system_stm32f3xx.c
 
-#stm32f3 HAL Driver
+#stm32f3 LL drivers
 HAL_DRV_DIR = lib/STM32F3xx_HAL_Driver/
+CPPFLAGS += -DUSE_FULL_LL_DRIVER
 
 INCDIRS += $(HAL_DRV_DIR)/Inc
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_cortex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_crc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_crc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rtc.c
-
-# SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_dma.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_flash.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_flash_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_gpio.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rcc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rcc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_tim.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_tim_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart_ex.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_gpio.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_rcc.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_usart.c
 
 LDSCRIPT = f3_boot/STM32F303CBTx_FLASH.ld
 

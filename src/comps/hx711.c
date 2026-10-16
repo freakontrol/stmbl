@@ -61,24 +61,25 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   //struct hx_ctx_t *ctx = (struct hx_ctx_t *)ctx_ptr;
   //struct hx_pin_ctx_t * pins = (struct hx_pin_ctx_t *)pin_ptr;
-  GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
 
   //TX enable Z
-  GPIO_InitStruct.GPIO_Pin   = FB1_Z_TXEN_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB1_Z_TXEN_PORT, &GPIO_InitStruct);
-  GPIO_SetBits(FB1_Z_TXEN_PORT, FB1_Z_TXEN_PIN);
+  GPIO_InitStruct.Pin   = FB1_Z_TXEN_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB1_Z_TXEN_PORT, &GPIO_InitStruct);
+  LL_GPIO_SetOutputPin(FB1_Z_TXEN_PORT, FB1_Z_TXEN_PIN);
 
   // output Z
-  GPIO_InitStruct.GPIO_Pin   = FB1_Z_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB1_Z_PORT, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = FB1_Z_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB1_Z_PORT, &GPIO_InitStruct);
 }
 
 //TODO: plausibility, saturation, channel/gain config, 2 chips
@@ -92,24 +93,24 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   int sleep = CLAMP(PIN(sleep), 1, 50);
 
   if(PIN(timer) > PIN(time)) {
-    if((PIN(data_inv) > 0.0) ? (GPIO_ReadInputDataBit(FB1_A_PORT, FB1_A_PIN)) : (!GPIO_ReadInputDataBit(FB1_A_PORT, FB1_A_PIN))) {  //data line low = conversion ready
+    if((PIN(data_inv) > 0.0) ? (LL_GPIO_IsInputPinSet(FB1_A_PORT, FB1_A_PIN)) : (!LL_GPIO_IsInputPinSet(FB1_A_PORT, FB1_A_PIN))) {  //data line low = conversion ready
       for(int i = 0; i < 24; i++) {
         if(PIN(clk_inv) > 0.0) {
           nopsleep(sleep);
-          GPIO_ResetBits(FB1_Z_PORT, FB1_Z_PIN);
+          LL_GPIO_ResetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
           nopsleep(sleep);
-          GPIO_SetBits(FB1_Z_PORT, FB1_Z_PIN);
+          LL_GPIO_SetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
         } else {
           nopsleep(sleep);
-          GPIO_SetBits(FB1_Z_PORT, FB1_Z_PIN);
+          LL_GPIO_SetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
           nopsleep(sleep);
-          GPIO_ResetBits(FB1_Z_PORT, FB1_Z_PIN);
+          LL_GPIO_ResetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
         }
-        if((PIN(data_inv) > 0.0) ? (GPIO_ReadInputDataBit(FB1_A_PORT, FB1_A_PIN)) : (!GPIO_ReadInputDataBit(FB1_A_PORT, FB1_A_PIN))) {  //dout = 1
+        if((PIN(data_inv) > 0.0) ? (LL_GPIO_IsInputPinSet(FB1_A_PORT, FB1_A_PIN)) : (!LL_GPIO_IsInputPinSet(FB1_A_PORT, FB1_A_PIN))) {  //dout = 1
           value0++;
         }
         value0 = value0 << 1;
-        if((PIN(data_inv) > 0.0) ? (GPIO_ReadInputDataBit(FB1_B_PORT, FB1_B_PIN)) : (!GPIO_ReadInputDataBit(FB1_B_PORT, FB1_B_PIN))) {  //dout = 1
+        if((PIN(data_inv) > 0.0) ? (LL_GPIO_IsInputPinSet(FB1_B_PORT, FB1_B_PIN)) : (!LL_GPIO_IsInputPinSet(FB1_B_PORT, FB1_B_PIN))) {  //dout = 1
           value1++;
         }
         value1 = value1 << 1;
@@ -117,14 +118,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       //clock additional config bits
       if(PIN(clk_inv) > 0.0) {
         nopsleep(sleep);
-        GPIO_ResetBits(FB1_Z_PORT, FB1_Z_PIN);
+        LL_GPIO_ResetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
         nopsleep(sleep);
-        GPIO_SetBits(FB1_Z_PORT, FB1_Z_PIN);
+        LL_GPIO_SetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
       } else {
         nopsleep(sleep);
-        GPIO_SetBits(FB1_Z_PORT, FB1_Z_PIN);
+        LL_GPIO_SetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
         nopsleep(sleep);
-        GPIO_ResetBits(FB1_Z_PORT, FB1_Z_PIN);
+        LL_GPIO_ResetOutputPin(FB1_Z_PORT, FB1_Z_PIN);
       }
 
       if(value0 & 0x800000) {  //if 24th bit is set, pad others, to get 2 complement number

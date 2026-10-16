@@ -42,69 +42,70 @@ HAL_PIN(print_time);
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct endat_ctx_t *ctx = (struct endat_ctx_t *)ctx_ptr;
   struct endat_pin_ctx_t *pins = (struct endat_pin_ctx_t *)pin_ptr;
-  GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
 
   //TX enable for mosi
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_15;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   //tx enable for clock
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_10;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_10;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   //SPI3
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3, ENABLE);
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_SPI3);
 
-  SPI3->CR1 |= SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+  SPI3->CR1 |= SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
 
   //PC12 spi3 mosi
   //PC10 spi3 clock
-  GPIO_PinAFConfig(GPIOC, GPIO_PinSource12, GPIO_AF_SPI3);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_12;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_12;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_6;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  GPIO_PinAFConfig(GPIOC, GPIO_PinSource10, GPIO_AF_SPI3);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_10;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_10;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_6;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  GPIO_SetBits(GPIOD, GPIO_Pin_10);  //clock tx enable
+  LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_10);  //clock tx enable
 
   // DMA_InitTypeDef dma_rx_config;
-  // dma_rx_config.DMA_Channel            = DMA_Channel_0;
-  // dma_rx_config.DMA_PeripheralBaseAddr = (uint32_t)&FB0_SPI->DR;
-  // dma_rx_config.DMA_Memory0BaseAddr    = (uint32_t)&tim_data;
-  // dma_rx_config.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  // dma_rx_config.DMA_BufferSize         = ARRAY_SIZE(tim_data);
-  // dma_rx_config.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  // dma_rx_config.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  // dma_rx_config.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-  // dma_rx_config.DMA_MemoryDataSize     = DMA_PeripheralDataSize_HalfWord;
-  // dma_rx_config.DMA_Mode               = DMA_Mode_Normal;
-  // dma_rx_config.DMA_Priority           = DMA_Priority_VeryHigh;
-  // dma_rx_config.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  // dma_rx_config.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  // dma_rx_config.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  // dma_rx_config.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  // dma_rx_config.Channel            = LL_DMA_CHANNEL_0;
+  // dma_rx_config.PeriphOrM2MSrcAddress = (uint32_t)&FB0_SPI->DR;
+  // dma_rx_config.MemoryOrM2MDstAddress    = (uint32_t)&tim_data;
+  // dma_rx_config.Direction                = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  // dma_rx_config.NbData         = ARRAY_SIZE(tim_data);
+  // dma_rx_config.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  // dma_rx_config.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  // dma_rx_config.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_HALFWORD;
+  // dma_rx_config.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_HALFWORD;
+  // dma_rx_config.Mode               = LL_DMA_MODE_NORMAL;
+  // dma_rx_config.Priority           = LL_DMA_PRIORITY_VERYHIGH;
+  // dma_rx_config.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  // dma_rx_config.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  // dma_rx_config.MemBurst        = LL_DMA_MBURST_SINGLE;
+  // dma_rx_config.PeriphBurst    = LL_DMA_PBURST_SINGLE;
 
-  // DMA_Cmd(DMA1_Stream2, DISABLE);
-  // DMA_DeInit(DMA1_Stream2);
-  // DMA_Init(DMA1_Stream2, &dma_rx_config);
+  // LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_2);
+  // LL_DMA_DeInit(DMA1, LL_DMA_STREAM_2);
+  // LL_DMA_Init(DMA1, LL_DMA_STREAM_2, &dma_rx_config);
 
   PIN(pos_len)     = 18;  // 17
   PIN(mpos_len)    = 12;  // 15
@@ -210,12 +211,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
-  SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+  SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
 
   uint32_t bits = endat_tx(req, addr, 0, df.dataa, &(ctx->data));
   df2.data      = df.data;
 
-  GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
+  LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_15);  //tx enable
   SPI3->CR1 |= SPI_CR1_BIDIOE;       //enable output
   SPI3->CR1 |= SPI_CR1_SPE;          //enable spi
 
@@ -228,20 +229,38 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   SPI3->CR1 &= ~SPI_CR1_BIDIOE;        //disable output, this activates the clock
-  GPIO_ResetBits(GPIOD, GPIO_Pin_15);  //tx disable
+  LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_15);  //tx disable
 
   SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
   if(PIN(swap) > 0.0) {
-    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
   } else {
-    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
   }
-  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi
+  (void)SPI3->DR;  // drop a byte left over from the last frame (RXNE, OVR)
+  (void)SPI3->SR;
+  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi, BIDIOE = 0 starts the clock
 
-  df.data = 0;
-  for(int i = 0; i < MIN(sizeof(df.data), PIN(bytes)); i++) {
-    while(!(SPI3->SR & SPI_SR_RXNE))
-      ;
+  // RM0090 28.3.8, master bidirectional receive: the clock runs as long as
+  // SPE is set, so after RXNE n-1 wait one SPI clock and clear SPE; the last
+  // byte then completes and no further one is clocked. Left running to the
+  // end of this function, it would clock the encoder on and leave a stale
+  // byte and OVR for the next frame.
+  df.data   = 0;
+  int nbytes = MIN(sizeof(df.data), PIN(bytes));
+  for(int i = 0; i < nbytes; i++) {
+    if(i == nbytes - 1) {
+      for(volatile int d = 0; d < 64; d++) {  // > 1 SPI clock (32 PCLK1 cycles)
+      }
+      SPI3->CR1 &= ~SPI_CR1_SPE;
+    }
+    uint32_t t = 0;
+    while(!(SPI3->SR & SPI_SR_RXNE) && ++t < 20000) {  // a byte is ~6 us
+    }
+    if(t >= 20000) {  // never happens with SPE set; don't hang the rt if it does
+      df.data = 0;
+      break;
+    }
     df.dataa[i] = SPI3->DR;
   }
 

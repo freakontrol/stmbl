@@ -4,20 +4,42 @@
 #include "math.h"
 #include "defines.h"
 #include "angle.h"
-#include "stm32f3xx_hal.h"
+#include "periph.h"
 #include "common.h"
 #include "f3hw.h"
 #include "ringbuf.h"
 
-extern CRC_HandleTypeDef hcrc;
 
 HAL_COMP(ls);
 
 //process data from LS
 HAL_PIN(d_cmd);
 HAL_PIN(q_cmd);
+// The f4 sends d/q every PWM_TICKS_PER_PACKET ticks (3 at 15 kHz); stepped straight in, the command carries
+// a 5 kHz staircase into the current loop. ramp = 1 spreads each step over
+// the LS_RAMP_TICKS ticks to the next packet, a linear ramp that lags the
+// step by half an f4 period. 0 = step.
+HAL_PIN(ramp);
+#define LS_RAMP_TICKS PWM_TICKS_PER_PACKET
+// link loss after two missed packets (0.4 ms): 5 ticks at 15 kHz
+#define LS_TIMEOUT_TICKS (2 * PWM_TICKS_PER_PACKET - 1)
+// short-circuit braking on a link loss only after four missed packets (0.8
+// ms): one or two lost to noise just take the gates off until the next packet
+#define LS_SBRAKE_TICKS (4 * PWM_TICKS_PER_PACKET - 1)
+// a restarted f4 is silent far longer than 10 ms (boot, config load); a gap
+// that long must deliver the whole config again before the next enable
+#define LS_CONF_TICKS (PWM_FREQ / 100)
 HAL_PIN(pos);
 HAL_PIN(vel);
+// The angle the voltage computed this tick lands at, on average: the
+// compares are preloaded, so it is applied over the next period, 1.5
+// periods after the current sample that dq0 transforms at pos. idq0 and
+// hv0's dead-time reference use it; hv0.adv on the f4 is then the encoder
+// to sample latency alone. v_lead in periods, default 1.5, 0 = one
+// angle for both.
+HAL_PIN(pos_v);
+HAL_PIN(conf_ok);  // every config word received once since boot
+HAL_PIN(v_lead);
 HAL_PIN(en);
 
 // config data from LS
@@ -25,16 +47,24 @@ HAL_PIN(cmd_mode);
 HAL_PIN(phase_mode);
 HAL_PIN(r);
 HAL_PIN(l);
+HAL_PIN(lq);  // q axis inductance for curpid0.lq: config lq, or l when that is 0
 HAL_PIN(psi);
 HAL_PIN(cur_bw);
 HAL_PIN(cur_ff);
 HAL_PIN(cur_ind);
-HAL_PIN(max_y);
+HAL_PIN(max_y);  // the f4's hv0.max_y, not used on the f3
 HAL_PIN(max_cur);
+HAL_PIN(oc_cur);  // the f4's max_cur before fault0.scale, for io0's trip (0 from an older f4: io0 then trips at ABS_MAX_CURRENT only)
 HAL_PIN(dac);
+HAL_PIN(drop_k);
+HAL_PIN(emf_run);
+HAL_PIN(emf_sel);
+HAL_PIN(emf_pp);
+HAL_PIN(drop_knee);
 
 // process data to LS
 HAL_PIN(dc_volt);
+HAL_PIN(udc_duty);  // io0.udc_duty, the link hv0 divides by, for pwm_volt
 HAL_PIN(id_fb);
 HAL_PIN(iq_fb);
 HAL_PIN(ud_fb);
@@ -42,17 +72,26 @@ HAL_PIN(uq_fb);
 
 // state data to LS
 HAL_PIN(hv_temp);
+HAL_PIN(hv_temp_ok);  // io0.hv_temp_ok: 0 never read, 1 live, 2 held
 HAL_PIN(mot_temp);
-HAL_PIN(core_temp);
+HAL_PIN(core_temp);  // not measured, sends 0
 HAL_PIN(fault_in);  //fault code send to f4
+
+// short-circuit braking request for io0: follows the f4's flag, and on a
+// link loss brakes for sbrake_time if the f4 last sent sbrake_arm
+HAL_PIN(sbrake);
+HAL_PIN(sbrake_arm);
+HAL_PIN(sbrake_time);  // [s], default 1
 HAL_PIN(ignore_fault_pin);
 HAL_PIN(y);
 HAL_PIN(u_fb);
 HAL_PIN(v_fb);
 HAL_PIN(w_fb);
+HAL_PIN(emf_val);
 
 // misc
 HAL_PIN(pwm_volt);
+HAL_PIN(duty_max);  // from hv0: what min_on/min_off leave of the link, 0 = unwired
 HAL_PIN(crc_error);
 HAL_PIN(crc_ok);
 HAL_PIN(timeout);
@@ -66,9 +105,17 @@ HAL_PIN(dma_pos_cmd);
 HAL_PIN(inc);
 HAL_PIN(window);
 
+_Static_assert(sizeof(f3_config_data_t) / 4 < 32, "conf_seen has a bit per config word");
+
 struct ls_ctx_t {
   uint32_t timeout;
+  uint32_t lock_voted;  // the first tick in this packet has trimmed ARR
+  float d_tgt, q_tgt;    // the last packet's command
+  float d_step, q_step;  // per tick towards it while ramping
+  uint32_t sbrake_loss;  // brake for this link loss
   uint32_t tx_addr;
+  uint32_t conf_seen;  // bit per config word written since boot
+  uint32_t rx_done;     // rx DMA re-armed after a whole packet, before its idle flag
   uint8_t send;
   volatile packet_to_hv_t packet_to_hv;
   volatile packet_from_hv_t packet_from_hv;
@@ -83,56 +130,66 @@ f3_state_data_t state;
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_ctx_t *ctx = (struct ls_ctx_t *)ctx_ptr;
-  // struct ls_pin_ctx_t * pins = (struct ls_pin_ctx_t *)pin_ptr;
-
-  GPIO_InitTypeDef GPIO_InitStruct;
+  struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   /* Peripheral clock enable */
-  __HAL_RCC_USART3_CLK_ENABLE();
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_USART3);
 
-  UART_HandleTypeDef huart3;
-  huart3.Instance                    = USART3;
-  huart3.Init.BaudRate               = DATABAUD;
-  huart3.Init.WordLength             = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits               = UART_STOPBITS_1;
-  huart3.Init.Parity                 = UART_PARITY_NONE;
-  huart3.Init.Mode                   = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl              = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling           = UART_OVERSAMPLING_8;
-  huart3.Init.OneBitSampling         = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  USART3->CR3 |= USART_CR3_DMAT | USART_CR3_DMAR | USART_CR3_OVRDIS;
-  HAL_UART_Init(&huart3);
+  // 8N1, 8x oversampling, clocked from SYSCLK; DMA requests and overrun
+  // disable are set before the init, which keeps them (the order the HAL
+  // init used and the link was validated with)
+  LL_USART_EnableDMAReq_TX(USART3);
+  LL_USART_EnableDMAReq_RX(USART3);
+  LL_USART_DisableOverrunDetect(USART3);
+  LL_USART_Disable(USART3);
+  LL_USART_Init(USART3, &(LL_USART_InitTypeDef){
+                            .BaudRate            = DATABAUD,
+                            .DataWidth           = LL_USART_DATAWIDTH_8B,
+                            .StopBits            = LL_USART_STOPBITS_1,
+                            .Parity              = LL_USART_PARITY_NONE,
+                            .TransferDirection   = LL_USART_DIRECTION_TX_RX,
+                            .HardwareFlowControl = LL_USART_HWCONTROL_NONE,
+                            .OverSampling        = LL_USART_OVERSAMPLING_8,
+                        });
+  LL_USART_DisableOneBitSamp(USART3);
+  LL_USART_ConfigAsyncMode(USART3);  // LINEN, CLKEN, SCEN, IREN, HDSEL off
+  LL_USART_Enable(USART3);
+  while(!LL_USART_IsActiveFlag_TEACK(USART3) || !LL_USART_IsActiveFlag_REACK(USART3)) {
+  }
 
   /**USART3 GPIO Configuration    
    PB10     ------> USART3_TX
    PB11     ------> USART3_RX 
    */
-  GPIO_InitStruct.Pin       = GPIO_PIN_10 | GPIO_PIN_11;
-  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull      = GPIO_PULLUP;
-  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  LL_GPIO_Init(GPIOB, &(LL_GPIO_InitTypeDef){
+                          .Pin        = LL_GPIO_PIN_10 | LL_GPIO_PIN_11,
+                          .Mode       = LL_GPIO_MODE_ALTERNATE,
+                          .Speed      = LL_GPIO_SPEED_FREQ_HIGH,
+                          .OutputType = LL_GPIO_OUTPUT_PUSHPULL,
+                          .Pull       = LL_GPIO_PULL_UP,
+                          .Alternate  = LL_GPIO_AF_7,
+                      });
 
-  __HAL_RCC_DMA1_CLK_ENABLE();
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_DMA1);
 
   //TX DMA
-  DMA1_Channel2->CCR &= (uint16_t)(~DMA_CCR_EN);
-  DMA1_Channel2->CPAR  = (uint32_t) & (USART3->TDR);
-  DMA1_Channel2->CMAR  = (uint32_t) & (ctx->packet_from_hv);
-  DMA1_Channel2->CNDTR = sizeof(packet_from_hv_t);
-  DMA1_Channel2->CCR   = DMA_CCR_MINC | DMA_CCR_DIR;  // | DMA_CCR_PL_0 | DMA_CCR_PL_1
-  DMA1->IFCR           = DMA_IFCR_CTCIF2 | DMA_IFCR_CHTIF2 | DMA_IFCR_CGIF2;
+  LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_2);
+  LL_DMA_ConfigAddresses(DMA1, LL_DMA_CHANNEL_2, (uint32_t) & (ctx->packet_from_hv), LL_USART_DMA_GetRegAddr(USART3, LL_USART_DMA_REG_DATA_TRANSMIT), LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_2, sizeof(packet_from_hv_t));
+  LL_DMA_ConfigTransfer(DMA1, LL_DMA_CHANNEL_2,
+                        LL_DMA_DIRECTION_MEMORY_TO_PERIPH | LL_DMA_MODE_NORMAL | LL_DMA_PERIPH_NOINCREMENT | LL_DMA_MEMORY_INCREMENT |
+                            LL_DMA_PDATAALIGN_BYTE | LL_DMA_MDATAALIGN_BYTE | LL_DMA_PRIORITY_LOW);
+  LL_DMA_ClearFlag_GI2(DMA1);
 
   //RX DMA
-  DMA1_Channel3->CCR &= (uint16_t)(~DMA_CCR_EN);
-  DMA1_Channel3->CPAR  = (uint32_t) & (USART3->RDR);
-  DMA1_Channel3->CMAR  = (uint32_t) & (ctx->packet_to_hv);
-  DMA1_Channel3->CNDTR = sizeof(packet_to_hv_t);
-  DMA1_Channel3->CCR   = DMA_CCR_MINC;  // | DMA_CCR_PL_0 | DMA_CCR_PL_1
-  DMA1->IFCR           = DMA_IFCR_CTCIF3 | DMA_IFCR_CHTIF3 | DMA_IFCR_CGIF3;
-  DMA1_Channel3->CCR |= DMA_CCR_EN;
+  LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_3);
+  LL_DMA_ConfigAddresses(DMA1, LL_DMA_CHANNEL_3, LL_USART_DMA_GetRegAddr(USART3, LL_USART_DMA_REG_DATA_RECEIVE), (uint32_t) & (ctx->packet_to_hv), LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_3, sizeof(packet_to_hv_t));
+  LL_DMA_ConfigTransfer(DMA1, LL_DMA_CHANNEL_3,
+                        LL_DMA_DIRECTION_PERIPH_TO_MEMORY | LL_DMA_MODE_NORMAL | LL_DMA_PERIPH_NOINCREMENT | LL_DMA_MEMORY_INCREMENT |
+                            LL_DMA_PDATAALIGN_BYTE | LL_DMA_MDATAALIGN_BYTE | LL_DMA_PRIORITY_LOW);
+  LL_DMA_ClearFlag_GI3(DMA1);
+  LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_3);
 
   config.pins.r       = 0.0;
   config.pins.l       = 0.0;
@@ -142,11 +199,21 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   config.pins.cur_ind = 0.0;
   config.pins.max_y   = 0.0;
   config.pins.max_cur = 0.0;
+  config.pins.oc_cur  = 0.0;
   config.pins.dac     = 0.0;
+  config.pins.drop_k  = 0.0;
+  config.pins.lq      = 0.0;
+  config.pins.emf_run = 0.0;
+  config.pins.emf_sel = 0.0;
+  config.pins.emf_pp  = 0.0;
+  config.pins.drop_knee = 0.0;
+  PIN(v_lead) = 1.5;
+  PIN(ramp)   = 1.0;
+  PIN(sbrake_time) = 1.0;
 
-  USART3->RTOR = 16;               // 16 bits timeout
-  USART3->CR2 |= USART_CR2_RTOEN;  // timeout en
-  USART3->ICR |= USART_ICR_RTOCF;  // timeout clear flag
+  LL_USART_SetRxTimeout(USART3, 16);  // 16 bits timeout
+  LL_USART_EnableRxTimeout(USART3);
+  LL_USART_ClearFlag_RTO(USART3);
 
   ctx->packet_from_hv.header.len        = (sizeof(packet_from_hv_t) - sizeof(stmbl_talk_header_t)) / 4;
   ctx->packet_from_hv.header.flags.cmd  = WRITE_CONF;
@@ -158,14 +225,22 @@ static void rt_start(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
   ctx->timeout     = 0;
+  ctx->lock_voted  = 0;
+  ctx->sbrake_loss = 0;
   ctx->tx_addr     = 0;
+  ctx->conf_seen   = 0;
+  ctx->d_tgt = ctx->q_tgt = 0.0;
+  ctx->d_step = ctx->q_step = 0.0;
+  ctx->rx_done     = 0;
   ctx->send        = 0;
   PIN(crc_error)   = 0.0;
   PIN(crc_ok)      = 0.0;
   PIN(timeout)     = 0.0;
+  PIN(sbrake)      = 0.0;
+  PIN(sbrake_arm)  = 0.0;
   PIN(idle)        = 0.0;
   PIN(dma_pos_cmd) = 4;
-  PIN(inc)         = 5;
+  PIN(inc)         = PWM_RES * 5 / 4800;  // ARR step, 5 at 15 kHz, about 0.1 %
   PIN(window)      = 1;
 }
 
@@ -173,52 +248,77 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct ls_ctx_t *ctx      = (struct ls_ctx_t *)ctx_ptr;
   struct ls_pin_ctx_t *pins = (struct ls_pin_ctx_t *)pin_ptr;
 
-  uint32_t dma_pos = sizeof(packet_to_hv_t) - DMA1_Channel3->CNDTR;
+  uint32_t dma_pos = sizeof(packet_to_hv_t) - LL_DMA_GetDataLength(DMA1, LL_DMA_CHANNEL_3);
 
   PIN(dma_pos2) = dma_pos;
   PIN(arr)      = PWM_RES;
 
+  // Phase lock to the f4 packets: the first tick inside a packet compares
+  // how far it has come with dma_pos_cmd and trims this period. Only the
+  // first: at 20 kHz three ticks land inside a packet and their votes never
+  // cancel. Between packets dma_pos is 0 or the whole packet.
   if(dma_pos > PIN(window) && dma_pos < sizeof(packet_to_hv_t) - PIN(window)) {
-    if(PIN(dma_pos_cmd) < dma_pos) {
-      PIN(arr) = PWM_RES - PIN(inc);
-    } else if(PIN(dma_pos_cmd) > dma_pos) {
-      PIN(arr) = PWM_RES + PIN(inc);
+    if(!ctx->lock_voted) {
+      ctx->lock_voted = 1;
+      if(PIN(dma_pos_cmd) < dma_pos) {
+        PIN(arr) = PWM_RES - PIN(inc);
+      } else if(PIN(dma_pos_cmd) > dma_pos) {
+        PIN(arr) = PWM_RES + PIN(inc);
+      }
     }
+  } else {
+    ctx->lock_voted = 0;
   }
 
   uint32_t fault = 0;
+  uint32_t rearm = 0;  // restart rx DMA this tick
 
   if(dma_pos == sizeof(packet_to_hv_t)) {
-    uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&(ctx->packet_to_hv.header.slave_addr), sizeof(packet_to_hv_t) / 4 - 1);
+    uint32_t crc = crc_calc((uint32_t *)&(ctx->packet_to_hv.header.slave_addr), sizeof(packet_to_hv_t) / 4 - 1);
     if(ctx->packet_to_hv.header.slave_addr == 0 && ctx->packet_to_hv.header.len == (sizeof(packet_to_hv_t) - sizeof(stmbl_talk_header_t)) / 4 && crc == ctx->packet_to_hv.header.crc) {
       //
-      uint8_t a = ctx->packet_to_hv.header.conf_addr;
-      a         = CLAMP(a, 0, sizeof(config) / 4);
+      // an address past this image's config is a newer f4's word: ignore it
+      uint8_t a     = ctx->packet_to_hv.header.conf_addr;
+      uint8_t valid = a < sizeof(config) / 4;
+      a             = CLAMP(a, 0, sizeof(config) / 4 - 1);
 
       switch(ctx->packet_to_hv.header.flags.cmd) {
         case NO_CMD:
           break;
         case WRITE_CONF:
-          config.data[a] = ctx->packet_to_hv.header.config.f32;  // TODO: first enable after complete update
+          if(valid) {
+            config.data[a] = ctx->packet_to_hv.header.config.f32;
+            ctx->conf_seen |= 1u << a;
+          }
           break;
         case READ_CONF:
-          ctx->tx_addr = a;
+          if(valid) {
+            ctx->tx_addr = a;
+          }
           break;
         case DO_RESET:
           NVIC_SystemReset();
           break;
         case BOOTLOADER:
-          RTC->BKP0R = 0xDEADBEEF;
+          LL_RTC_BAK_SetRegister(RTC, LL_RTC_BKP_DR0, 0xDEADBEEF);
           NVIC_SystemReset();
           break;
       }
 
-      PIN(en)               = ctx->packet_to_hv.flags.enable;
+      // no enable before every config word has arrived once since boot: the
+      // f4 cycles through them one per packet, and until then r, l, max_cur,
+      // dac etc. are still 0
+      PIN(conf_ok) = ctx->conf_seen == (1u << (sizeof(config) / 4)) - 1u;
+      PIN(en)      = PIN(conf_ok) > 0.0 ? ctx->packet_to_hv.flags.enable : 0;
       PIN(phase_mode)       = ctx->packet_to_hv.flags.phase_type;
       PIN(cmd_mode)         = ctx->packet_to_hv.flags.cmd_type;
       PIN(ignore_fault_pin) = ctx->packet_to_hv.flags.ignore_fault_pin;
-      PIN(d_cmd)            = ctx->packet_to_hv.d_cmd;
-      PIN(q_cmd)            = ctx->packet_to_hv.q_cmd;
+      PIN(sbrake)           = ctx->packet_to_hv.flags.sbrake;
+      PIN(sbrake_arm)       = ctx->packet_to_hv.flags.sbrake_arm;
+      ctx->d_tgt            = ctx->packet_to_hv.d_cmd;
+      ctx->q_tgt            = ctx->packet_to_hv.q_cmd;
+      ctx->d_step           = (ctx->d_tgt - PIN(d_cmd)) * (1.0 / LS_RAMP_TICKS);
+      ctx->q_step           = (ctx->q_tgt - PIN(q_cmd)) * (1.0 / LS_RAMP_TICKS);
       PIN(pos)              = ctx->packet_to_hv.pos;
       PIN(vel)              = ctx->packet_to_hv.vel;
 
@@ -235,7 +335,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(cur_ind) = config.pins.cur_ind;
       PIN(max_y)   = config.pins.max_y;
       PIN(max_cur) = config.pins.max_cur;
+      PIN(oc_cur)  = config.pins.oc_cur;
       PIN(dac)     = config.pins.dac;
+      PIN(drop_k)  = config.pins.drop_k;
+      PIN(lq)      = config.pins.lq > 0.0 ? config.pins.lq : config.pins.l;
+      PIN(emf_run) = config.pins.emf_run;
+      PIN(emf_sel) = config.pins.emf_sel;
+      PIN(emf_pp)  = config.pins.emf_pp;
+      PIN(drop_knee) = config.pins.drop_knee;
       ctx->timeout = 0;
       PIN(crc_ok)
       ++;
@@ -247,29 +354,56 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       ++;
       fault = 3;
     }
-  } else if(ctx->timeout <= 5) {  // if no packet and no timeout, advance pos by velovity
+
+    // Re-arm rx now rather than on the idle flag. At 10 and 20 kHz this tick
+    // can come less than the 16 bit idle time (5.3 us) after the last byte;
+    // waiting for the flag would leave dma_pos at 32 for the next tick, which
+    // would take the packet a second time and start the reply early enough to
+    // run into the f4's next rx re-arm.
+    rearm        = 1;
+    ctx->rx_done = 1;
+  } else if(ctx->timeout <= LS_TIMEOUT_TICKS) {  // if no packet and no timeout, advance pos by velovity
     PIN(pos) = PIN(pos) + PIN(vel) * period;
+  }
+  PIN(pos_v) = PIN(pos) + PIN(vel) * PIN(v_lead) * period;  // sincos_fast wraps
+
+  // timeout counts the ticks since the packet: 0, 1, 2 are the ramp, a late
+  // or missing packet lands on the target (also cleans up the float sum)
+  if(PIN(ramp) > 0.0 && ctx->timeout < LS_RAMP_TICKS) {
+    PIN(d_cmd) += ctx->d_step;
+    PIN(q_cmd) += ctx->q_step;
+  } else {
+    PIN(d_cmd) = ctx->d_tgt;
+    PIN(q_cmd) = ctx->q_tgt;
   }
 
 
-  if(USART3->ISR & USART_ISR_RTOF) {                                    // idle line
-    USART3->ICR |= USART_ICR_RTOCF | USART_ICR_FECF | USART_ICR_ORECF;  // timeout clear flag
-    GPIOA->BSRR |= GPIO_PIN_10;
+  if(LL_USART_IsActiveFlag_RTO(USART3)) {  // idle line
+    // timeout, framing and overrun flags in one ICR write; LL clears them one by one
+    WRITE_REG(USART3->ICR, USART_ICR_RTOCF | USART_ICR_FECF | USART_ICR_ORECF);
+    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_10);
 
     PIN(idle)
     ++;
-    if(dma_pos != sizeof(packet_to_hv_t)) {
+    if(ctx->rx_done) {
+      // this idle ended a packet already taken and re-armed above; the next
+      // packet may have started since, so leave its bytes alone
+      ctx->rx_done = 0;
+    } else {
+      // a partial packet or noise: resync on the idle line
       PIN(dma_pos) = dma_pos;
+      rearm        = 1;
     }
-
-    // reset rx DMA
-    DMA1_Channel3->CCR &= (uint16_t)(~DMA_CCR_EN);
-    DMA1_Channel3->CNDTR = sizeof(packet_to_hv_t);
-    DMA1_Channel3->CCR |= DMA_CCR_EN;
-    dma_pos = 0;
-    GPIOA->BSRR |= GPIO_PIN_10 << 16;
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_10);
 
     //ctx->send = 1;
+  }
+
+  if(rearm) {
+    LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_3);
+    LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_3, sizeof(packet_to_hv_t));
+    LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_3);
+    dma_pos = 0;
   }
 
   if(ctx->send == 2) {
@@ -287,6 +421,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     state.pins.y         = PIN(y);
     state.pins.dc_volt   = PIN(dc_volt);
     state.pins.pwm_volt  = PIN(pwm_volt);
+    state.pins.emf_val   = PIN(emf_val);
+    state.pins.unused0   = 0.0;
+    state.pins.unused1   = 0.0;
+    state.pins.hv_temp_ok = PIN(hv_temp_ok);
+    state.pins.pwm_freq  = PWM_FREQ;
+    state.pins.link_to   = PIN(timeout);
 
     // fill tx struct
     ctx->packet_from_hv.fault             = (uint8_t)PIN(fault_in);
@@ -305,44 +445,64 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     } else {
       ctx->packet_from_hv.buf = 0x0;
     }
-    ctx->packet_from_hv.header.crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&(ctx->packet_from_hv.header.slave_addr), sizeof(packet_from_hv_t) / 4 - 1);
+    ctx->packet_from_hv.header.crc = crc_calc((uint32_t *)&(ctx->packet_from_hv.header.slave_addr), sizeof(packet_from_hv_t) / 4 - 1);
 
     // start tx DMA
-    DMA1_Channel2->CCR &= (uint16_t)(~DMA_CCR_EN);
-    DMA1_Channel2->CNDTR = sizeof(packet_from_hv_t);
-    DMA1_Channel2->CCR |= DMA_CCR_EN;
+    LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_2);
+    LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_2, sizeof(packet_from_hv_t));
+    LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_2);
     //ctx->send = 0;
   }
 
-  if(ctx->timeout > 5) {  //disable driver
-    PIN(en)  = 0.0;
-    PIN(vel) = 0.0;
+  if(ctx->timeout == LS_TIMEOUT_TICKS + 1) {
+    // brake on the loss only if the motor was driven or already braking
+    ctx->sbrake_loss = PIN(sbrake_arm) > 0.0 && (PIN(en) > 0.0 || PIN(sbrake) > 0.0);
+  }
+  if(ctx->timeout == LS_CONF_TICKS) {
+    // a restarted f4 sends its config from word 0 again: no enable until the
+    // whole set has come round once more, as after an f3 boot
+    ctx->conf_seen = 0;
+    PIN(conf_ok)   = 0.0;
+  }
+  if(ctx->timeout > LS_TIMEOUT_TICKS) {  //disable driver
+    PIN(en)     = 0.0;
+    PIN(vel)    = 0.0;
+    PIN(sbrake) = ctx->sbrake_loss && ctx->timeout > LS_SBRAKE_TICKS && (float)(ctx->timeout - LS_SBRAKE_TICKS) * period < PIN(sbrake_time);
     PIN(timeout)
     ++;
     fault = 1;
   }
-  ctx->timeout++;
+  if(ctx->timeout < 0x7FFFFFFF) {  // saturate: a wrap would re-enable for a few ticks
+    ctx->timeout++;
+  }
 
   PIN(fault) = MAX(fault, PIN(fault_in));
 
 
+  // The ceiling curpid may ask for. hv.c reserves min_on at one end of the
+  // period and min_off at the other, so the usable link is duty_max of it (0.91
+  // at the 3 us defaults; a fixed 0.95 would promise 4% more than the clamp
+  // passes, and the loop would wind up against the clamp instead of its own
+  // limit). Falls back to 0.95 when the pin is not wired.
+  float duty = PIN(duty_max) > 0.0 ? PIN(duty_max) : 0.95;
+
   // TODO: sin = 0.5
   switch((uint16_t)PIN(phase_mode)) {
     case PHASE_90_3PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) / M_SQRT2 * 0.95;
+      PIN(pwm_volt) = PIN(udc_duty) * M_SQRT1_2 * duty;
       break;
 
     case PHASE_90_4PH:  // 90°
-      PIN(pwm_volt) = PIN(dc_volt) * 0.95;
+      PIN(pwm_volt) = PIN(udc_duty) * duty;
       break;
 
     case PHASE_120_3PH:  // 120°
-      PIN(pwm_volt) = PIN(dc_volt) / M_SQRT3 * 0.95;
+      PIN(pwm_volt) = PIN(udc_duty) * M_SQRT1_3 * duty;
       break;
 
     case PHASE_180_2PH:  // 180°
     case PHASE_180_3PH:  // 180°
-      PIN(pwm_volt) = PIN(dc_volt) * 0.95;
+      PIN(pwm_volt) = PIN(udc_duty) * duty;
       break;
 
     default:

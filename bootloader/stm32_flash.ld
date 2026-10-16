@@ -128,6 +128,9 @@ SECTIONS
     _sdata = .;        /* create a global symbol at data start */
     *(.data)           /* .data sections */
     *(.data*)          /* .data* sections */
+    /* one word so .data is never empty: an empty .data gets LMA = VMA in RAM
+       and objcopy -O binary then pads blboot.bin out to 0x20000000 */
+    LONG(0)
 
     . = ALIGN(4);
     _edata = .;        /* define a global symbol at data end */

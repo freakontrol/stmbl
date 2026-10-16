@@ -26,6 +26,10 @@
 extern "C" {
 #endif
 
+#ifndef M_SQRT1_3
+#define M_SQRT1_3 0.57735026918962576451
+#endif
+
 #define NO 0
 #define YES 1
 #define ABS(a) (((a) < 0.0) ? -(a) : (a))
@@ -34,7 +38,7 @@ extern "C" {
 #define SAT2(x, low, high) (((x) > (high)) ? (1.0) : (((x) < (low)) ? (-1.0) : (0.0)))
 #define STEP(from, to, step) (((from) < (to)) ? (MIN((from) + (step), (to))) : (MAX((from) - (step), (to))))
 #define DEG(a) ((a)*M_PI / 180.0)
-#define RAD(a) ((a)*180.0 / M_PI)
+#define RAD(a) ((a)*180.0 * M_1_PI)
 #define SIGN(a) (((a) < 0.0) ? (-1.0) : (((a) > 0.0) ? (1.0) : (0.0)))
 #define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 #define SCALE(value, high, max) MIN(MAX(((max) - (value)) / ((max) - (high)), 0.0), 1.0)
