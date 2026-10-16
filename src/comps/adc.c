@@ -140,17 +140,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     ctx->send = 1;
   }
 
-  float s = V_DIFF(ADC_DMA_Buffer[0] & 0x0000ffff, 1);
-  float c = V_DIFF(ADC_DMA_Buffer[0] >> 16, 1);
-
   PIN(sin0l) = si0[ADC_GROUPS - 1];
   PIN(cos0l) = co0[ADC_GROUPS - 1];
   PIN(sin0)  = sin0all / (float)ADC_GROUPS;
   PIN(cos0)  = cos0all / (float)ADC_GROUPS;
+  // amplitude of the last group, after gain and offset like sin0/cos0, so
+  // sin_gain/cos_gain also scale what enc_fb and uvw check against
+  float s    = si0[ADC_GROUPS - 1];
+  float c    = co0[ADC_GROUPS - 1];
   PIN(amp0)  = PIN(amp0) * 0.9 + sqrtf(s * s + c * c) * 0.1;
 #ifdef FB1
-  s          = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] & 0x0000ffff, 1);
-  c          = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] >> 16, 1);
+  s          = si1[ADC_GROUPS - 1];
+  c          = co1[ADC_GROUPS - 1];
   PIN(sin1l) = si1[ADC_GROUPS - 1];
   PIN(cos1l) = co1[ADC_GROUPS - 1];
   PIN(sin1)  = sin1all / (float)ADC_GROUPS;

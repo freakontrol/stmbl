@@ -71,7 +71,6 @@ void setup_res() {
   //ADC trigger OC depends on timer
   TIM_MASTER_ADC_OC_INIT(TIM_MASTER, &TIM_OCInitStructure);
   TIM_MASTER_ADC_OC_PRELOAD(TIM_MASTER, TIM_OCPreload_Enable);
-  TIM_CtrlPWMOutputs(TIM_MASTER, ENABLE);
 
   //slave timer triggers frt
   RCC_APB1PeriphClockCmd(TIM_SLAVE_RCC, ENABLE);
@@ -187,6 +186,15 @@ void setup_res() {
   //HAL Fast realtime irq 20kHz
   NVIC_InitStructure.NVIC_IRQChannel                   = TIM_SLAVE_IRQ;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 0;
+  NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);
+
+  //ADC overrun would stop the rt silently, see ADC_IRQHandler
+  ADC_ITConfig(FB0_SIN_ADC, ADC_IT_OVR, ENABLE);
+  ADC_ITConfig(FB0_COS_ADC, ADC_IT_OVR, ENABLE);
+  NVIC_InitStructure.NVIC_IRQChannel                   = ADC_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 0;
   NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
   NVIC_Init(&NVIC_InitStructure);

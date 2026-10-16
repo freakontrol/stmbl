@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include "yaskawa_crc16.h"
 
@@ -170,11 +171,11 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_ENC_TIM->CNT = 3300;
   FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;  // enable tim
 
-  DMA_Cmd(DMA1_Stream7, DISABLE);
+  dma_stream_stop(DMA1_Stream7);
   DMA_DeInit(DMA1_Stream7);
   DMA_Init(DMA1_Stream7, &DMA_InitStructurerx);
 
-  DMA_Cmd(DMA2_Stream1, DISABLE);
+  dma_stream_stop(DMA2_Stream1);
   DMA_DeInit(DMA2_Stream1);
   DMA_Init(DMA2_Stream1, &DMA_InitStructuretx);
   dfdf = 0;
@@ -188,7 +189,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   int count = ARRAY_SIZE(tim_data) - DMA1_Stream7->NDTR;
-  DMA_Cmd(DMA1_Stream7, DISABLE);
+  dma_stream_stop(DMA1_Stream7);
 
   uint16_t bit_time = 15;
 
@@ -299,10 +300,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_1;
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_0;  //set tx pin to output
 
-  DMA_Cmd(DMA2_Stream1, DISABLE);
+  dma_stream_stop(DMA2_Stream1);
   DMA_DeInit(DMA2_Stream1);
   DMA_Init(DMA2_Stream1, &DMA_InitStructuretx);
-  DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF7);
   DMA_Cmd(DMA2_Stream1, ENABLE);  //transmit request
 
   TIM8->CR1 &= ~TIM_CR1_CEN;  // disable tim
@@ -313,8 +313,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   TIM8->CNT = 0;
   TIM8->CR1 |= TIM_CR1_CEN;
 
-  DMA_Cmd(DMA1_Stream7, DISABLE);
-  DMA_ClearFlag(DMA1_Stream7, DMA_FLAG_TCIF7);
+  dma_stream_stop(DMA1_Stream7);
   DMA_Cmd(DMA1_Stream7, ENABLE);
 
   FB0_ENC_TIM->CR1 &= ~TIM_CR1_CEN;

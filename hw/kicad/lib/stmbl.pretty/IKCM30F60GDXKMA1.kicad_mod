@@ -1,4 +1,4 @@
-(footprint "IKCM30F60GAXKMA1_2" (version 20221018) (generator pcbnew)
+(footprint "IKCM30F60GDXKMA1" (version 20221018) (generator pcbnew)
   (layer "F.Cu")
   (descr "DIP 36x21D")
   (tags "Integrated Circuit")
@@ -7,7 +7,7 @@
       (effects (font (size 1.27 1.27) (thickness 0.254)))
     (tstamp 88bfda62-959b-404c-a8c3-b7b13086086a)
   )
-  (fp_text value "IKCM30F60GAXKMA1_2" (at -14.7 -14.3) (layer "F.SilkS") hide
+  (fp_text value "IKCM30F60GDXKMA1" (at -14.7 -14.3) (layer "F.SilkS") hide
       (effects (font (size 1.27 1.27) (thickness 0.254)))
     (tstamp 3dc15f31-3b5b-4cd7-92e3-5eb2bf85bb8d)
   )
@@ -109,7 +109,7 @@
   (pad "22" thru_hole circle (at -7.605 -28.6 90) (size 1.68 1.68) (drill 1.12) (layers "*.Cu" "*.Mask") (tstamp 2254b628-247b-436f-8128-2f1e965a996e))
   (pad "23" thru_hole circle (at -2.875 -28.6 270) (size 1.68 1.68) (drill 1.12) (layers "*.Cu" "*.Mask") (tstamp 7a184f7e-1a42-47f1-a63a-ef8e3b575469))
   (pad "24" thru_hole circle (at 1.855 -28.6 270) (size 1.68 1.68) (drill 1.12) (layers "*.Cu" "*.Mask") (tstamp 97ab41d0-634b-4a5e-894d-c841561394cf))
-  (model "${STMBL}/stmbl.pretty/Infineon_-_IKCM30F60GAXKMA1.step"
+  (model "${STMBL}/stmbl.pretty/Infineon_-_IKCM30F60GDXKMA1.step"
     (offset (xyz -15.1 16 0.2))
     (scale (xyz 1 1.1 1))
     (rotate (xyz 0 0 180))

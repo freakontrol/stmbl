@@ -71,6 +71,59 @@ uint32_t hal_get_systick_freq() {
 void SystemClock_Config(void);
 void Error_Handler(void);
 
+// TIM8 runs on its own: once the rt stops (overrun, MISC_ERROR, stop) the
+// last compares stay latched with no current loop behind them. Nothing on
+// that path reliably calls rt_stop, so the tick checks the state instead.
+void bridge_off(void) {
+  TIM8->BDTR &= ~TIM_BDTR_MOE;
+#ifdef HV_EN_PIN
+  HAL_GPIO_WritePin(HV_EN_PORT, HV_EN_PIN, GPIO_PIN_SET);
+#endif
+}
+
+// Independent watchdog on the 40 kHz LSI, kicked by hal.c at the end of every
+// rt run while the nrt loop keeps coming round (HAL_WATCHDOG). It fires on an
+// rt stop (overrun or error), a hang with irqs off, and an nrt stuck for 1 s;
+// after the reset the pwm pins are inputs and HV_EN's pull-up holds the gates
+// off.
+void hal_init_watchdog(float time) {
+  // RM0316 25.3.4: any other KR write between 0x5555 and the RLR write
+  // re-locks PR/RLR, and the IWDG then runs at the 409 ms reset value. So the
+  // reload is computed first and the sequence runs with interrupts off.
+  uint32_t rlr = (uint32_t)CLAMP(time * 10000.0f, 1.0f, 4095.0f);
+  __disable_irq();
+  IWDG->KR  = 0xCCCC;  // start; from here only a reset stops it
+  IWDG->KR  = 0x5555;  // unlock PR and RLR
+  IWDG->PR  = 0;       // LSI / 4: 0.1 ms per count
+  IWDG->RLR = rlr;
+  while(IWDG->SR) {
+  }
+  IWDG->KR = 0xAAAA;
+  __enable_irq();
+  if(IWDG->RLR != rlr || IWDG->PR != 0) {
+    Error_Handler();  // not armed as asked: stop here, the IWDG resets us
+  }
+}
+
+void hal_reset_watchdog() {
+  IWDG->KR = 0xAAAA;
+}
+
+// Second shutdown path: a comparator break (BRK or BRK2, after the 0xC
+// digital filter) has already cleared MOE in hardware. Raise HV_EN (IPM
+// ITRIP) here, within about a microsecond, instead of waiting for io.c's
+// next rt tick. The IPM then turns its gate driver off on its own and holds
+// it off for at least 40 us. BIE is switched off so the still-set break
+// flag can't re-enter; io.c's nrt re-arms it once the bridge is idle.
+// io.c's rt keeps using MOE and the flags to report HV_OVERCURRENT_HW.
+void TIM8_BRK_IRQHandler() {
+  TIM8->BDTR &= ~TIM_BDTR_MOE;
+#ifdef HV_EN_PIN
+  HV_EN_PORT->BSRR = HV_EN_PIN;
+#endif
+  TIM8->DIER &= ~TIM_DIER_BIE;
+}
+
 void TIM8_UP_IRQHandler() {
   GPIOA->BSRR |= GPIO_PIN_9;
   __HAL_TIM_CLEAR_IT(&htim8, TIM_IT_UPDATE);
@@ -78,6 +131,9 @@ void TIM8_UP_IRQHandler() {
   if(__HAL_TIM_GET_FLAG(&htim8, TIM_IT_UPDATE) == SET) {
     hal_stop();
     hal.hal_state = RT_TOO_LONG;
+  }
+  if(hal.rt_state == RT_STOP) {
+    bridge_off();
   }
   GPIOA->BSRR |= GPIO_PIN_9 << 16;
 }
@@ -126,6 +182,12 @@ void reset(char *ptr) {
 COMMAND("reset", reset, "reset STMBL");
 
 int main(void) {
+  // copy the rt path into CCM RAM, the startup code only copies .data
+  extern uint32_t _siccmram, _sccmram, _eccmram;
+  for(uint32_t *src = &_siccmram, *dst = &_sccmram; dst < &_eccmram;) {
+    *dst++ = *src++;
+  }
+
   // Relocate interrupt vectors
   extern void *g_pfnVectors;
   SCB->VTOR = (uint32_t)&g_pfnVectors;
@@ -136,6 +198,17 @@ int main(void) {
   /* Configure the system clock */
   SystemClock_Config();
   systick_freq = HAL_RCC_GetHCLKFreq();
+  // RM0316 20.3.16: with the break filters on (BKF/BK2F 0xC), break handling
+  // is only guaranteed with a fail-safe clock. CSS switches to HSI if the HSE
+  // fails and also drives TIM8's break (9.2.7); NMI_Handler clears it.
+  HAL_RCC_EnableCSS();
+  // RM0316 20.3.28: with the core halted by a debugger, stop TIM8 and let its
+  // outputs go to the OSSI idle state instead of holding the last compares
+  DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM8_STOP;
+  // a core lockup (fault inside a fault handler) breaks TIM8 in hardware
+  // (SYSCFG_CFGR2 LOCKUP_LOCK), whatever the software is doing
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  SYSCFG->CFGR2 |= SYSCFG_CFGR2_LOCKUP_LOCK;
   /* Initialize all configured peripherals */
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -159,12 +232,20 @@ int main(void) {
   MX_ADC3_Init();
   MX_ADC4_Init();
   MX_DAC_Init();
-  //COMP1 in+ pa1(ADC1_IN2)  in- pa4(dac1_ch1) out TIM8 BRK2
+  //COMP1 in+ pa1 = W (ADC1_IN2)  in- pa4(dac1_ch1) out TIM8 BRK2
   COMP1->CSR = COMP_CSR_COMPxINSEL_2 | COMP1_CSR_COMP1OUTSEL_2 | COMP_CSR_COMPxEN;
-  //COMP2 in+ pa7(ADC2_IN4)  in- pa4(dac1_ch1) out TIM8 BRK_ACTH COMP_CSR_COMPxNONINSEL
-  COMP2->CSR = COMP_CSR_COMPxINSEL_2 | COMP2_CSR_COMP2OUTSEL_0 | COMP2_CSR_COMP2OUTSEL_1 | COMP_CSR_COMPxEN;
-  //COMP4 in+ pb0(ADC3_IN12) in- pa4(dac1_ch1)  out TIM8 BRK
+  //COMP2 in+ pa7 = U (ADC2_IN4)  in- pa4(dac1_ch1) out TIM8 BRK2, like COMP1: BRK_ACTH has
+  //no digital filter (RM0316 table 27 note), so U alone tripped on switching spikes
+  COMP2->CSR = COMP_CSR_COMPxINSEL_2 | COMP2_CSR_COMP2OUTSEL_2 | COMP_CSR_COMPxEN;
+  //COMP4 in+ pb0 = V (ADC3_IN12) in- pa4(dac1_ch1)  out TIM8 BRK
   COMP4->CSR = COMP_CSR_COMPxINSEL_2 | COMP4_CSR_COMP4OUTSEL_0 | COMP4_CSR_COMP4OUTSEL_1 | COMP_CSR_COMPxEN;
+  // no hysteresis: tried low (RM0316 17.3.5) on Y, it holds the output through
+  // the ringing after an edge and the break filter then trips 10-25 counts
+  // earlier. Lock the three CSRs read-only until reset (17.3.4), as the RM
+  // suggests for overcurrent protection; the threshold is the DAC, not the CSR.
+  COMP1->CSR |= COMP_CSR_COMPxLOCK;
+  COMP2->CSR |= COMP_CSR_COMPxLOCK;
+  COMP4->CSR |= COMP_CSR_COMPxLOCK;
   MX_OPAMP1_Init();
   MX_OPAMP2_Init();
   MX_OPAMP3_Init();
@@ -231,10 +312,35 @@ int main(void) {
   htim8.Instance->CCR2 = 0;
   htim8.Instance->CCR3 = 0;
 
-  HAL_ADC_Start(&hadc1);
-  HAL_ADC_Start(&hadc2);
-  HAL_ADC_Start(&hadc3);
+  // ADC1/2 and ADC3/4 in regular simultaneous dual mode, one DMA request per
+  // pair (MDMA 10, 12 bit) that reads both results from the common CDR. CDR
+  // holds the slave's result only in dual mode (RM0316 15.6.3, 15.3.29). The
+  // sequences match rank for rank in length and sampling time, as the mode
+  // needs. DUAL and MDMA only while the ADCs are disabled, and DMAEN/DMACFG
+  // only with ADSTART = 0 (RM0316 15.5.4): all of it before the start, so the
+  // first DMA word is always rank 1.
+  extern volatile uint32_t adc_12_buf[ADC_SEQ_LEN];
+  extern volatile uint32_t adc_34_buf[ADC_SEQ_LEN];
+  DMA1_Channel1->CCR &= ~DMA_CCR_EN;
+  DMA1_Channel1->CPAR  = (uint32_t) & (ADC12_COMMON->CDR);
+  DMA1_Channel1->CMAR  = (uint32_t)adc_12_buf;
+  DMA1_Channel1->CNDTR = ADC_SEQ_LEN;
+  DMA1_Channel1->CCR   = DMA_CCR_MINC | DMA_CCR_PL_0 | DMA_CCR_MSIZE_1 | DMA_CCR_PSIZE_1 | DMA_CCR_CIRC;
+  DMA1_Channel1->CCR |= DMA_CCR_EN;
+  DMA2_Channel5->CCR &= ~DMA_CCR_EN;
+  DMA2_Channel5->CPAR  = (uint32_t) & (ADC34_COMMON->CDR);
+  DMA2_Channel5->CMAR  = (uint32_t)adc_34_buf;
+  DMA2_Channel5->CNDTR = ADC_SEQ_LEN;
+  DMA2_Channel5->CCR   = DMA_CCR_MINC | DMA_CCR_PL_0 | DMA_CCR_MSIZE_1 | DMA_CCR_PSIZE_1 | DMA_CCR_CIRC;
+  DMA2_Channel5->CCR |= DMA_CCR_EN;
+  const uint32_t ccr = ADC_CCR_DUAL_1 | ADC_CCR_DUAL_2 | ADC_CCR_MDMA_1 | ADC_CCR_DMACFG;  // DUAL 00110
+  ADC12_COMMON->CCR = (ADC12_COMMON->CCR & ~(ADC_CCR_DUAL | ADC_CCR_MDMA)) | ccr;
+  ADC34_COMMON->CCR = (ADC34_COMMON->CCR & ~(ADC_CCR_DUAL | ADC_CCR_MDMA)) | ccr;
+
+  HAL_ADC_Start(&hadc2);  // slaves first: in dual mode only enables them
   HAL_ADC_Start(&hadc4);
+  HAL_ADC_Start(&hadc1);  // masters: enable and ADSTART, the pair follows T8_TRGO
+  HAL_ADC_Start(&hadc3);
   HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
   HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
   if(HAL_TIM_Base_Start_IT(&htim8) != HAL_OK) {
@@ -271,17 +377,17 @@ int main(void) {
   hal_parse("load ls");
   hal_parse("load dq");
   hal_parse("load idq");
-  hal_parse("load svm");
   hal_parse("load hv");
   hal_parse("load curpid");
+  hal_parse("load emf");
 
   hal_parse("ls0.rt_prio = 0.6");
   hal_parse("io0.rt_prio = 1.0");
   hal_parse("dq0.rt_prio = 2.0");
   hal_parse("curpid0.rt_prio = 3.0");
   hal_parse("idq0.rt_prio = 4.0");
-  hal_parse("svm0.rt_prio = 5.0");
   hal_parse("hv0.rt_prio = 6.0");
+  hal_parse("emf0.rt_prio = 7.0");
 
   hal_parse("term0.send_step = 0.0");
 
@@ -293,26 +399,28 @@ int main(void) {
   hal_parse("io0.led = ls0.fault");
   hal_parse("curpid0.id_cmd = ls0.d_cmd");
   hal_parse("curpid0.iq_cmd = ls0.q_cmd");
-  hal_parse("idq0.pos = ls0.pos");
+  hal_parse("idq0.pos = ls0.pos_v");  // the voltage angle, see ls.c
   hal_parse("idq0.mode = ls0.phase_mode");
+  hal_parse("idq0.ext_sc = 0");  // own sincos at pos_v; dq0 keeps the sample angle
   hal_parse("dq0.pos = ls0.pos");
   hal_parse("dq0.mode = ls0.phase_mode");
   hal_parse("io0.hv_en = ls0.en");
+  hal_parse("io0.sbrake = ls0.sbrake");
+  hal_parse("hv0.sbrake = io0.sbrake_on");
   hal_parse("io0.dac = ls0.dac");
 
   //ADC TEST
-  hal_parse("hv0.udc = io0.udc");
+  hal_parse("hv0.udc = io0.udc_duty");
+  hal_parse("ls0.duty_max = hv0.duty_max");
   hal_parse("dq0.u = io0.iu");
   hal_parse("dq0.v = io0.iv");
   hal_parse("dq0.w = io0.iw");
 
-  hal_parse("svm0.u = idq0.u");
-  hal_parse("svm0.v = idq0.v");
-  hal_parse("svm0.w = idq0.w");
-  hal_parse("hv0.u = svm0.su");
-  hal_parse("hv0.v = svm0.sv");
-  hal_parse("hv0.w = svm0.sw");
-  hal_parse("svm0.udc = io0.udc");
+  hal_parse("hv0.u = idq0.u");  // hv0 adds the dead-time comp, then the SVM offset
+  hal_parse("hv0.v = idq0.v");
+  hal_parse("hv0.w = idq0.w");
+  hal_parse("hv0.id_fb = dq0.d");  // volt-mode dead-time reference
+  hal_parse("hv0.iq_fb = dq0.q");
   hal_parse("curpid0.id_fb = dq0.d");
   hal_parse("curpid0.iq_fb = dq0.q");
   hal_parse("ls0.id_fb = dq0.d");
@@ -327,17 +435,20 @@ int main(void) {
   hal_parse("idq0.q = curpid0.uq");
   hal_parse("curpid0.r = ls0.r");
   hal_parse("curpid0.ld = ls0.l");
-  hal_parse("curpid0.lq = ls0.l");
+  hal_parse("curpid0.lq = ls0.lq");  // ls0.lq falls back to ls0.l
   hal_parse("curpid0.psi = ls0.psi");
   hal_parse("curpid0.cur_bw = ls0.cur_bw");
   hal_parse("curpid0.ff = ls0.cur_ff");
   hal_parse("curpid0.kind = ls0.cur_ind");
   hal_parse("curpid0.max_cur = ls0.max_cur");
+  hal_parse("io0.max_cur = ls0.max_cur");
   hal_parse("curpid0.pwm_volt = ls0.pwm_volt");
   hal_parse("curpid0.vel = ls0.vel");
   hal_parse("curpid0.en = ls0.en");
   hal_parse("curpid0.cmd_mode = ls0.cmd_mode");
   hal_parse("hv0.arr = ls0.arr");
+  hal_parse("hv0.drop_k = ls0.drop_k");
+  hal_parse("hv0.drop_knee = ls0.drop_knee");
   hal_parse("io0.ignore_fault_pin = ls0.ignore_fault_pin");
   // hal_parse("load sensorless");
   // hal_parse("sensorless0.rt_prio = 7");
@@ -347,15 +458,35 @@ int main(void) {
   // hal_parse("sensorless0.iq = dq0.q");
   // hal_parse("sensorless0.ud = curpid0.ud");
   // hal_parse("sensorless0.uq = curpid0.uq");
-  hal_parse("hv0.iu = io0.iu");
-  hal_parse("hv0.iv = io0.iv");
-  hal_parse("hv0.iw = io0.iw");
+  // dead time compensation sign from the commanded current, not from io0
+  hal_parse("hv0.d_cmd = ls0.d_cmd");
+  hal_parse("hv0.q_cmd = ls0.q_cmd");
+  hal_parse("hv0.si = idq0.si_out");  // dead-time reference on the voltage angle
+  hal_parse("hv0.co = idq0.co_out");
+  hal_parse("hv0.cmd_mode = ls0.cmd_mode");
+  hal_parse("hv0.phase_mode = ls0.phase_mode");
+
+  // per pole back emf on a bridge off coast, read back by idpmsm's psi test
+  hal_parse("emf0.u = io0.ur");
+  hal_parse("emf0.v = io0.vr");
+  hal_parse("emf0.w = io0.wr");
+  hal_parse("emf0.pos = ls0.pos");
+  hal_parse("emf0.si = dq0.si");
+  hal_parse("emf0.co = dq0.co");
+  hal_parse("emf0.en = ls0.en");
+  hal_parse("emf0.run = ls0.emf_run");
+  hal_parse("emf0.sel = ls0.emf_sel");
+  hal_parse("emf0.pp = ls0.emf_pp");
+  hal_parse("ls0.emf_val = emf0.val");
 
   hal_parse("debug_level 0");
 
   // hal parse config
   // hal_init_nrt();
   // error foo
+  // armed before the rt starts, so a hang in the very first rt tick resets
+  // too, and no rt kick can land inside the key sequence
+  hal_init_watchdog(0.005);
   hal_start();
 
   while(1) {
@@ -420,7 +551,7 @@ void SystemClock_Config(void) {
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 
   /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);  // same level as the rt, below the break
 }
 
 /**

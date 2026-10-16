@@ -148,24 +148,68 @@ uint8_t USB_CDC_is_connected(void) {
 //TODO: implement new term API
 void cdc_init(void) {}
 
+extern uint32_t APP_Rx_ptr_out;
+
+// Free bytes in the IN ring. APP_Rx_ptr_out belongs to the USB interrupt
+// (Handle_USBAsynchXfer), which leaves it at APP_RX_DATA_SIZE after draining
+// to the end and only folds it back to 0 on its next pass, so that value means
+// 0 here. One byte stays unused: in == out has to mean empty.
+static uint32_t cdc_tx_room(void) {
+  uint32_t out = *(volatile uint32_t *)&APP_Rx_ptr_out;
+  if(out >= APP_RX_DATA_SIZE) {
+    out = 0;
+  }
+  uint32_t used = (APP_Rx_ptr_in + APP_RX_DATA_SIZE - out) % APP_RX_DATA_SIZE;
+  return APP_RX_DATA_SIZE - 1 - used;
+}
+
+// Copy len bytes into the IN ring and publish them with a single store of
+// APP_Rx_ptr_in, so the interrupt never sees a half folded index. Callers
+// check the room first: lapping unsent bytes corrupts the host's demux.
+static void cdc_tx_put(const uint8_t *data, uint32_t len) {
+  uint32_t in = APP_Rx_ptr_in;
+  while(len--) {
+    APP_Rx_Buffer[in] = *data++;
+    in                = in + 1 >= APP_RX_DATA_SIZE ? 0 : in + 1;
+  }
+  __asm__ volatile("" ::: "memory");  // the bytes land before the index moves
+  *(volatile uint32_t *)&APP_Rx_ptr_in = in;
+}
+
+// Scope packets go whole or not at all: a partial packet desyncs the host, a
+// missing one is just a gap.
 int cdc_tx(void *data, uint32_t len) {
-  if(!cdc_is_connected()) {
+  if(!cdc_is_connected() || cdc_tx_room() < len) {
     return 0;
   }
-  while(len--) {
-    // send a queued byte - copy to usb stack buffer
-    APP_Rx_Buffer[APP_Rx_ptr_in++] = *(uint8_t *)data;
-    data++;
-    // To avoid buffer overflow
-    if(APP_Rx_ptr_in >= APP_RX_DATA_SIZE) {
-      APP_Rx_ptr_in = 0;
-    }
-  }
+  cdc_tx_put((const uint8_t *)data, len);
   return len;
 }
 
+// Text waits a little for the interrupt to drain, then drops what does not
+// fit rather than overwriting what has not been sent.
+int cdc_tx_text(const char *data, int len) {
+  int sent = 0;
+  for(uint32_t spin = 0; len > 0 && spin < 200000; spin++) {
+    uint32_t room = cdc_tx_room();
+    if(room == 0) {
+      continue;
+    }
+    uint32_t n = (uint32_t)len < room ? (uint32_t)len : room;
+    cdc_tx_put((const uint8_t *)data + sent, n);
+    sent += n;
+    len -= n;
+  }
+  return sent;
+}
+
+// usb_rx_buf is filled from the USB interrupt and ringbuf.c has no locking,
+// which merged and lost commands: hold the interrupt off while reading
 int cdc_getline(char *ptr, int len) {
-  return rb_getline(&usb_rx_buf, ptr, len);
+  NVIC_DisableIRQ(OTG_FS_IRQn);
+  int ret = rb_getline(&usb_rx_buf, ptr, len);
+  NVIC_EnableIRQ(OTG_FS_IRQn);
+  return ret;
 }
 
 int cdc_is_connected() {
