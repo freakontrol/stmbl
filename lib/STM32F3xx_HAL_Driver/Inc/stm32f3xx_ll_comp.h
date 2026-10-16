@@ -6,29 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+  * Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -48,7 +31,7 @@ extern "C" {
   * @{
   */
 
-/* Note: Devices of STM32F3 serie embed 1 out of 2 different comparator IP.   */
+/* Note: Devices of STM32F3 series embed 1 out of 2 different comparator IP.   */
 /*       - STM32F30x, STM32F31x, STM32F32x, STM32F33x, STM32F35x, STM32F39x:  */
 /*         COMP IP from 3 to 7 instances and other specific features          */
 /*         (comparator output blanking, ...) (refer to reference manual).     */
@@ -93,37 +76,37 @@ typedef struct
 {
   uint32_t PowerMode;                   /*!< Set comparator operating mode to adjust power and speed.
                                              This parameter can be a value of @ref COMP_LL_EC_POWERMODE
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetPowerMode(). */
 
   uint32_t InputPlus;                   /*!< Set comparator input plus (non-inverting input).
                                              This parameter can be a value of @ref COMP_LL_EC_INPUT_PLUS
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetInputPlus(). */
 
   uint32_t InputMinus;                  /*!< Set comparator input minus (inverting input).
                                              This parameter can be a value of @ref COMP_LL_EC_INPUT_MINUS
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetInputMinus(). */
 
   uint32_t InputHysteresis;             /*!< Set comparator hysteresis mode of the input minus.
                                              This parameter can be a value of @ref COMP_LL_EC_INPUT_HYSTERESIS
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetInputHysteresis(). */
 
   uint32_t OutputSelection;             /*!< Set comparator output selection.
                                              This parameter can be a value of @ref COMP_LL_EC_OUTPUT_SELECTION
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetOutputSelection(). */
 
   uint32_t OutputPolarity;              /*!< Set comparator output polarity.
                                              This parameter can be a value of @ref COMP_LL_EC_OUTPUT_POLARITY
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetOutputPolarity(). */
 
   uint32_t OutputBlankingSource;        /*!< Set comparator blanking source.
                                              This parameter can be a value of @ref COMP_LL_EC_OUTPUT_BLANKING_SOURCE
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetOutputBlankingSource(). */
 
 } LL_COMP_InitTypeDef;
@@ -251,7 +234,7 @@ typedef struct
   */
 #define LL_COMP_OUTPUT_NONE             ((uint32_t)0x00000000)                                                      /*!< COMP output is not connected to other peripherals (except GPIO and EXTI that are always connected to COMP output) (specific to COMP instance: COMP2) */
 #if defined(COMP_CSR_COMPxOUT)
-/* Note: Output redirection common to all COMP instances, all STM32F3 serie   */
+/* Note: Output redirection common to all COMP instances, all STM32F3 series   */
 /*       devices.                                                             */
 #define LL_COMP_OUTPUT_TIM1_BKIN        (COMP_CSR_COMPxOUTSEL_0)                                                    /*!< COMP output connected to TIM1 break input (BKIN) */
 #define LL_COMP_OUTPUT_TIM1_BKIN2       (COMP_CSR_COMPxOUTSEL_1)                                                    /*!< COMP output connected to TIM1 break input 2 (BKIN2) */
@@ -276,7 +259,7 @@ typedef struct
 /*       Refer to literal definitions above for COMP instance constraints.    */
 /* Note: Some output redirections cannot have a generic naming,               */
 /*       due to literal value different depending on COMP instance.           */
-/*       (For exemple: LL_COMP_OUTPUT_TIM2_OCCLR_COMP2 and                    */
+/*       (For example: LL_COMP_OUTPUT_TIM2_OCCLR_COMP2 and                    */
 /*       LL_COMP_OUTPUT_TIM2_OCCLR_COMP6).                                    */
 #define LL_COMP_OUTPUT_TIM1_IC1          LL_COMP_OUTPUT_TIM1_IC1_COMP2         /*!< COMP output connected to TIM1 input capture 1.     Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
 #define LL_COMP_OUTPUT_TIM1_OCCLR        LL_COMP_OUTPUT_TIM1_OCCLR_COMP2       /*!< COMP output connected to TIM1 OCREF clear.         Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
@@ -299,7 +282,7 @@ typedef struct
 #define LL_COMP_OUTPUT_TIM2_IC4_COMP2    (COMP_CSR_COMPxOUTSEL_3)                                                   /*!< COMP output connected to TIM1 input capture 4 (specific to COMP instance: COMP2) */
 #define LL_COMP_OUTPUT_TIM1_OCCLR_COMP2  (COMP_CSR_COMPxOUTSEL_2 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM1 OCREF clear (specific to COMP instance: COMP2) */
 #define LL_COMP_OUTPUT_TIM2_OCCLR_COMP2  (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_0)                          /*!< COMP output connected to TIM2 OCREF clear (specific to COMP instance: COMP2) */
-#define LL_COMP_OUTPUT_TIM3_IC1_COMP2    (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_1 | COMP_CSR_COMPxOUTSEL_0) /*!< COMP output connected to TIM3 input capture 1 (specific to COMP instance: COMP2) */
+#define LL_COMP_OUTPUT_TIM3_IC1_COMP2    (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM3 input capture 1 (specific to COMP instance: COMP2) */
 /* Note: Output redirection specific to COMP instance: COMP4 */
 #define LL_COMP_OUTPUT_TIM3_IC3_COMP4    (COMP_CSR_COMPxOUTSEL_2 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM3 input capture 3 (specific to COMP instance: COMP4) */
 #define LL_COMP_OUTPUT_TIM15_IC2_COMP4   (COMP_CSR_COMPxOUTSEL_3)                                                   /*!< COMP output connected to TIM15 input capture 1 (specific to COMP instance: COMP4) */
@@ -315,7 +298,7 @@ typedef struct
 /*       Refer to literal definitions above for COMP instance constraints.    */
 /* Note: Some output redirections cannot have a generic naming,               */
 /*       due to literal value different depending on COMP instance.           */
-/*       (For exemple: LL_COMP_OUTPUT_TIM2_OCCLR_COMP2 and                    */
+/*       (For example: LL_COMP_OUTPUT_TIM2_OCCLR_COMP2 and                    */
 /*       LL_COMP_OUTPUT_TIM2_OCCLR_COMP6).                                    */
 #define LL_COMP_OUTPUT_TIM1_IC1          LL_COMP_OUTPUT_TIM1_IC1_COMP2         /*!< COMP output connected to TIM1 input capture 1.     Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
 #define LL_COMP_OUTPUT_TIM1_OCCLR        LL_COMP_OUTPUT_TIM1_OCCLR_COMP2       /*!< COMP output connected to TIM1 OCREF clear.         Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
@@ -341,7 +324,7 @@ typedef struct
 #define LL_COMP_OUTPUT_TIM2_IC4_COMP1_2    (COMP_CSR_COMPxOUTSEL_3)                                                   /*!< COMP output connected to TIM2 input capture 4 (specific to COMP instance: COMP2) */
 #define LL_COMP_OUTPUT_TIM1_OCCLR_COMP1_2  (COMP_CSR_COMPxOUTSEL_2 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM1 OCREF clear (specific to COMP instance: COMP2) */
 #define LL_COMP_OUTPUT_TIM2_OCCLR_COMP1_2  (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_0)                          /*!< COMP output connected to TIM2 OCREF clear (specific to COMP instance: COMP2) */
-#define LL_COMP_OUTPUT_TIM3_IC1_COMP1_2    (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_1 | COMP_CSR_COMPxOUTSEL_0) /*!< COMP output connected to TIM3 input capture 1 (specific to COMP instance: COMP2) */
+#define LL_COMP_OUTPUT_TIM3_IC1_COMP1_2    (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM3 input capture 1 (specific to COMP instance: COMP2) */
 /* Note: Output redirection specific to COMP instance: COMP4 */
 #define LL_COMP_OUTPUT_TIM3_IC3_COMP4      (COMP_CSR_COMPxOUTSEL_2 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM3 input capture 3 (specific to COMP instance: COMP4) */
 #define LL_COMP_OUTPUT_TIM4_IC2_COMP4      (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_0)                          /*!< COMP output connected to TIM4 input capture 2 (specific to COMP instance: COMP4) */
@@ -359,7 +342,7 @@ typedef struct
 /*       Refer to literal definitions above for COMP instance constraints.    */
 /* Note: Some output redirections cannot have a generic naming,               */
 /*       due to literal value different depending on COMP instance.           */
-/*       (For exemple: LL_COMP_OUTPUT_TIM2_OCCLR_COMP1_2 and                  */
+/*       (For example: LL_COMP_OUTPUT_TIM2_OCCLR_COMP1_2 and                  */
 /*       LL_COMP_OUTPUT_TIM2_OCCLR_COMP6).                                    */
 #define LL_COMP_OUTPUT_TIM1_IC1          LL_COMP_OUTPUT_TIM1_IC1_COMP1_2       /*!< COMP output connected to TIM1 input capture 1.     Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
 #define LL_COMP_OUTPUT_TIM1_OCCLR        LL_COMP_OUTPUT_TIM1_OCCLR_COMP1_2     /*!< COMP output connected to TIM1 OCREF clear.         Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
@@ -400,7 +383,7 @@ typedef struct
 /* Note: Output redirection specific to COMP instance: COMP1, COMP2 */
 #define LL_COMP_OUTPUT_TIM1_IC1_COMP1_2  (COMP_CSR_COMPxOUTSEL_2 | COMP_CSR_COMPxOUTSEL_1 | COMP_CSR_COMPxOUTSEL_0) /*!< COMP output connected to TIM1 input capture 1 (specific to COMP instance: COMP2) */
 #define LL_COMP_OUTPUT_TIM2_IC4_COMP1_2  (COMP_CSR_COMPxOUTSEL_3)                                                   /*!< COMP output connected to TIM2 input capture 4 (specific to COMP instance: COMP2) */
-#define LL_COMP_OUTPUT_TIM3_IC1_COMP1_2  (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_1 | COMP_CSR_COMPxOUTSEL_0) /*!< COMP output connected to TIM3 input capture 1 (specific to COMP instance: COMP2) */
+#define LL_COMP_OUTPUT_TIM3_IC1_COMP1_2  (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_1)                          /*!< COMP output connected to TIM3 input capture 1 (specific to COMP instance: COMP2) */
 #if defined(STM32F303xE) || defined(STM32F398xx)
 #define LL_COMP_OUTPUT_TIM20_OCCLR_COMP2 (COMP_CSR_COMPxOUTSEL_3 | COMP_CSR_COMPxOUTSEL_2 | COMP_CSR_COMPxOUTSEL_1 | COMP_CSR_COMPxOUTSEL_0) /*!< COMP output connected to TIM20 OCREF clear (specific to COMP instance: COMP2) */
 #endif
@@ -436,7 +419,7 @@ typedef struct
 /*       Refer to literal definitions above for COMP instance constraints.    */
 /* Note: Some output redirections cannot have a generic naming,               */
 /*       due to literal value different depending on COMP instance.           */
-/*       (For exemple: LL_COMP_OUTPUT_TIM2_OCCLR_COMP1_2_3 and                */
+/*       (For example: LL_COMP_OUTPUT_TIM2_OCCLR_COMP1_2_3 and                */
 /*       LL_COMP_OUTPUT_TIM2_OCCLR_COMP6).                                    */
 #define LL_COMP_OUTPUT_TIM1_IC1          LL_COMP_OUTPUT_TIM1_IC1_COMP1_2       /*!< COMP output connected to TIM1 input capture 1.     Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
 #define LL_COMP_OUTPUT_TIM1_IC2          LL_COMP_OUTPUT_TIM1_IC2_COMP7         /*!< COMP output connected to TIM2 input capture 1.     Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
@@ -654,7 +637,7 @@ typedef struct
   * @retval COMP common instance or value "0" if there is no COMP common instance.
   */
 #if defined(COMP1) && defined(COMP2) && defined(COMP3) && defined(COMP4) && defined(COMP5) && defined(COMP6) && defined(COMP7)
-/* Note: On STM32F3 serie devices with 7 comparator instances,                */
+/* Note: On STM32F3 series devices with 7 comparator instances,                */
 /*       COMP instance COMP7 has no other comparator instance to work         */
 /*       in pair with: window mode is not available for COMP7.                */
 #define __LL_COMP_COMMON_INSTANCE(__COMPx__)                                   \
@@ -691,7 +674,7 @@ typedef struct
       )                                                                        \
   )
 #elif defined(COMP2) && defined(COMP4) && defined(COMP6)
-/* Note: On STM32F3 serie devices with 3 comparator instances (COMP2, 4, 6)   */
+/* Note: On STM32F3 series devices with 3 comparator instances (COMP2, 4, 6)   */
 /*       COMP instances have no other comparator instance to work             */
 /*       in pair with: window mode is not available for all COMP instances.   */
 #define __LL_COMP_COMMON_INSTANCE(__COMPx__)                                   \
@@ -784,7 +767,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetCommonWindowMode(COMP_Common_TypeDef *COMPxy
   *         @arg @ref LL_COMP_POWERMODE_MEDIUMSPEED   (1)
   *         @arg @ref LL_COMP_POWERMODE_LOWPOWER      (1)
   *         @arg @ref LL_COMP_POWERMODE_ULTRALOWPOWER (1)
-  *         
+  *
   *         (1) Parameter available only on devices: STM32F302xB/C, STM32F303xB/C, STM32F358xC
   * @retval None
   */
@@ -808,7 +791,7 @@ __STATIC_INLINE void LL_COMP_SetPowerMode(COMP_TypeDef *COMPx, uint32_t PowerMod
   *         @arg @ref LL_COMP_POWERMODE_MEDIUMSPEED   (1)
   *         @arg @ref LL_COMP_POWERMODE_LOWPOWER      (1)
   *         @arg @ref LL_COMP_POWERMODE_ULTRALOWPOWER (1)
-  *         
+  *
   *         (1) Parameter available only on devices: STM32F302xB/C, STM32F303xB/C, STM32F358xC
   */
 __STATIC_INLINE uint32_t LL_COMP_GetPowerMode(COMP_TypeDef *COMPx)
@@ -834,7 +817,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetPowerMode(COMP_TypeDef *COMPx)
   * @note   In case of comparator input selected to be connected to IO:
   *         GPIO pins are specific to each comparator instance.
   *         Refer to description of parameters or to reference manual.
-  * @note   On this STM32 serie, a voltage scaler is used
+  * @note   On this STM32 series, a voltage scaler is used
   *         when COMP input is based on VrefInt (VrefInt or subdivision
   *         of VrefInt):
   *         Voltage scaler requires a delay for voltage stabilization.
@@ -862,7 +845,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetPowerMode(COMP_TypeDef *COMPx)
   *         @arg @ref LL_COMP_INPUT_PLUS_IO2            (1)
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1_COMP1 (2)
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1_COMP2 (3)
-  *         
+  *
   *         (1) Parameter available only on devices STM32F302xB/C, STM32F303xB/C, STM32F358xC.\n
   *         (2) Parameter available on devices: STM32F302xB/C, STM32F302xD/E, STM32F303xB/C/D/E, STM32F358xC, STM32F398xE.\n
   *         (3) Parameter available on devices: STM32F301x6/8, STM32F318xx, STM32F302x6/8.
@@ -906,7 +889,7 @@ __STATIC_INLINE void LL_COMP_ConfigInputs(COMP_TypeDef *COMPx, uint32_t InputMin
   *         @arg @ref LL_COMP_INPUT_PLUS_IO2            (1)
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1_COMP1 (2)
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1_COMP2 (3)
-  *         
+  *
   *         (1) Parameter available only on devices STM32F302xB/C, STM32F303xB/C, STM32F358xC.\n
   *         (2) Parameter available on devices: STM32F302xB/C, STM32F302xD/E, STM32F303xB/C/D/E, STM32F358xC, STM32F398xE.\n
   *         (3) Parameter available on devices: STM32F301x6/8, STM32F318xx, STM32F302x6/8.
@@ -941,7 +924,7 @@ __STATIC_INLINE void LL_COMP_SetInputPlus(COMP_TypeDef *COMPx, uint32_t InputPlu
   *         @arg @ref LL_COMP_INPUT_PLUS_IO2            (1)
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1_COMP1 (2)
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1_COMP2 (3)
-  *         
+  *
   *         (1) Parameter available only on devices STM32F302xB/C, STM32F303xB/C, STM32F358xC.\n
   *         (2) Parameter available on devices: STM32F302xB/C, STM32F302xD/E, STM32F303xB/C/D/E, STM32F358xC, STM32F398xE.\n
   *         (3) Parameter available on devices: STM32F301x6/8, STM32F318xx, STM32F302x6/8.
@@ -969,7 +952,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetInputPlus(COMP_TypeDef *COMPx)
   * @note   In case of comparator input selected to be connected to IO:
   *         GPIO pins are specific to each comparator instance.
   *         Refer to description of parameters or to reference manual.
-  * @note   On this STM32 serie, a voltage scaler is used
+  * @note   On this STM32 series, a voltage scaler is used
   *         when COMP input is based on VrefInt (VrefInt or subdivision
   *         of VrefInt):
   *         Voltage scaler requires a delay for voltage stabilization.
@@ -1035,7 +1018,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetInputMinus(COMP_TypeDef *COMPx)
   *         @arg @ref LL_COMP_HYSTERESIS_LOW         (1)
   *         @arg @ref LL_COMP_HYSTERESIS_MEDIUM      (1)
   *         @arg @ref LL_COMP_HYSTERESIS_HIGH        (1)
-  *         
+  *
   *         (1) Parameter available only on devices: STM32F302xB/C, STM32F303xB/C, STM32F358xC
   * @retval None
   */
@@ -1059,7 +1042,7 @@ __STATIC_INLINE void LL_COMP_SetInputHysteresis(COMP_TypeDef *COMPx, uint32_t In
   *         @arg @ref LL_COMP_HYSTERESIS_LOW         (1)
   *         @arg @ref LL_COMP_HYSTERESIS_MEDIUM      (1)
   *         @arg @ref LL_COMP_HYSTERESIS_HIGH        (1)
-  *         
+  *
   *         (1) Parameter available only on devices: STM32F302xB/C, STM32F303xB/C, STM32F358xC
   */
 __STATIC_INLINE uint32_t LL_COMP_GetInputHysteresis(COMP_TypeDef *COMPx)
@@ -1130,7 +1113,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetInputHysteresis(COMP_TypeDef *COMPx)
   *         @arg @ref LL_COMP_OUTPUT_TIM2_IC3_COMP7         (4)
   *         @arg @ref LL_COMP_OUTPUT_TIM17_OCCLR_COMP7      (4)
   *         @arg @ref LL_COMP_OUTPUT_TIM17_BKIN             (4)
-  *         
+  *
   *         (1) Parameter available on devices: STM32F302x8, STM32F318xx, STM32F303x8, STM32F328xx, STM32F334x8, STM32F302xC, STM32F302xE, STM32F303xC, STM32F358xx, STM32F303xE, STM32F398xx.\n
   *         (2) Parameter available on devices: STM32F301x8, STM32F302x8, STM32F318xx, STM32F303x8, STM32F328xx, STM32F334x8.\n
   *         (3) Parameter available on devices: STM32F302xC, STM32F302xE, STM32F303xC, STM32F358xx, STM32F303xE, STM32F398xx.\n
@@ -1141,7 +1124,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetInputHysteresis(COMP_TypeDef *COMPx)
   */
 __STATIC_INLINE void LL_COMP_SetOutputSelection(COMP_TypeDef *COMPx, uint32_t OutputSelection)
 {
-  MODIFY_REG(COMPx->CSR, COMP_CSR_COMPxOUTSEL , OutputSelection);
+  MODIFY_REG(COMPx->CSR, COMP_CSR_COMPxOUTSEL, OutputSelection);
 }
 
 /**
@@ -1194,7 +1177,7 @@ __STATIC_INLINE void LL_COMP_SetOutputSelection(COMP_TypeDef *COMPx, uint32_t Ou
   *         @arg @ref LL_COMP_OUTPUT_TIM2_IC3_COMP7         (4)
   *         @arg @ref LL_COMP_OUTPUT_TIM17_OCCLR_COMP7      (4)
   *         @arg @ref LL_COMP_OUTPUT_TIM17_BKIN             (4)
-  *         
+  *
   *         (1) Parameter available on devices: STM32F302x8, STM32F318xx, STM32F303x8, STM32F328xx, STM32F334x8, STM32F302xC, STM32F302xE, STM32F303xC, STM32F358xx, STM32F303xE, STM32F398xx.\n
   *         (2) Parameter available on devices: STM32F301x8, STM32F302x8, STM32F318xx, STM32F303x8, STM32F328xx, STM32F334x8.\n
   *         (3) Parameter available on devices: STM32F302xC, STM32F302xE, STM32F303xC, STM32F358xx, STM32F303xE, STM32F398xx.\n
@@ -1258,7 +1241,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetOutputPolarity(COMP_TypeDef *COMPx)
   *         @arg @ref LL_COMP_BLANKINGSRC_TIM2_OC4_COMP3_6     (3)
   *         @arg @ref LL_COMP_BLANKINGSRC_TIM8_OC5_COMP4_5_6_7 (3)
   *         @arg @ref LL_COMP_BLANKINGSRC_TIM15_OC2_COMP6_7    (3)
-  *         
+  *
   *         (1) Parameter available on devices: STM32F301x8, STM32F302x8, STM32F318xx, STM32F303x8, STM32F334x8, STM32F328xx.\n
   *         (2) Parameter available on devices: STM32F302xE, STM32F302xC.\n
   *         (3) Parameter available on devices: STM32F303xE, STM32F398xx, STM32F303xC, STM32F358xx.
@@ -1293,7 +1276,7 @@ __STATIC_INLINE void LL_COMP_SetOutputBlankingSource(COMP_TypeDef *COMPx, uint32
   *         @arg @ref LL_COMP_BLANKINGSRC_TIM2_OC4_COMP3_6     (3)
   *         @arg @ref LL_COMP_BLANKINGSRC_TIM8_OC5_COMP4_5_6_7 (3)
   *         @arg @ref LL_COMP_BLANKINGSRC_TIM15_OC2_COMP6_7    (3)
-  *         
+  *
   *         (1) Parameter available on devices: STM32F301x8, STM32F302x8, STM32F318xx, STM32F303x8, STM32F334x8, STM32F328xx.\n
   *         (2) Parameter available on devices: STM32F302xE, STM32F302xC.\n
   *         (3) Parameter available on devices: STM32F303xE, STM32F398xx, STM32F303xC, STM32F358xx.
@@ -1513,32 +1496,32 @@ typedef struct
 {
   uint32_t PowerMode;                   /*!< Set comparator operating mode to adjust power and speed.
                                              This parameter can be a value of @ref COMP_LL_EC_POWERMODE
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetPowerMode(). */
 
   uint32_t InputPlus;                   /*!< Set comparator input plus (non-inverting input).
                                              This parameter can be a value of @ref COMP_LL_EC_INPUT_PLUS
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetInputPlus(). */
 
   uint32_t InputMinus;                  /*!< Set comparator input minus (inverting input).
                                              This parameter can be a value of @ref COMP_LL_EC_INPUT_MINUS
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetInputMinus(). */
 
   uint32_t InputHysteresis;             /*!< Set comparator hysteresis mode of the input minus.
                                              This parameter can be a value of @ref COMP_LL_EC_INPUT_HYSTERESIS
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetInputHysteresis(). */
 
   uint32_t OutputSelection;             /*!< Set comparator output selection.
                                              This parameter can be a value of @ref COMP_LL_EC_OUTPUT_SELECTION
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetOutputSelection(). */
 
   uint32_t OutputPolarity;              /*!< Set comparator output polarity.
                                              This parameter can be a value of @ref COMP_LL_EC_OUTPUT_POLARITY
-                                             
+
                                              This feature can be modified afterwards using unitary function @ref LL_COMP_SetOutputPolarity(). */
 
 } LL_COMP_InitTypeDef;
@@ -1638,7 +1621,7 @@ typedef struct
 /*       Refer to literal definitions above for COMP instance constraints.    */
 /* Note: Some output redirections cannot have a generic naming,               */
 /*       due to literal value different depending on COMP instance.           */
-/*       (For exemple: LL_COMP_OUTPUT_TIM3_IC1_COMP1 and                      */
+/*       (For example: LL_COMP_OUTPUT_TIM3_IC1_COMP1 and                      */
 /*       LL_COMP_OUTPUT_TIM3_IC1_COMP2).                                      */
 #define LL_COMP_OUTPUT_TIM15_BKIN       LL_COMP_OUTPUT_TIM15_BKIN_COMP1       /*!< COMP output connected to TIM15 break input (BKIN). Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
 #define LL_COMP_OUTPUT_TIM16_BKIN       LL_COMP_OUTPUT_TIM16_BKIN_COMP2       /*!< COMP output connected to TIM16 break input (BKIN). Caution: Parameter specific to COMP instances, defined with generic naming, not taking into account COMP instance constraints. Refer to literal definitions above for COMP instance constraints. */
@@ -1815,7 +1798,7 @@ __STATIC_INLINE void LL_COMP_SetPowerMode(COMP_TypeDef *COMPx, uint32_t PowerMod
 {
   MODIFY_REG(COMP->CSR,
              COMP_CSR_COMP1MODE << __COMP_BITOFFSET_INSTANCE(COMPx),
-             PowerMode          << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             PowerMode          << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -1869,7 +1852,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetPowerMode(COMP_TypeDef *COMPx)
   * @param  InputPlus This parameter can be one of the following values:
   *         @arg @ref LL_COMP_INPUT_PLUS_IO1
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1 (1)
-  *         
+  *
   *         (1) Parameter available only on COMP instance: COMP1.
   * @retval None
   */
@@ -1880,7 +1863,7 @@ __STATIC_INLINE void LL_COMP_ConfigInputs(COMP_TypeDef *COMPx, uint32_t InputMin
   /*       kept unmodified.                                                   */
   MODIFY_REG(COMP->CSR,
              (COMP_CSR_COMP1INSEL | (COMP_CSR_COMP1SW1 * __COMP_IS_INSTANCE_ODD(COMPx))) << __COMP_BITOFFSET_INSTANCE(COMPx),
-             (InputMinus | InputPlus)                                        << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             (InputMinus | InputPlus)                                        << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -1894,7 +1877,7 @@ __STATIC_INLINE void LL_COMP_ConfigInputs(COMP_TypeDef *COMPx, uint32_t InputMin
   * @param  InputPlus This parameter can be one of the following values:
   *         @arg @ref LL_COMP_INPUT_PLUS_IO1
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1 (1)
-  *         
+  *
   *         (1) Parameter available only on COMP instance: COMP1.
   * @retval None
   */
@@ -1905,7 +1888,7 @@ __STATIC_INLINE void LL_COMP_SetInputPlus(COMP_TypeDef *COMPx, uint32_t InputPlu
   /*       kept unmodified.                                                   */
   MODIFY_REG(COMP->CSR,
              (COMP_CSR_COMP1SW1 * __COMP_IS_INSTANCE_ODD(COMPx)) << __COMP_BITOFFSET_INSTANCE(COMPx),
-             InputPlus                                           << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             InputPlus                                           << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -1919,7 +1902,7 @@ __STATIC_INLINE void LL_COMP_SetInputPlus(COMP_TypeDef *COMPx, uint32_t InputPlu
   * @retval Returned value can be one of the following values:
   *         @arg @ref LL_COMP_INPUT_PLUS_IO1
   *         @arg @ref LL_COMP_INPUT_PLUS_DAC1_CH1 (1)
-  *         
+  *
   *         (1) Parameter available only on COMP instance: COMP1.
   */
 __STATIC_INLINE uint32_t LL_COMP_GetInputPlus(COMP_TypeDef *COMPx)
@@ -1957,7 +1940,7 @@ __STATIC_INLINE void LL_COMP_SetInputMinus(COMP_TypeDef *COMPx, uint32_t InputMi
 {
   MODIFY_REG(COMP->CSR,
              COMP_CSR_COMP1INSEL << __COMP_BITOFFSET_INSTANCE(COMPx),
-             InputMinus          << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             InputMinus          << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -2004,7 +1987,7 @@ __STATIC_INLINE void LL_COMP_SetInputHysteresis(COMP_TypeDef *COMPx, uint32_t In
 {
   MODIFY_REG(COMP->CSR,
              COMP_CSR_COMP1HYST << __COMP_BITOFFSET_INSTANCE(COMPx),
-             InputHysteresis    << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             InputHysteresis    << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -2051,7 +2034,7 @@ __STATIC_INLINE uint32_t LL_COMP_GetInputHysteresis(COMP_TypeDef *COMPx)
   *         @arg @ref LL_COMP_OUTPUT_TIM2_OCCLR     (1)
   *         @arg @ref LL_COMP_OUTPUT_TIM3_IC1       (1)
   *         @arg @ref LL_COMP_OUTPUT_TIM3_OCCLR     (1)
-  *         
+  *
   *         (1) Parameter availability depending on timer availability
   *             on the selected device.
   * @retval None
@@ -2060,7 +2043,7 @@ __STATIC_INLINE void LL_COMP_SetOutputSelection(COMP_TypeDef *COMPx, uint32_t Ou
 {
   MODIFY_REG(COMP->CSR,
              COMP_CSR_COMP1OUTSEL << __COMP_BITOFFSET_INSTANCE(COMPx),
-             OutputSelection      << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             OutputSelection      << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -2079,7 +2062,7 @@ __STATIC_INLINE void LL_COMP_SetOutputSelection(COMP_TypeDef *COMPx, uint32_t Ou
   *         @arg @ref LL_COMP_OUTPUT_TIM2_OCCLR     (1)
   *         @arg @ref LL_COMP_OUTPUT_TIM3_IC1       (1)
   *         @arg @ref LL_COMP_OUTPUT_TIM3_OCCLR     (1)
-  *         
+  *
   *         (1) Parameter availability depending on timer availability
   *             on the selected device.
   */
@@ -2105,7 +2088,7 @@ __STATIC_INLINE void LL_COMP_SetOutputPolarity(COMP_TypeDef *COMPx, uint32_t Out
 {
   MODIFY_REG(COMP->CSR,
              COMP_CSR_COMP1POL << __COMP_BITOFFSET_INSTANCE(COMPx),
-             OutputPolarity    << __COMP_BITOFFSET_INSTANCE(COMPx) );
+             OutputPolarity    << __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -2170,7 +2153,8 @@ __STATIC_INLINE void LL_COMP_Disable(COMP_TypeDef *COMPx)
   */
 __STATIC_INLINE uint32_t LL_COMP_IsEnabled(COMP_TypeDef *COMPx)
 {
-  return (READ_BIT(COMP->CSR, COMP_CSR_COMP1EN << __COMP_BITOFFSET_INSTANCE(COMPx)) == COMP_CSR_COMP1EN << __COMP_BITOFFSET_INSTANCE(COMPx));
+  return (READ_BIT(COMP->CSR, COMP_CSR_COMP1EN << __COMP_BITOFFSET_INSTANCE(COMPx)) == COMP_CSR_COMP1EN <<
+          __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -2199,7 +2183,8 @@ __STATIC_INLINE void LL_COMP_Lock(COMP_TypeDef *COMPx)
   */
 __STATIC_INLINE uint32_t LL_COMP_IsLocked(COMP_TypeDef *COMPx)
 {
-  return (READ_BIT(COMP->CSR, COMP_CSR_COMP1LOCK << __COMP_BITOFFSET_INSTANCE(COMPx)) == COMP_CSR_COMP1LOCK << __COMP_BITOFFSET_INSTANCE(COMPx));
+  return (READ_BIT(COMP->CSR, COMP_CSR_COMP1LOCK << __COMP_BITOFFSET_INSTANCE(COMPx)) == COMP_CSR_COMP1LOCK <<
+          __COMP_BITOFFSET_INSTANCE(COMPx));
 }
 
 /**
@@ -2272,4 +2257,4 @@ void        LL_COMP_StructInit(LL_COMP_InitTypeDef *COMP_InitStruct);
 
 #endif /* __STM32F3xx_LL_COMP_H */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+

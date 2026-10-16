@@ -15,6 +15,16 @@ ids0.pos_error = pid0.pos_error
 ids0.vel_error = pid0.vel_error
 
 ids0.cur_bw = conf0.cur_bw
+ids0.pos_fb = fb_switch0.pos_fb
+ids0.torque = pid0.torque_cmd
+ids0.fb_torque = pid0.fb_torque_cmd
+ids0.max_torque = conf0.max_force
+ids0.sat = pid0.sat
+ids0.pos_bw0 = conf0.pos_bw
+ids0.vel_bw0 = conf0.vel_bw
+ids0.vel_d0 = conf0.vel_d
+ids0.acc_lim = conf0.max_acc
+ids0.vel_lim = conf0.max_vel
 
 conf0.max_pos_error = 0
 conf0.max_sat = 10

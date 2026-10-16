@@ -31,19 +31,29 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f3xx_hal.h"
 #include "stm32f3xx.h"
+#include "periph.h"
 #include "stm32f3xx_it.h"
 #include "hal.h"
+
+extern void bridge_off(void);
+
+// A fault handler that returned would fault again at once, and TIM8_UP
+// (same priority) never runs, so the bridge kept the last compares until
+// the IWDG fired. Turn it off here, record the fault and wait for the
+// watchdog (the nrt no longer kicks it).
+static void fault_stop(uint32_t handler) {
+  bridge_off();
+  hal_error(handler);
+  while(1) {
+  }
+}
 
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-#ifdef USB_TERM
-extern PCD_HandleTypeDef hpcd_USB_FS;
-#endif
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */
 /******************************************************************************/
@@ -53,7 +63,12 @@ extern PCD_HandleTypeDef hpcd_USB_FS;
 */
 void NMI_Handler(void) {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-  hal_error(NMI);
+  // RM0316 9.2.7: the CSS NMI repeats until CSSC is written
+  if(LL_RCC_IsActiveFlag_HSECSS()) {
+    LL_RCC_ClearFlag_HSECSS();
+  }
+  bridge_off();
+  hal_error(NMI);  // rt stops, the nrt stops kicking, the IWDG resets
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
 
@@ -67,7 +82,7 @@ void HardFault_Handler(void) {
   /* USER CODE BEGIN HardFault_IRQn 0 */
 
   /* USER CODE END HardFault_IRQn 0 */
-  hal_error(HardFault);
+  fault_stop(HardFault);
   /* USER CODE BEGIN HardFault_IRQn 1 */
 
   /* USER CODE END HardFault_IRQn 1 */
@@ -80,7 +95,7 @@ void MemManage_Handler(void) {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
 
   /* USER CODE END MemoryManagement_IRQn 0 */
-  hal_error(MemManage);
+  fault_stop(MemManage);
   /* USER CODE BEGIN MemoryManagement_IRQn 1 */
 
   /* USER CODE END MemoryManagement_IRQn 1 */
@@ -93,7 +108,7 @@ void BusFault_Handler(void) {
   /* USER CODE BEGIN BusFault_IRQn 0 */
 
   /* USER CODE END BusFault_IRQn 0 */
-  hal_error(BusFault);
+  fault_stop(BusFault);
   /* USER CODE BEGIN BusFault_IRQn 1 */
 
   /* USER CODE END BusFault_IRQn 1 */
@@ -106,7 +121,7 @@ void UsageFault_Handler(void) {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
 
   /* USER CODE END UsageFault_IRQn 0 */
-  hal_error(UsageFault);
+  fault_stop(UsageFault);
   /* USER CODE BEGIN UsageFault_IRQn 1 */
 
   /* USER CODE END UsageFault_IRQn 1 */
@@ -124,42 +139,12 @@ void DebugMon_Handler(void) {
   /* USER CODE END DebugMonitor_IRQn 1 */
 }
 
-/**
-* @brief This function handles System tick timer.
-*/
-// void SysTick_Handler(void) {
-//   /* USER CODE BEGIN SysTick_IRQn 0 */
-
-//   /* USER CODE END SysTick_IRQn 0 */
-//   HAL_IncTick();
-//   HAL_SYSTICK_IRQHandler();
-//   /* USER CODE BEGIN SysTick_IRQn 1 */
-
-//   /* USER CODE END SysTick_IRQn 1 */
-// }
-
 /******************************************************************************/
 /* STM32F3xx Peripheral Interrupt Handlers                                    */
 /* Add here the Interrupt Handlers for the used peripherals.                  */
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f3xx.s).                    */
 /******************************************************************************/
-
-/**
-* @brief This function handles USB low priority or CAN_RX0 interrupts.
-*/
-void USB_LP_CAN_RX0_IRQHandler(void) {
-/* USER CODE BEGIN USB_LP_CAN_RX0_IRQn 0 */
-//GPIOA->BSRR |= GPIO_PIN_10;
-
-/* USER CODE END USB_LP_CAN_RX0_IRQn 0 */
-#ifdef USB_TERM
-  HAL_PCD_IRQHandler(&hpcd_USB_FS);
-#endif
-  /* USER CODE BEGIN USB_LP_CAN_RX0_IRQn 1 */
-  //GPIOA->BSRR |= GPIO_PIN_10 << 16;
-  /* USER CODE END USB_LP_CAN_RX0_IRQn 1 */
-}
 
 /* USER CODE BEGIN 1 */
 

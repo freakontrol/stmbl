@@ -220,7 +220,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(pos) = mod(PIN(pos));
   PIN(vel) += PIN(acc) * period;
 
-  PIN(pos_fb) = ((int)(PIN(pos) / 2.0 / M_PI * PIN(fb_res))) * 2.0 * M_PI / PIN(fb_res);
+  PIN(pos_fb) = ((int)(PIN(pos) / 2.0 * M_1_PI * PIN(fb_res))) * 2.0 * M_PI / PIN(fb_res);
 }
 
 
