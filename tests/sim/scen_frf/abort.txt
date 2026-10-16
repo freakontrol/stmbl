@@ -1,0 +1,16 @@
+title frf abort, restart, enable loss
+config conf/fanuc_a3-3000.txt
+plant ring_hz=38 ring_zeta=0.2
+f4 link id_frf
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 0.3 f4 frf0.start = 1
+at 5 f4 frf0.start = 0
+at 6 f4 frf0.start = 1
+at 10 lcnc enable 0
+at 11 lcnc enable 1
+at 12 f4 frf0.start = 0
+at 13 f4 frf0.start = 1
+trace frf0.freq frf0.state plant.pos pid0.pos_error
+expect final frf0.state > 1.5
+run 75

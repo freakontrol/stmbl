@@ -1008,7 +1008,7 @@
 				)
 			)
 		)
-		(symbol "stmbl_4.0-rescue:IKCM30F60GAXKMA1-stmbl"
+		(symbol "stmbl:IKCM30F60GDXKMA1"
 			(pin_names
 				(offset 1.016)
 			)
@@ -1024,7 +1024,7 @@
 					(justify left)
 				)
 			)
-			(property "Value" "IKCM30F60GAXKMA1-stmbl"
+			(property "Value" "IKCM30F60GDXKMA1"
 				(at 0 7.62 0)
 				(effects
 					(font
@@ -1033,7 +1033,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "Infineon-IKCM30F60GAXKMA1-*"
+			(property "Footprint" "stmbl:IKCM30F60GDXKMA1"
 				(at 0 10.16 0)
 				(effects
 					(font
@@ -1042,7 +1042,7 @@
 					(justify left)
 				)
 			)
-			(property "Datasheet" ""
+			(property "Datasheet" "https://www.infineon.com/cms/en/product/power/intelligent-power-modules-ipm/ikcm30f60gd/"
 				(at 0 12.7 0)
 				(effects
 					(font
@@ -1121,7 +1121,7 @@
 					(hide yes)
 				)
 			)
-			(property "digikey part number" "IKCM30F60GAXKMA1-ND"
+			(property "digikey part number" "IKCM30F60GDXKMA1-ND"
 				(at 0 30.48 0)
 				(effects
 					(font
@@ -1201,7 +1201,7 @@
 					(hide yes)
 				)
 			)
-			(property "mouser part number" "726-IKCM30F60GAXKMA1"
+			(property "mouser part number" "726-IKCM30F60GDXKMA1"
 				(at 0 50.8 0)
 				(effects
 					(font
@@ -1291,7 +1291,7 @@
 					(hide yes)
 				)
 			)
-			(symbol "IKCM30F60GAXKMA1-stmbl_1_1"
+			(symbol "IKCM30F60GDXKMA1_1_1"
 				(rectangle
 					(start 5.08 2.54)
 					(end 30.48 -60.96)
@@ -3453,7 +3453,7 @@
 				)
 			)
 		)
-		(property "Value" "0.002"
+		(property "Value" "0.003"
 			(at 165.1 100.33 90)
 			(effects
 				(font
@@ -3573,7 +3573,7 @@
 				)
 			)
 		)
-		(property "Value" "0.002"
+		(property "Value" "0.003"
 			(at 165.1 95.25 90)
 			(effects
 				(font
@@ -3693,7 +3693,7 @@
 				)
 			)
 		)
-		(property "Value" "0.002"
+		(property "Value" "0.003"
 			(at 165.1 90.17 90)
 			(effects
 				(font
@@ -5281,7 +5281,7 @@
 		)
 	)
 	(symbol
-		(lib_id "stmbl_4.0-rescue:IKCM30F60GAXKMA1-stmbl")
+		(lib_id "stmbl:IKCM30F60GDXKMA1")
 		(at 119.38 67.31 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -5297,7 +5297,7 @@
 				)
 			)
 		)
-		(property "Value" "IKCM30F60GAXKMA1"
+		(property "Value" "IKCM30F60GDXKMA1"
 			(at 137.16 60.6044 0)
 			(effects
 				(font
@@ -5305,7 +5305,7 @@
 				)
 			)
 		)
-		(property "Footprint" "stmbl:IKCM30F60GAXKMA1_2"
+		(property "Footprint" "stmbl:IKCM30F60GDXKMA1"
 			(at 137.16 62.9158 0)
 			(effects
 				(font
@@ -5313,7 +5313,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/Infineon-IKCM30F60GA-DS-v02_06-EN.pdf?fileId=5546d4624fb7fef2014fcb83cab8790a"
+		(property "Datasheet" "https://www.infineon.com/cms/en/product/power/intelligent-power-modules-ipm/ikcm30f60gd/"
 			(at 119.38 54.61 0)
 			(effects
 				(font
@@ -5392,7 +5392,7 @@
 				(hide yes)
 			)
 		)
-		(property "digikey part number" "IKCM30F60GAXKMA1-ND"
+		(property "digikey part number" "IKCM30F60GDXKMA1-ND"
 			(at 119.38 36.83 0)
 			(effects
 				(font
@@ -5472,7 +5472,7 @@
 				(hide yes)
 			)
 		)
-		(property "mouser part number" "726-IKCM30F60GAXKMA1"
+		(property "mouser part number" "726-IKCM30F60GDXKMA1"
 			(at 119.38 16.51 0)
 			(effects
 				(font

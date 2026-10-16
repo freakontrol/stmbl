@@ -56,6 +56,7 @@ HAL_PIN(torque_cmd);      // cmd out (Nm)
 HAL_PIN(torque_sum);
 
 HAL_PIN(en);
+HAL_PIN(stop);  // >0: position loop off, zero speed, no feedforward (fault0.rstop)
 HAL_PIN(pos_en);
 HAL_PIN(vel_en);
 
@@ -111,7 +112,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   float lpf = LP_HZ(MAX(PIN(j_lpf), 0.0));
 
   if(PIN(en) > 0.0) {
-    if(PIN(pos_en) > 0.0) {
+    const int stop = PIN(stop) > 0.0;
+    if(PIN(pos_en) > 0.0 && !stop) {
       // pos -> vel
       PIN(pos_error) = minus(PIN(pos_ext_cmd), PIN(pos_fb));
       PIN(vel_cmd)   = PIN(pos_error) * PIN(pos_bw) * PIN(scale);                                     // p
@@ -129,11 +131,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
     if(PIN(vel_en) > 0.0) {
       // vel -> acc
-      PIN(vel_cmd) += PIN(vel_ext_cmd);                                                               // ff
+      PIN(vel_cmd) += stop ? 0.0 : PIN(vel_ext_cmd);                                                  // ff
       PIN(vel_cmd) = CLAMP(PIN(vel_cmd), -PIN(neg_min_vel), PIN(max_vel));                            // clamping
       PIN(vel_error) = PIN(vel_cmd) - PIN(vel_fb);
-      PIN(acc_cmd)   = PIN(vel_error) * PIN(vel_bw) * PIN(scale);  // p
-      PIN(acc_cmd)   = LIMIT(PIN(acc_cmd), PIN(max_acc));          // clamping
+      // p, not clamped at max_acc: a clamped p term leaves the integrator to
+      // run the loop after a large error, which latches a torque-saturated
+      // limit cycle. The torque clamp below is the limit.
+      PIN(acc_cmd)   = PIN(vel_error) * PIN(vel_bw) * PIN(scale);
 
       PIN(torque_sum) += PIN(vel_error) * PIN(vel_bw) * PIN(vel_bw) * PIN(scale) * PIN(scale) / MAX(PIN(vel_d), 0.1) * (PIN(j_mot) + PIN(j_sys)) * period;  // i
     } else {
@@ -158,12 +162,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       PIN(torque_sat) = MAX(PIN(torque_sat) - period, 0.0);
     }
 
-    PIN(ff_torque_cmd) = PIN(acc_ext_cmd) * (PIN(j_mot) + PIN(j_sys));
+    PIN(ff_torque_cmd) = (stop ? 0.0 : PIN(acc_ext_cmd)) * (PIN(j_mot) + PIN(j_sys));
     PIN(ff_torque_cmd) += PIN(d) * PIN(vel_cmd);
     PIN(ff_torque_cmd) += PIN(f) * SIGN2(PIN(vel_cmd), PIN(max_vel) * 0.001);
     PIN(ff_torque_cmd) += PIN(o);
 
-    PIN(torque_cmd) = CLAMP(PIN(torque_ext_cmd) + PIN(ff_torque_cmd) + PIN(fb_torque_cmd), -PIN(neg_min_torque), PIN(max_torque));
+    PIN(torque_cmd) = CLAMP((stop ? 0.0 : PIN(torque_ext_cmd)) + PIN(ff_torque_cmd) + PIN(fb_torque_cmd), -PIN(neg_min_torque), PIN(max_torque));
 
     // sat
     PIN(sat) = MAX(PIN(vel_sat), PIN(torque_sat));

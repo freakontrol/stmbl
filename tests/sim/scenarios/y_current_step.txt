@@ -1,0 +1,17 @@
+# F3 current loop: a 5 A q step straight into hv0 (the F4's torque path
+# unlinked), Y's config: cur_bw 3000, ld 3.2 / lq 4.3 mH, drop_k 0.94.
+# The step reaches the F3 as the ls0 ramp over one packet (3 ticks).
+title Y current step 5 A
+config conf/fanuc_a3-3000.txt
+lcnc scale 10
+sample f3
+at 0.05 lcnc enable 1
+at 0.1 f4 hv0.d_cmd = 0
+at 0.1 f4 hv0.q_cmd = 5
+trace f3:ls0.q_cmd f3:dq0.q f3:dq0.d plant.iq plant.id f3:curpid0.uq f3:curpid0.ud
+# out_rev = 1: the F3 frame is the F4's mirrored, +5 A arrives as -5 A
+expect min f3:dq0.q > -5.25 from 0.1 to 0.11
+expect max f3:dq0.q < -4.4 from 0.1012 to 0.1015
+expect mean f3:dq0.q < -4.9 from 0.1025 to 0.103
+expect absmax f3:dq0.d < 0.2 from 0.1 to 0.11
+run 0.11

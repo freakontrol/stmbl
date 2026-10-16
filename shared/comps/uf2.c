@@ -31,7 +31,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct uf_ctx_t *ctx      = (struct uf_ctx_t *)ctx_ptr;
   struct uf_pin_ctx_t *pins = (struct uf_pin_ctx_t *)pin_ptr;
 
-  PIN(u_n)     = 220.0 * sqrtf(2.0) / 2.0;
+  PIN(u_n)     = 220.0 * M_SQRT1_2;
   PIN(vel_n)   = 3000.0 / 60.0 * 2.0 * M_PI;
   PIN(com_pos) = 0.0;
   PIN(slip_n)  = 0.01;

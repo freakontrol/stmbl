@@ -1,0 +1,16 @@
+# A LinuxCNC move on Y: 20 mm at 1500 mm/s2 (triangle, 173 mm/s peak),
+# frames every 1 ms, rigid load. Today the sserial path has no acceleration
+# feedforward (review item A1): the following error during the ramps is
+# about acc * J / (vel_bw J) / pos_bw ~ 0.1 rad, as the review estimated.
+title Y move 20 mm, 1500 mm/s2
+config conf/fanuc_a3-3000.txt
+lcnc scale 10
+at 0.05 lcnc enable 1
+at 0.1 lcnc move 20 200 1500
+trace lcnc.pos lcnc.vel plant.pos_mm plant.vel pid0.pos_error pid0.torque_cmd hv0.iq_fb hv0.id_fb fault0.state
+expect max fault0.last_fault < 0.5 from 0.06
+expect absmax pid0.pos_error < 0.15
+expect max pid0.torque_cmd < 6.87
+expect final plant.pos_mm > 19.95
+expect final plant.pos_mm < 20.05
+run 0.6

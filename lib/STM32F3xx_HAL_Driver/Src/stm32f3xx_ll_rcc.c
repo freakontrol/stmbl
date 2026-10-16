@@ -6,30 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+  * Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
+  * This software is licensed under terms that can be found in the LICENSE file in
+  * the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   ******************************************************************************
   */
 #if defined(USE_FULL_LL_DRIVER)
@@ -57,10 +39,10 @@
   * @{
   */
 #if defined(RCC_CFGR2_ADC1PRES) || defined(RCC_CFGR2_ADCPRE12) || defined(RCC_CFGR2_ADCPRE34)
-const uint16_t aADCPrescTable[16]       = {1U, 2U, 4U, 6U, 8U, 10U, 12U, 16U, 32U, 64U, 128U, 256U, 256U, 256U, 256U, 256U};
+static const uint16_t aADCPrescTable[16U]       = {1U, 2U, 4U, 6U, 8U, 10U, 12U, 16U, 32U, 64U, 128U, 256U, 256U, 256U, 256U, 256U};
 #endif /* RCC_CFGR2_ADC1PRES || RCC_CFGR2_ADCPRE12 || RCC_CFGR2_ADCPRE34 */
 #if defined(RCC_CFGR_SDPRE)
-const uint8_t aSDADCPrescTable[16]       = {2U, 4U, 6U, 8U, 10U, 12U, 14U, 16U, 20U, 24U, 28U, 32U, 36U, 40U, 44U, 48U};
+static const uint8_t aSDADCPrescTable[16U]       = {2U, 4U, 6U, 8U, 10U, 12U, 14U, 16U, 20U, 24U, 28U, 32U, 36U, 40U, 44U, 48U};
 #endif /* RCC_CFGR_SDPRE */
 /**
   * @}
@@ -239,23 +221,42 @@ uint32_t RCC_PLL_GetFreqDomain_SYS(void);
   */
 ErrorStatus LL_RCC_DeInit(void)
 {
-  uint32_t vl_mask = 0U;
+  __IO uint32_t vl_mask;
 
   /* Set HSION bit */
   LL_RCC_HSI_Enable();
+
+  /* Wait for HSI READY bit */
+  while(LL_RCC_HSI_IsReady() != 1U)
+  {}
 
   /* Set HSITRIM bits to the reset value*/
   LL_RCC_HSI_SetCalibTrimming(0x10U);
 
   /* Reset SW, HPRE, PPRE and MCOSEL bits */
   vl_mask = 0xFFFFFFFFU;
-  CLEAR_BIT(vl_mask, (RCC_CFGR_SW | RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2 | RCC_CFGR_MCOSEL));
+  CLEAR_BIT(vl_mask, (RCC_CFGR_SW | RCC_CFGR_HPRE | RCC_CFGR_PPRE1 |\
+                      RCC_CFGR_PPRE2 | RCC_CFGR_MCOSEL));
+ 
+  /* Write new value in CFGR register */
   LL_RCC_WriteReg(CFGR, vl_mask);
 
+  /* Wait till system clock source is ready */
+  while(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_HSI)
+  {}
+
+  /* Read CR register */
+  vl_mask = LL_RCC_ReadReg(CR);
+  
   /* Reset HSEON, CSSON, PLLON bits */
-  vl_mask = 0xFFFFFFFFU;
   CLEAR_BIT(vl_mask, (RCC_CR_PLLON | RCC_CR_CSSON | RCC_CR_HSEON));
+ 
+   /* Write new value in CR register */
   LL_RCC_WriteReg(CR, vl_mask);
+
+  /* Wait for PLL READY bit to be reset */
+  while(LL_RCC_PLL_IsReady() != 0U)
+  {}
 
   /* Reset HSEBYP bit */
   LL_RCC_HSE_DisableBypass();
@@ -270,11 +271,17 @@ ErrorStatus LL_RCC_DeInit(void)
   LL_RCC_WriteReg(CFGR3, 0x00000000U);
 
   /* Clear pending flags */
-  vl_mask = (LL_RCC_CIR_LSIRDYC | LL_RCC_CIR_LSERDYC | LL_RCC_CIR_HSIRDYC | LL_RCC_CIR_HSERDYC | LL_RCC_CIR_PLLRDYC | LL_RCC_CIR_CSSC);
-  SET_BIT(RCC->CIR, vl_mask);
+  vl_mask = (LL_RCC_CIR_LSIRDYC | LL_RCC_CIR_LSERDYC | LL_RCC_CIR_HSIRDYC |\
+             LL_RCC_CIR_HSERDYC | LL_RCC_CIR_PLLRDYC | LL_RCC_CIR_CSSC);
+
+  /* Write new value in CIR register */
+  LL_RCC_WriteReg(CIR, vl_mask);
 
   /* Disable all interrupts */
   LL_RCC_WriteReg(CIR, 0x00000000U);
+
+  /* Clear reset flags */
+  LL_RCC_ClearResetFlags();
 
   return SUCCESS;
 }
@@ -613,7 +620,7 @@ uint32_t LL_RCC_GetI2CClockFreq(uint32_t I2CxSource)
   return i2c_frequency;
 }
 
-#if  defined(RCC_CFGR_I2SSRC)
+#if defined(RCC_CFGR_I2SSRC)
 /**
   * @brief  Return I2Sx clock frequency
   * @param  I2SxSource This parameter can be one of the following values:
@@ -634,7 +641,11 @@ uint32_t LL_RCC_GetI2SClockFreq(uint32_t I2SxSource)
       i2s_frequency = RCC_GetSystemClockFreq();
       break;
 
+    /* If an external I2S clock has to be used, LL_RCC_SetI2SClockSource(LL_RCC_I2S_CLKSOURCE_PIN)
+       have to be called in the main after calling SystemClock_Config() */
     case LL_RCC_I2S_CLKSOURCE_PIN:    /*!< External clock selected as I2S clock source */
+      i2s_frequency = EXTERNAL_CLOCK_VALUE;
+      break;
     default:
       i2s_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
       break;
@@ -1116,4 +1127,3 @@ uint32_t RCC_PLL_GetFreqDomain_SYS(void)
 
 #endif /* USE_FULL_LL_DRIVER */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

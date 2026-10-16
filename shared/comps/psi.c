@@ -24,12 +24,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct psi_ctx_t *ctx      = (struct psi_ctx_t *)ctx_ptr;
   struct psi_pin_ctx_t *pins = (struct psi_pin_ctx_t *)pin_ptr;
 
-  float f  = ABS(PIN(vel)) / 2.0 / M_PI * PIN(polecount);
+  float f  = ABS(PIN(vel)) / 2.0 * M_1_PI * PIN(polecount);
   float u  = PIN(dc_volt);
   float u2 = MAX3(PIN(u), PIN(v), PIN(w)) - MIN3(PIN(u), PIN(v), PIN(w));
-  u        = MIN(u, u2) / M_SQRT3;  // TODO: fix
+  u        = MIN(u, u2) * M_SQRT1_3;  // TODO: fix
   if(f > 1.0) {
-    PIN(psi) = u / f / 2.0 / M_PI;
+    PIN(psi) = u / f / 2.0 * M_1_PI;
     if(ctx->max_f < f) {
       ctx->max_f   = f;
       PIN(max_psi) = PIN(psi);

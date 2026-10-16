@@ -7,7 +7,8 @@
 HAL_COMP(conf);
 
 HAL_PIN(r);              // phase resistance [ohm]
-HAL_PIN(l);              // phase inductance [H]
+HAL_PIN(l);              // phase inductance [H], d axis when lq is set
+HAL_PIN(lq);             // q axis inductance [H], 0 = same as l
 HAL_PIN(j);              // motor inertia [kg*m^2]
 HAL_PIN(d);              // motor damping [Nm/rad/s]
 HAL_PIN(f);              // motor friction [Nm]
@@ -65,6 +66,9 @@ HAL_PIN(cur_bw);    // current loop bandwidth [V/A]
 HAL_PIN(cur_ff);    // current loop resistance feedforward gain
 HAL_PIN(cur_ind);   // current loop BEMF feedforward gain
 HAL_PIN(max_sat);   // max velocity, acceleration and torque saturation time [s]
+
+HAL_PIN(high_ipm_temp);  // lower ipm junction overtemperature limit [°C]
+HAL_PIN(max_ipm_temp);   // upper ipm junction overtemperature limit [°C]
 
 hal_comp_t conf_comp_struct = {
     .name      = "conf",

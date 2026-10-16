@@ -86,7 +86,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     case 3:  // go to home pos
       vel = SIGN(PIN(home_offset) - PIN(offset)) * sqrtf(ABS(PIN(home_offset) - PIN(offset)) * 2.0 * PIN(home_acc));
 
-      if(ABS(PIN(offset) - PIN(home_offset)) < 0.01 && PIN(vel) < PIN(home_vel) * 0.01) {
+      if(ABS(PIN(offset) - PIN(home_offset)) < 0.01 && ABS(PIN(vel)) < ABS(PIN(home_vel)) * 0.01) {
         PIN(state) = 4;
       }
       break;

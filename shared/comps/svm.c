@@ -77,13 +77,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   switch((int)PIN(cmode)) {
     case 1:  // block
-      if(u > v && u < w) {
+      // the middle phase is off, in either order of the other two
+      if((u > v && u < w) || (u < v && u > w)) {
         PIN(enu) = 0.0;
       }
-      if(v > u && v < w) {
+      if((v > u && v < w) || (v < u && v > w)) {
         PIN(env) = 0.0;
       }
-      if(w > u && w < v) {
+      if((w > u && w < v) || (w < u && w > v)) {
         PIN(enw) = 0.0;
       }
       break;

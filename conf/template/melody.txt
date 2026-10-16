@@ -1,0 +1,44 @@
+# ## Overview
+#
+# Template for the `melody` component: tunes, a ready chime and `identify`
+# played as a tone on the motor's d-axis current.
+#
+# ## How It Works
+#
+# `melody0` sits between the field current and hv: `melody0.in` takes
+# `pmsm_ttc0.id` (what `pmsm` links to `hv0.d_cmd`: the phasing current plus
+# the MTPA d current) and `hv0.d_cmd` takes `melody0.out`, which is `in` plus
+# the tone. rt_prio 9.5 runs it after pmsm_ttc (9) and before hv (10). The
+# tone makes the stator hum without torque (with the commutation offset
+# right).
+#
+# `melody0.en = fault0.en_pid`: nothing plays unless the drive is enabled and
+# past phasing, so the tone never switches the bridge on.
+#
+# - Ready chime: C4 E G C5 on the first enable after power-up.
+# - `identify` (or a rising edge on `melody0.ident`): 3 x 3 beeps.
+# - `tune <notes>`, `tune +<notes>`, `tune ode`, `tunex`: see the `melody`
+#   component.
+#
+# ## Key Parameters
+#
+# - `melody0.amp` -- tone peak current command (A), default 6; with
+#   `conf0.cur_bw` 3000 the current loop passes about 2/3 (C5) to 9/10 (C4)
+#   of it, and about 3-4 A at the motor is audible
+# - `melody0.wave` -- 1 = square (default, louder), 0 = sine
+# - `melody0.chime` -- 0 = no ready chime
+#
+# ## Usage
+#
+# `link melody` AFTER `link pmsm` (it replaces pmsm's `hv0.d_cmd` link).
+#
+# ## Prerequisites
+#
+# `fb_switch0` and `fault0` (the `pmsm` and `pid` templates). Not for
+# configs that drive `hv0.d_cmd` from anything else (acim, dc).
+#
+load melody
+melody0.rt_prio = 9.5
+melody0.in = pmsm_ttc0.id
+melody0.en = fault0.en_pid
+hv0.d_cmd = melody0.out

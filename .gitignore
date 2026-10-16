@@ -96,3 +96,6 @@ docs/stmbldoc/content/docs/hal_configs
 docs/stmbldoc/content/docs/hal_templates
 
 public
+# CubeMX code generation output next to the reference .ioc files
+cubemx/*/*
+!cubemx/*/*.ioc

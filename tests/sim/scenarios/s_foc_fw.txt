@@ -1,0 +1,15 @@
+# Spindle FOC on the encoder into field weakening: 0 -> 838 rad/s (8000 rpm)
+# and back to 0. acim_fw0 should hold the duty near its setpoint.
+title Spindle FOC (encoder), field weakening to 838 rad/s
+config conf/fanuc_a2_spindle_foc_enc.txt
+f4 ramp0.vel_ext_cmd = 0
+at 0.02 f4 ramp0.en = 1
+at 0.4 f4 ramp0.vel_ext_cmd = 838
+at 10.0 f4 ramp0.vel_ext_cmd = 0
+trace plant.vel ramp0.vel_cmd hv0.id_fb hv0.iq_fb acim_flux0.i_mr plant.i_mr acim_fw0.scale hv0.duty pid0.vel_error
+expect max fault0.last_fault < 0.5 from 0.5
+expect final plant.vel > 836 from 9.9 to 10.0
+expect absmax pid0.vel_error < 5 from 1 to 9.5
+expect max hv0.duty < 0.95 from 1 to 18
+expect absmax plant.vel < 2 from 19.5
+run 19.6

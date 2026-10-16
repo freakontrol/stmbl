@@ -23,6 +23,7 @@ struct vel_int_ctx_t {
   float pos;
   float counter;
   float cmd_freq;
+  float last_pos_in;
 };
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -31,6 +32,7 @@ static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   ctx->pos     = 0.0;
   ctx->counter = 0.0;
+  ctx->last_pos_in = 0.0;
   PIN(pos_in)  = 0.0;
   PIN(pos_out) = 0.0;
 
@@ -59,7 +61,11 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     ctx->counter += period;
   }
 
-  if(EDGE(p)) {
+  // per instance: EDGE() keeps one static for every instance
+  int edge         = p != ctx->last_pos_in;
+  ctx->last_pos_in = p;
+
+  if(edge) {
     ctx->counter = 0.0;
     ctx->pos     = p;
     ctx->cmd_freq += 1.0;
