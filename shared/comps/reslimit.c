@@ -17,7 +17,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct reslimit_pin_ctx_t *pins = (struct reslimit_pin_ctx_t *)pin_ptr;
   //TODO: offset at zerocross
   uint32_t r   = ABS(PIN(res));  //TODO: div by zero
-  PIN(pos_out) = ((int)(PIN(pos_in) * r / 2.0 / M_PI + 0.5)) / (float)r * 2.0 * M_PI;
+  PIN(pos_out) = ((int)(PIN(pos_in) * r / 2.0 * M_1_PI + 0.5)) / (float)r * 2.0 * M_PI;
 }
 
 hal_comp_t reslimit_comp_struct = {

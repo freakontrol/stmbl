@@ -84,13 +84,18 @@ typedef struct {
         PHASE_180_3PH,
       } phase_type : 3;
       uint32_t ignore_fault_pin : 1;
+      // short-circuit braking (f3 io.c): sbrake asks for it now, sbrake_arm
+      // lets the f3 brake on its own when packets stop
+      uint32_t sbrake : 1;
+      uint32_t sbrake_arm : 1;
     } flags;
     uint32_t padding;
   };
 } packet_to_hv_t;
 _Static_assert(sizeof(packet_to_hv_t) == 32, "packet_to_hv_t size error");
 
-//config data for f3
+// config data for f3. Append only: between flashing the f4 and pushing the
+// matching f3 image, the old f3 must still find its words where it expects.
 typedef union {
   struct f3_config_data_temp {
     float r;
@@ -102,6 +107,12 @@ typedef union {
     float max_y;
     float max_cur;
     float dac;
+    float drop_k;     // dead time compensation, fraction of the ideal
+    float lq;         // q axis inductance, 0 = same as l
+    float emf_run;    // emf0: 1 accumulate, 0 hold, -1 clear
+    float emf_sel;    // emf0 result returned in emf_val
+    float emf_pp;     // emf0 pole pairs
+    float drop_knee;  // dead time compensation curve knee [A], 0 = latched sign
   } pins;
   float data[sizeof(struct f3_config_data_temp) / 4];
 } f3_config_data_t;
@@ -118,6 +129,7 @@ typedef union {
     float dc_volt;
     float pwm_volt;
     float y;
+    float emf_val;  // emf0 result number emf_sel
   } pins;
   float data[sizeof(struct f3_state_data_temp) / 4];
 } f3_state_data_t;
@@ -133,6 +145,8 @@ typedef enum {
   SOFT_FAULT,
   HARD_FAULT,
   LED_TEST,
+  DELAYED_ENABLED,
+  DELAYED_DISABLED
 } state_t;
 
 //fault error codes
@@ -154,6 +168,7 @@ typedef enum {
   HV_OVERCURRENT_RMS,
   HV_OVERCURRENT_PEAK,
   HV_OVERCURRENT_HW,
+  IPM_TEMP_ERROR,
 } fault_t;
 
 //check if structs can be send at 5kHz with DATABAUD

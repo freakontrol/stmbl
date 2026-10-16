@@ -61,7 +61,7 @@ _Min_Stack_Size = 0x400; /* required amount of stack */
 MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 32K
-CCMRAM (rw)      : ORIGIN = 0x10000000, LENGTH = 8K
+CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 8K
 FLASH (rx)      : ORIGIN = 0x8004000, LENGTH = 112K
 }
 
@@ -83,6 +83,34 @@ SECTIONS
     KEEP(*(.version_info))
     . = ALIGN(4);
   } >FLASH
+
+  /* The rt path runs from CCM RAM: zero wait states on the I-bus, where
+   * flash has two (AN4296). It must come before .text, or .text's
+   * *(.text*) takes these sections first. main() copies it from flash
+   * before anything calls into it. The rt funcs of components the f3 rt
+   * does not run (sim, term, sensorless) stay in flash: 8K is tight. */
+  _siccmram = LOADADDR(.ccmram);
+  .ccmram :
+  {
+    . = ALIGN(4);
+    _sccmram = .;       /* create a global symbol at ccmram start */
+    *(.ccmram)
+    *(.ccmram*)
+    *comps/ls.o(.text.rt_func)
+    *comps/io.o(.text.rt_func)
+    *comps/curpid.o(.text.rt_func)
+    *comps/idq.o(.text.rt_func)
+    *comps/hv.o(.text.rt_func)
+    *(.text.TIM8_UP_IRQHandler .text.hal_run_rt .text.hal_get_systick_value .text.hal_reset_watchdog)
+    *(.text.sincos_fast .text.err_filter)
+    *(.text.HAL_GPIO_ReadPin .text.HAL_GPIO_WritePin)
+    /* from flash, CCM is full: dq0 and svm0 (short passes per tick),
+       rb_read/rb_write (terminal chars) and HAL_CRC_Calculate (once per link
+       packet, every third tick). Moving small functions out does not help:
+       each call from CCM to flash adds a long-branch stub in CCM. */
+    . = ALIGN(4);
+    _eccmram = .;       /* create a global symbol at ccmram end */
+  } >CCMRAM AT> FLASH
 
   /* The program code and other data goes into FLASH */
   .text :
@@ -153,24 +181,6 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
   } >RAM AT> FLASH
 
-  _siccmram = LOADADDR(.ccmram);
-
-  /* CCM-RAM section 
-  * 
-  * IMPORTANT NOTE! 
-  * If initialized variables will be placed in this section,
-  * the startup code needs to be modified to copy the init-values.  
-  */
-  .ccmram :
-  {
-    . = ALIGN(4);
-    _sccmram = .;       /* create a global symbol at ccmram start */
-    *(.ccmram)
-    *(.ccmram*)
-    
-    . = ALIGN(4);
-    _eccmram = .;       /* create a global symbol at ccmram end */
-  } >CCMRAM AT> FLASH
 
   
   /* Uninitialized data section */

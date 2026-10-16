@@ -1,0 +1,3 @@
+load ocdac
+hv0.dac = ocdac0.dac
+ocdac0.cur = 20

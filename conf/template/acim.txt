@@ -13,3 +13,4 @@ hv0.d_cmd = acim_ttc0.d_cmd
 hv0.cmd_mode = acim_ttc0.cmd_mode
 hv0.phase_mode = 2
 hv0.pos = acim_ttc0.pos
+hv0.vel = acim_ttc0.vel_e

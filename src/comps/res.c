@@ -64,7 +64,7 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
   TIM_TimeBaseInit(TIM4, &TIM_TimeBaseStructure);
   TIM_SelectSlaveMode(TIM4, TIM_SlaveMode_External1);  // Rising edges of the selected trigger (TRGI) clock the counter
-  TIM_ITRxExternalClockConfig(TIM4, TIM_TS_ITR2);      // clk = TIM_MASTER(TIM2) trigger out
+  TIM_ITRxExternalClockConfig(TIM4, TIM_TS_ITR2);      // clk = TIM_MASTER (TIM3) trigger out, ITR2 on TIM4 (RM0090 Table 98)
   TIM_ARRPreloadConfig(TIM4, ENABLE);
   TIM_Cmd(TIM4, ENABLE);
 #endif
