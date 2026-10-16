@@ -89,7 +89,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // float p_max = vel_n * t_n * vel_boost;
   // float t_max = MIN(t_n * t_boost, p_max / vel);
 
-  float id_n = i_n / sqrtf(2.0);
+  float id_n = i_n * M_SQRT1_2;
   float id   = MIN(id_n, id_n * vele_n * vel_boost / vel);
 
   float iq_max = 0;

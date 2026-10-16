@@ -1,0 +1,38 @@
+# measure the coupling with a stepped-sine FRF (comp frf) for conf0.j_lpf.
+# replaces id_lpf's ring down: it fits a two-mass model to the whole curve
+# instead of timing one ring. needs the axis free to move: it goes back and
+# forth at frf0.creep_vel between frf0.min_pos and frf0.max_pos about where
+# it starts (both sides, rad), measures only while cruising, and ends where
+# it started. the sweep prints a table, then the fit and conf0.j_lpf.
+# creep_vel 3 rad/s keeps the load sliding through the sine near the
+# anti-resonance, where it swings most (1 rad/s read the mode 10 % low in
+# the sim). the lowest point needs one cruise: (max_pos - min_pos) / creep_vel
+# has to exceed about 3 s at f_start 5 Hz.
+# start: frf0.start = 1; frf0.start = 0 aborts or clears a finished sweep.
+# run it before id_pid: j_lpf changes the plant the gains are tuned against.
+load frf
+frf0.rt_prio = 8.6
+frf0.en = fault0.en_out
+frf0.pos_fb = fb_switch0.pos_fb
+pid0.pos_ext_cmd = frf0.pos_cmd
+pid0.vel_ext_cmd = frf0.vel_cmd
+pid0.acc_ext_cmd = frf0.acc_cmd
+
+frf0.in = pid0.torque_cmd
+pmsm_ttc0.torque = frf0.out
+frf0.pos = fb_switch0.vel_fb
+vel1.torque = frf0.out
+vel2.torque = frf0.out
+
+frf0.amp = 1
+frf0.creep_vel = 3
+frf0.creep_acc = 20
+frf0.min_pos = -10
+frf0.max_pos = 10
+
+conf0.max_pos_error = 0
+
+term0.wave0 = frf0.freq
+term0.gain0 = 1
+term0.wave1 = frf0.inj
+term0.gain1 = 20

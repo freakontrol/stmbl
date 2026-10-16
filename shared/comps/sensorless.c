@@ -28,7 +28,7 @@
 * ## Description  
 * 
 * 1. **Input Reading and Initialization**:
-*    - `l` and `r` are the inductance and resistance of the motor, respectively. They are ensured to be positive.
+*    - `l` and `r` are ensured to be positive.
 *    - The voltage measurements `ud` and `uq` are updated using a delay line (`ud2`, `uq2`, `ud1`, `uq1`, `ud`, `uq`).
 *    - The current measurements `id` and `iq` are read from the input pins.
 * 
@@ -67,9 +67,6 @@
 * 8. **Position Update**:
 *    - The estimated position `pos` is updated by integrating the estimated velocity over time.
 *    - The position is wrapped using the `mod` function to ensure it stays within a valid range (e.g., 0 to 2π for angular position).
-*  
-* 9. **Output Updates**:
-*    - The estimated back EMF (`ed` and `eq`), velocity (`vel`), and position (`pos`) are updated on the output pins.  
 */
 
 #include "commands.h"

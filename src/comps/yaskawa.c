@@ -5,33 +5,68 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include "yaskawa_crc16.h"
 
+/**
+* ## Brief
+* The `yaskawa` component reads the absolute position of a Yaskawa Sigma serial encoder (as on SGMPH motors) over the F4 board's feedback 0 Z line. It is loaded by `conf/sgmph-*.txt` and `conf/sda_b.txt`, which link `yaskawa0.pos` to `fb_switch0.mot_pos` / `mot_abs_pos` and `yaskawa0.error` to `fault0.mot_fb_error`.
+*
+* {{% hint danger %}}
+* Experimental, F4-only, bit-banged driver. The rt function busy-waits for the previous reply and for the end of the request, so it takes a large part of the rt period. Hardware used: the `FB0_Z` pin and its TX enable, `TIM8` (8 MHz DMA pacing for the request), the feedback timer channel 3 in input capture mode, `DMA2_Stream1` (TX) and `DMA1_Stream7` (RX).
+* {{% /hint %}}
+*
+* ## Component Explanation
+*
+* 1. **Request** (`hw_init`, `rt`):
+* - A fixed request is Manchester encoded in `hw_init` (0 -> 01, 1 -> 10): a 0101... preamble, the HDLC flag `01111110`, the data word 0xFFFF with a 0 stuffed after every five 1s, and a closing flag.
+* - At the end of every rt call the TX enable is set, the Z pin is switched to output and the request is clocked out by DMA at 8 MHz. After the DMA finishes, the pin is switched back to timer input and edge capture into a 300 entry buffer starts, so the reply is read in the next rt call.
+*
+* 2. **Reply decoding** (`rt`):
+* - The rt call first waits until the capture timer reaches 3300 counts, then counts the captured edges.
+* - The preamble is found by looking for 10 short edge intervals (< 15 timer counts). After that, two short intervals mean "same bit", one long interval toggles the bit. Stuffed 0s after five 1s are dropped and six 1s (HDLC flag) end the frame. The decoded bits are stored as characters in a bit string and packed into a 14 byte reply.
+* - The CRC-16 over the first 12 bytes is compared with bytes 12..13; `crc_ok` or `crc_error` is incremented.
+*
+* 3. **Position** (`rt`):
+* - `len` bits starting at bit `off` of the bit string are read LSB first and scaled to rad:
+* ```c
+* pos = raw / 2^len * 2 * M_PI - M_PI;
+* ```
+* - The defaults of `len` and `off` are also what the SGMPH configs use.
+*
+* 4. **Debugging** (`nrt`):
+* - The first decoded reply after boot is kept in a snapshot buffer. A rising edge on `dump` prints its first 112 bits to the terminal in groups of 8 separated by `|` (`H` marks the end flag) and re-arms the snapshot, so the next reply is captured for the next dump.
+*
+* {{% hint warning %}}
+* `pos` and `error` are updated even when the CRC check fails; the CRC result is only counted. A decoding error found inside the bit loop is overwritten by `error = 0` right afterwards, so only the "too few edges" case really shows up on `error`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(yaskawa);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(error_sum);
-HAL_PIN(dump);
-HAL_PIN(len);
-HAL_PIN(off);
+HAL_PIN(pos);       // *output*, Encoder position (rad, +-pi)
+HAL_PIN(error);     // *output*, 1 = reply missing (80 edges or less), 0 otherwise
+HAL_PIN(error_sum); // *output*, Counts rt periods with error
+HAL_PIN(dump);      // *input*, Rising edge prints a captured reply bit string (nrt)
+HAL_PIN(len);       // *parameter*, Number of position bits (default 15)
+HAL_PIN(off);       // *parameter*, Bit offset of the position in the reply (default 64)
 
-HAL_PIN(len2);
-HAL_PIN(off2);
-HAL_PIN(probe2);
+HAL_PIN(len2);      // *parameter*, Number of bits for probe2 (default 0)
+HAL_PIN(off2);      // *parameter*, Bit offset for probe2 (default 0)
+HAL_PIN(probe2);    // *output*, Debug: len2 bits read at off2
 
-HAL_PIN(len3);
-HAL_PIN(len4);
-HAL_PIN(len5);
+HAL_PIN(len3);      // *parameter*, Bit index for probe3 (default 57)
+HAL_PIN(len4);      // *parameter*, Bit index for probe4 (default 58)
+HAL_PIN(len5);      // *parameter*, Bit index for probe5 (default 59)
 
-HAL_PIN(probe3);
-HAL_PIN(probe4);
-HAL_PIN(probe5);
+HAL_PIN(probe3);    // *output*, Debug: reply bit at index len3
+HAL_PIN(probe4);    // *output*, Debug: reply bit at index len4
+HAL_PIN(probe5);    // *output*, Debug: reply bit at index len5
 
-HAL_PIN(send);
-HAL_PIN(crc_ok);
-HAL_PIN(crc_error);
+HAL_PIN(send);      // Unused, not read or written
+HAL_PIN(crc_ok);    // *output*, Counts replies with a correct CRC
+HAL_PIN(crc_error); // *output*, Counts replies with a wrong CRC
 
 //TODO: use context
 static volatile uint32_t txbuf[128];
@@ -40,8 +75,8 @@ static int dfdf;
 static volatile char m_data[150];
 static volatile char m_data2[150];
 static volatile uint16_t tim_data[300];
-static DMA_InitTypeDef DMA_InitStructuretx;
-static DMA_InitTypeDef DMA_InitStructurerx;
+static LL_DMA_InitTypeDef DMA_InitStructuretx;
+static LL_DMA_InitTypeDef DMA_InitStructurerx;
 static uint8_t yaskawa_reply[14];
 //uint8_t yaskara_reply_len;
 
@@ -60,27 +95,29 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct yaskawa_ctx_t *ctx = (struct yaskawa_ctx_t *)ctx_ptr;
   // struct yaskawa_pin_ctx_t *pins = (struct yaskawa_pin_ctx_t *)pin_ptr;
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+
+  LL_GPIO_StructInit(&GPIO_InitStruct);
 
   //TX enable
-  GPIO_InitStruct.GPIO_Pin   = FB0_Z_TXEN_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_Z_TXEN_PORT, &GPIO_InitStruct);
-  GPIO_ResetBits(FB0_Z_TXEN_PORT, FB0_Z_TXEN_PIN);
+  GPIO_InitStruct.Pin   = FB0_Z_TXEN_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB0_Z_TXEN_PORT, &GPIO_InitStruct);
+  LL_GPIO_ResetOutputPin(FB0_Z_TXEN_PORT, FB0_Z_TXEN_PIN);
 
   //TX
-  GPIO_InitStruct.GPIO_Pin   = FB0_Z_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;  //TODO: default to AF?
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_Z_PORT, &GPIO_InitStruct);
-  GPIO_PinAFConfig(FB0_Z_PORT, FB0_Z_PIN_SOURCE, FB0_ENC_TIM_AF);
+  GPIO_InitStruct.Pin   = FB0_Z_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;  //TODO: default to AF?
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB0_Z_PORT, &GPIO_InitStruct);
+  LL_GPIO_SetAFPin_8_15(FB0_Z_PORT, FB0_Z_PIN, FB0_ENC_TIM_AF);  // TX pin is switched to AF later, PD14
 
-  RCC_APB1PeriphClockCmd(FB0_ENC_TIM_RCC, ENABLE);
+  LL_APB1_GRP1_EnableClock(FB0_ENC_TIM_RCC);
 
 
   //manchaster
@@ -121,62 +158,63 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   txbuf[pos++] = tim_a;
   txbuf[pos++] = tim_a;
 
-  DMA_InitStructuretx.DMA_Channel            = DMA_Channel_7;
-  DMA_InitStructuretx.DMA_PeripheralBaseAddr = (uint32_t)&FB0_Z_PORT->BSRRL;  //TODO: change
-  DMA_InitStructuretx.DMA_Memory0BaseAddr    = (uint32_t)&txbuf;
-  DMA_InitStructuretx.DMA_DIR                = DMA_DIR_MemoryToPeripheral;
-  DMA_InitStructuretx.DMA_BufferSize         = pos;
-  DMA_InitStructuretx.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructuretx.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructuretx.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
-  DMA_InitStructuretx.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Word;
-  DMA_InitStructuretx.DMA_Mode               = DMA_Mode_Normal;
-  DMA_InitStructuretx.DMA_Priority           = DMA_Priority_VeryHigh;
-  DMA_InitStructuretx.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructuretx.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructuretx.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructuretx.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  DMA_InitStructuretx.Channel            = LL_DMA_CHANNEL_7;
+  DMA_InitStructuretx.PeriphOrM2MSrcAddress = (uint32_t)&FB0_Z_PORT->BSRR;  //TODO: change
+  DMA_InitStructuretx.MemoryOrM2MDstAddress    = (uint32_t)&txbuf;
+  DMA_InitStructuretx.Direction                = LL_DMA_DIRECTION_MEMORY_TO_PERIPH;
+  DMA_InitStructuretx.NbData         = pos;
+  DMA_InitStructuretx.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructuretx.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructuretx.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_WORD;
+  DMA_InitStructuretx.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_WORD;
+  DMA_InitStructuretx.Mode               = LL_DMA_MODE_NORMAL;
+  DMA_InitStructuretx.Priority           = LL_DMA_PRIORITY_VERYHIGH;
+  DMA_InitStructuretx.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructuretx.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructuretx.MemBurst        = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructuretx.PeriphBurst    = LL_DMA_PBURST_SINGLE;
 
-  DMA_InitStructurerx.DMA_Channel            = DMA_Channel_2;
-  DMA_InitStructurerx.DMA_PeripheralBaseAddr = (uint32_t)&FB0_ENC_TIM->CCR3;  //TODO: change
-  DMA_InitStructurerx.DMA_Memory0BaseAddr    = (uint32_t)&tim_data;
-  DMA_InitStructurerx.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructurerx.DMA_BufferSize         = ARRAY_SIZE(tim_data);
-  DMA_InitStructurerx.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructurerx.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructurerx.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-  DMA_InitStructurerx.DMA_MemoryDataSize     = DMA_PeripheralDataSize_HalfWord;
-  DMA_InitStructurerx.DMA_Mode               = DMA_Mode_Normal;
-  DMA_InitStructurerx.DMA_Priority           = DMA_Priority_VeryHigh;
-  DMA_InitStructurerx.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructurerx.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructurerx.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructurerx.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  DMA_InitStructurerx.Channel            = LL_DMA_CHANNEL_2;
+  DMA_InitStructurerx.PeriphOrM2MSrcAddress = (uint32_t)&FB0_ENC_TIM->CCR3;  //TODO: change
+  DMA_InitStructurerx.MemoryOrM2MDstAddress    = (uint32_t)&tim_data;
+  DMA_InitStructurerx.Direction                = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  DMA_InitStructurerx.NbData         = ARRAY_SIZE(tim_data);
+  DMA_InitStructurerx.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructurerx.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructurerx.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_HALFWORD;
+  DMA_InitStructurerx.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_HALFWORD;
+  DMA_InitStructurerx.Mode               = LL_DMA_MODE_NORMAL;
+  DMA_InitStructurerx.Priority           = LL_DMA_PRIORITY_VERYHIGH;
+  DMA_InitStructurerx.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructurerx.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructurerx.MemBurst        = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructurerx.PeriphBurst    = LL_DMA_PBURST_SINGLE;
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM8, ENABLE);
-  TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-  TIM_TimeBaseStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
-  TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
-  TIM_TimeBaseStructure.TIM_Period            = 20;  // 168 / (20 + 1) = 8MHz
-  TIM_TimeBaseStructure.TIM_Prescaler         = 0;
-  TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
-  TIM_TimeBaseInit(TIM8, &TIM_TimeBaseStructure);
-  TIM_ARRPreloadConfig(TIM8, ENABLE);
-  TIM_DMACmd(TIM8, TIM_DMA_Update, ENABLE);
-  TIM_Cmd(TIM8, ENABLE);
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_TIM8);
+  LL_TIM_InitTypeDef TIM_TimeBaseStructure;
+  LL_TIM_StructInit(&TIM_TimeBaseStructure);
+  TIM_TimeBaseStructure.ClockDivision     = LL_TIM_CLOCKDIVISION_DIV1;
+  TIM_TimeBaseStructure.CounterMode       = LL_TIM_COUNTERMODE_UP;
+  TIM_TimeBaseStructure.Autoreload            = 20;  // 168 / (20 + 1) = 8MHz
+  TIM_TimeBaseStructure.Prescaler         = 0;
+  TIM_TimeBaseStructure.RepetitionCounter = 0;
+  LL_TIM_Init(TIM8, &TIM_TimeBaseStructure);
+  LL_TIM_EnableARRPreload(TIM8);
+  LL_TIM_EnableDMAReq_UPDATE(TIM8);
+  LL_TIM_EnableCounter(TIM8);
 
   FB0_ENC_TIM->CR1 &= ~TIM_CR1_CEN;
   FB0_ENC_TIM->ARR = 65535;
   FB0_ENC_TIM->CNT = 3300;
   FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;  // enable tim
 
-  DMA_Cmd(DMA1_Stream7, DISABLE);
-  DMA_DeInit(DMA1_Stream7);
-  DMA_Init(DMA1_Stream7, &DMA_InitStructurerx);
+  dma_stream_stop(DMA1_Stream7);
+  LL_DMA_DeInit(DMA1, LL_DMA_STREAM_7);
+  LL_DMA_Init(DMA1, LL_DMA_STREAM_7, &DMA_InitStructurerx);
 
-  DMA_Cmd(DMA2_Stream1, DISABLE);
-  DMA_DeInit(DMA2_Stream1);
-  DMA_Init(DMA2_Stream1, &DMA_InitStructuretx);
+  dma_stream_stop(DMA2_Stream1);
+  LL_DMA_DeInit(DMA2, LL_DMA_STREAM_1);
+  LL_DMA_Init(DMA2, LL_DMA_STREAM_1, &DMA_InitStructuretx);
   dfdf = 0;
 }
 
@@ -187,8 +225,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   while(FB0_ENC_TIM->CNT < 3300) {
   }
 
-  int count = ARRAY_SIZE(tim_data) - DMA1_Stream7->NDTR;
-  DMA_Cmd(DMA1_Stream7, DISABLE);
+  int count = ARRAY_SIZE(tim_data) - LL_DMA_GetDataLength(DMA1, LL_DMA_STREAM_7);
+  dma_stream_stop(DMA1_Stream7);
 
   uint16_t bit_time = 15;
 
@@ -295,15 +333,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   // PIN(send) = send;
 
-  FB0_Z_TXEN_PORT->BSRRL = FB0_Z_TXEN_PIN;  //TX enable
+  FB0_Z_TXEN_PORT->BSRR = FB0_Z_TXEN_PIN;  //TX enable
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_1;
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_0;  //set tx pin to output
 
-  DMA_Cmd(DMA2_Stream1, DISABLE);
-  DMA_DeInit(DMA2_Stream1);
-  DMA_Init(DMA2_Stream1, &DMA_InitStructuretx);
-  DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF7);
-  DMA_Cmd(DMA2_Stream1, ENABLE);  //transmit request
+  dma_stream_stop(DMA2_Stream1);
+  LL_DMA_DeInit(DMA2, LL_DMA_STREAM_1);
+  LL_DMA_Init(DMA2, LL_DMA_STREAM_1, &DMA_InitStructuretx);
+  LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_1);  //transmit request
 
   TIM8->CR1 &= ~TIM_CR1_CEN;  // disable tim
   TIM8->ARR  = 20;            // 168 / 2 / (9 + 1) = 8.4MHz
@@ -313,9 +350,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   TIM8->CNT = 0;
   TIM8->CR1 |= TIM_CR1_CEN;
 
-  DMA_Cmd(DMA1_Stream7, DISABLE);
-  DMA_ClearFlag(DMA1_Stream7, DMA_FLAG_TCIF7);
-  DMA_Cmd(DMA1_Stream7, ENABLE);
+  dma_stream_stop(DMA1_Stream7);
+  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_7);
 
   FB0_ENC_TIM->CR1 &= ~TIM_CR1_CEN;
   FB0_ENC_TIM->CCMR2 = TIM_CCMR2_CC3S_0;                                // cc3 input ti3
@@ -325,10 +361,10 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_ENC_TIM->CNT   = 0;
   FB0_ENC_TIM->CCR3  = 0;
 
-  while(!(DMA2->LISR & DMA_FLAG_TCIF1))
+  while(!(DMA2->LISR & DMA_LISR_TCIF1))
     ;  //wait for request
 
-  FB0_Z_TXEN_PORT->BSRRH = FB0_Z_TXEN_PIN;     //TX disable
+  FB0_Z_TXEN_PORT->BSRR = (uint32_t)(FB0_Z_TXEN_PIN) << 16;     //TX disable
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_0;  //set tx pin to af
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_1;
 

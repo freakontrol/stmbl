@@ -1,0 +1,18 @@
+# measure the coupling resonance for conf0.j_lpf (ids ring down, state 2.x).
+# needs conf0.j and conf0.j_sys from id_mot and id_sys. run it before id_pid:
+# j_lpf changes the plant the gains are tuned against. the axis goes
+# back and forth ids0.ring_reps times, in pairs at ids0.ring_vel and
+# 1.5 x ring_vel rad/s, up to about 1.5 x ring_vel x ring_dwell rad each
+# way (15 rad), and ends where it started. the ring is timed at each
+# speed and a result needs both to agree, so speed ripple is not taken
+# for the coupling.
+# ids0.ring_vel = 0 twitches ids0.ring_pos rad from standstill instead,
+# which friction can stall before the ring is timed.
+link id_pid
+ids0.lpf = 1
+ids0.j_mot = conf0.j
+ids0.j_sys = conf0.j_sys
+
+# the ring detector's own signal, to look at a failed measurement
+term0.wave1 = ids0.ring_sig
+term0.gain1 = 20

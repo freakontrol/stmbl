@@ -1,0 +1,102 @@
+# Fanuc alpha 3/3000, ball screw 10 mm/rev,
+# absolute Fanuc encoder, LinuxCNC on sserial.
+# Kira Y axis with its load, 9 Oct 2026.
+#
+# Sources, marked per line:
+#   [plate] nameplate / Fanuc datasheet
+#   [id]    measured with the id_* templates
+#   [calc]  derived from the lines above it
+# Fanuc gives currents in A rms; STMBL currents are
+# peak (A pk = A rms x 1.414).
+#
+# [plate] nameplate A06B-0123-B075 (04.02):
+#   0.9 kW cont., 127 V, 4.6 A rms, 200 Hz at
+#   3000 rpm, class F, Y connected, 200 V amp,
+#   stall 3 Nm at 4.6 A rms
+# [plate] datasheet B-65142E/02 (rms, 20 C):
+#   max 3000 rpm, 4 pole pairs, Jm 0.0014 kgm2
+#   Ts 3.0 Nm, Is 4.6 A rms = 6.5 A pk
+#   Kt 0.65 Nm/A rms, Ke 23 V rms/1000 rpm
+#   Kv 0.22 Vs/rad (psi about 0.077)
+#   Ra 0.57 ohm/phase, thermal tc 45 min
+#   mech tc 6 ms, static friction 0.3 Nm
+#   max current 60 A pk, max torque 27 Nm
+# [plate] stock Fanuc amp (B-65162, labels):
+#   X: A06B-6079-H204 SVM2-12/40, M channel
+#   Y: A06B-6079-H207 SVM2-40/80, L channel
+#   both: 12.5 A rms rated, 40 A pk limit
+#   (about 16.8 Nm with this motor's psi)
+# measured on this motor for comparison:
+#   DMM R line-line 1.34-1.37 ohm
+#   LCR 1 kHz L line-line 6.6-6.8 mH
+#   psi 0.0702 = 0.91 x datasheet
+link pid
+link pmsm
+link filters
+link misc
+link fanuc_fb0
+link ocdac
+link sserial
+# feedback: absolute encoder, linrev in mm
+# the scale comes from LinuxCNC:
+#   setp hm2_7i94.0.stbl.0.N.scale 10
+encf0.pos_offset = 0
+linrev0.abs_en = 1
+linrev0.abs_rev = encf0.turns
+linrev0.abs_pos = encf0.pos
+linrev0.abs_state = encf0.state
+linrev0.abs_neg = conf0.mot_fb_rev
+# motor
+conf0.polecount = 4 # [id] pole pairs
+conf0.out_rev = 1
+conf0.r = 0.661196 # [id] id_pmsm, ohm
+conf0.l = 0.003201 # [id] Ld, H
+conf0.lq = 0.004308 # [id] Lq, H
+conf0.psi = 0.070176 # [id] emf0; [plate] 0.077
+# [calc] Kt = 1.5 x 4 x psi = 0.421 Nm/A pk
+#        = 0.596 Nm/A rms; at Is: 2.74 Nm
+conf0.j = 0.001625 # [id] id_mot, rotor kgm2
+conf0.mot_fb_offset = 0.522777 # [id] id_pmsm
+conf0.com_fb_offset = 2.098459 # [id] id_pmsm
+pmsm_ttc0.mtpa = 1 # Ld < Lq, MTPA pays
+hv0.drop_k = 0.938142 # [id] id_pmsm
+hv0.drop_knee = 0.975 # [id] id_pmsm
+hv0.adv = 0.000376 # [id] id_tune
+# limits
+conf0.max_vel = 314.159265 # [plate] 3000 rpm
+conf0.max_acc = 20000
+conf0.max_ac_cur = 16.3 # 2.5 x Is, by choice
+conf0.max_force = 6.86 # [calc] 16.3 A x Kt
+conf0.low_dc_volt = 200
+iit0.cur_boost = 2.5 # cont. 6.5 A pk = Is
+iit0.max_time = 605 # [plate] tt 45 min
+# over current comparator: drive specific,
+# measure per board (ocdac map, 6 Oct)
+ocdac0.dac0 = 144
+ocdac0.k = 6.53
+ocdac0.cur = 21.2 # 1.3 x max_ac_cur
+# stopping
+fault0.rstop_en = 1 # regen stop first
+fault0.sbrake_en = 1 # short brake fallback
+hv io0.sbrake_cur = 8 # f3 chop
+# load + loop: axis specific, redo per machine
+# id_sys / id_lpf / id_pid, 9 Oct 2026
+conf0.j_sys = 0.002310 # [id] motor + load
+# friction ff off: dob0 estimates friction too
+# (id_sys: f 0.526805, d 0.010228, o -0.001081)
+conf0.f = 0
+conf0.d = 0
+conf0.o = 0
+# dob: load torque observer, 15 Oct 2026
+# 2-30x load stiffness at 2-25 Hz, LinuxCNC
+# f-error ~1 um rms worse than friction ff
+dob0.j = 0.003935 # [id] id_frf total
+dob0.max = 3
+dob0.k = 1
+conf0.j_lpf = 13 # [bench] Y FRF, id_lpf 17.55, Hz
+conf0.pos_bw = 25 # [id] id_pid
+# position axis: velocity feedback and velocity ff without timing lag
+vel1.vel_p = 1
+vel_int0.vel_ip = 1
+conf0.vel_bw = 400 # [id] cap cur_bw / 7.5
+conf0.vel_d = 5 # [id] id_pid

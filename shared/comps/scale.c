@@ -5,13 +5,23 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `scale` multiplies one signal by `scale` and divides another one by it. F4 component; not used by any config in `conf/`.
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* - `out0 = in0 * scale`, `out1 = in1 / MAX(scale, 0.001)`.
+* - There is no default, so `scale` is 0 until set.
+*/
+
 HAL_COMP(scale);
 
-HAL_PIN(in0);
-HAL_PIN(out0);
-HAL_PIN(in1);
-HAL_PIN(out1);
-HAL_PIN(scale);
+HAL_PIN(in0);    // *input*, Signal to multiply
+HAL_PIN(out0);   // *output*, in0 * scale
+HAL_PIN(in1);    // *input*, Signal to divide
+HAL_PIN(out1);   // *output*, in1 / scale (scale clamped to >= 0.001)
+HAL_PIN(scale);  // *parameter*, Scale factor
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct scale_ctx_t * ctx = (struct scale_ctx_t *)ctx_ptr;

@@ -1,4 +1,5 @@
 load enc_fb
+adc0.rt_prio = 1
 enc_fb0.rt_prio = 2
 enc_fb0.res = conf0.mot_fb_res
 enc_fb0.sin = adc0.sin0l

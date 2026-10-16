@@ -3,75 +3,112 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `motsim` is a simple software model of a PMSM with its own d/q current controller, for testing control components without hardware. It is built into the F4 firmware but no config template loads it; use `load motsim` and wire it by hand in place of `hv0`: it takes the same `d_cmd`/`q_cmd`/`cmd_mode`/`en` and commutation angle, and returns `id_fb`, `iq_fb`, `ud_fb`, `uq_fb` and a quantised rotor position `pos_fb`.
+*
+* ## Component Explanation
+*
+* Everything is done in `rt`, one integration step per rt period (explicit Euler). There are two sets of motor constants: `r`, `l`, `psi` are what the simulated controller believes (like `hv0.r/l/psi`), `mot_r`, `mot_l`, `mot_psi`, `mot_pp`, `mot_j`, `mot_f`, `mot_d` are the simulated motor.
+*
+* 1. **Current feedback**:
+* - The motor currents `id`, `iq` (in the true rotor frame, angle `pos * mot_pp`) are turned into alpha/beta and back into d/q at the commutation angle `com_pos`. So `id_fb`/`iq_fb` are what a controller with a wrong commutation offset would see.
+*
+* 2. **Controller**, selected by `cmd_mode`:
+* - 0, voltage mode: `ud = d_cmd`, `uq = q_cmd` (V).
+* - 1, current mode: PI with feed forward, gains from the controller model:
+* ```c
+* kp = cur_bw * l;   ki = cur_bw * r;
+* ud = r * id_fb - com_vel * l * iq_fb        + kp * (d_cmd - id_fb) + id_error_sum;
+* uq = r * iq_fb + com_vel * (l * id_fb + psi) + kp * (q_cmd - iq_fb) + iq_error_sum;
+* ```
+* - `id_error_sum`/`iq_error_sum` integrate `ki * error`, limited to `pwm_volt - ud` (resp. `uq`); each axis is limited to +-`pwm_volt` on its own, not as a vector.
+* - Both voltages are quantised to `pwm_res` steps of `pwm_volt` and written to `ud_fb`/`uq_fb`.
+*
+* 3. **Motor model**:
+* - The voltages are rotated from `com_pos` into the true rotor frame. `en <= 0` sets them to 0 (only the voltage; the controller keeps running).
+* ```c
+* did/dt = (ud - mot_r * id + w * mot_l * iq) / mot_l;              // w = vel * mot_pp
+* diq/dt = (uq - mot_r * iq - w * (mot_l * id + mot_psi)) / mot_l;
+* torque = 3/2 * mot_psi * iq * mot_pp + load_torque - vel * mot_d - sign(vel) * mot_f;
+* acc = torque / mot_j;
+* ```
+* - `pos` is integrated from `vel` and `acc` and wrapped to +-pi with `mod()`; `vel` in rad/s mechanical. `pos_fb` is `pos` truncated to `fb_res` steps per turn.
+*
+* {{% hint warning %}}
+* This is an incomplete, experimental model. `deadtime`, `drop`, `thermal_r`, `thermal_mass`, `temp`, `cur_res`, `cur_noise`, `fb_noise`, `fb_delay`, `curpid_mult` and `motsim_mult` have defaults but are not used by the code: there is no PWM distortion, thermal model, noise, current quantisation, feedback delay or sub-stepping. The integration step is simply the rt period, which is coarse for small `mot_l / mot_r`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(motsim);
 
 
 // sim inputs
-HAL_PIN(d_cmd);
-HAL_PIN(q_cmd);
+HAL_PIN(d_cmd);         // *input*, d command (A in current mode, V in voltage mode)
+HAL_PIN(q_cmd);         // *input*, q command (A in current mode, V in voltage mode)
 
-HAL_PIN(cmd_mode);
-HAL_PIN(en);
+HAL_PIN(cmd_mode);      // *input*, 0 = voltage mode, 1 = current mode
+HAL_PIN(en);            // *input*, 0 = no voltage on the motor
 
-HAL_PIN(com_pos);
-HAL_PIN(com_vel);
+HAL_PIN(com_pos);       // *input*, commutation angle of the controller (rad electrical)
+HAL_PIN(com_vel);       // *input*, electrical velocity for the controller feed forward (rad/s)
 
-HAL_PIN(r);
-HAL_PIN(l);
-HAL_PIN(psi);
+HAL_PIN(r);             // *parameter*, controller model resistance (Ohm), default 1
+HAL_PIN(l);             // *parameter*, controller model inductance (H), default 0.001
+HAL_PIN(psi);           // *parameter*, controller model flux linkage (Vs), default 0.055
 
-HAL_PIN(load_torque);  // load
+HAL_PIN(load_torque);   // *input*, external load torque (Nm)
 
 
 // sim outputs
-HAL_PIN(id_fb);
-HAL_PIN(ud_fb);
-HAL_PIN(iq_fb);
-HAL_PIN(uq_fb);
+HAL_PIN(id_fb);         // *output*, d current seen at com_pos (A)
+HAL_PIN(ud_fb);         // *output*, d voltage command after limit and quantisation (V)
+HAL_PIN(iq_fb);         // *output*, q current seen at com_pos (A)
+HAL_PIN(uq_fb);         // *output*, q voltage command after limit and quantisation (V)
 
-HAL_PIN(pos_fb);
+HAL_PIN(pos_fb);        // *output*, rotor position quantised to fb_res (rad)
 
 // sim state
-HAL_PIN(pos);
-HAL_PIN(vel);
-HAL_PIN(acc);
-HAL_PIN(temp);
-HAL_PIN(id);
-HAL_PIN(iq);
+HAL_PIN(pos);           // *input/output*, simulated rotor position, wrapped to +-pi (rad)
+HAL_PIN(vel);           // *input/output*, simulated rotor velocity (rad/s)
+HAL_PIN(acc);           // *output*, simulated rotor acceleration (rad/s^2)
+HAL_PIN(temp);          // *output*, motor temperature, set to 20 in init, not used
+HAL_PIN(id);            // *input/output*, simulated d current in the rotor frame (A)
+HAL_PIN(iq);            // *input/output*, simulated q current in the rotor frame (A)
 
 // sim config
-HAL_PIN(mot_r);    // resistance
-HAL_PIN(mot_l);    // inductance
-HAL_PIN(mot_psi);  // torque constant
+HAL_PIN(mot_r);         // *parameter*, motor resistance (Ohm), default 0.75
+HAL_PIN(mot_l);         // *parameter*, motor inductance (H), default 0.0015
+HAL_PIN(mot_psi);       // *parameter*, motor flux linkage (Vs), default 0.05
 
-HAL_PIN(mot_pp);  // pole pairs
-HAL_PIN(mot_j);   // inertia
-HAL_PIN(mot_f);   // friction
-HAL_PIN(mot_d);   // damping
+HAL_PIN(mot_pp);        // *parameter*, motor pole pairs, default 3
+HAL_PIN(mot_j);         // *parameter*, rotor inertia (kg m^2), default 0.000025
+HAL_PIN(mot_f);         // *parameter*, coulomb friction (Nm), default 0.01
+HAL_PIN(mot_d);         // *parameter*, viscous damping (Nm s/rad), default 0.003
 
-HAL_PIN(thermal_r);     // thermal resistance
-HAL_PIN(thermal_mass);  // thermal mass
+HAL_PIN(thermal_r);     // *parameter*, thermal resistance, not used
+HAL_PIN(thermal_mass);  // *parameter*, thermal mass, not used
 
-HAL_PIN(deadtime);  // pwm deadtime
-HAL_PIN(drop);      // pwm drop
+HAL_PIN(deadtime);      // *parameter*, pwm dead time, not used
+HAL_PIN(drop);          // *parameter*, pwm drop, not used
 
-HAL_PIN(pwm_volt);  // dc volt
-HAL_PIN(pwm_res);   // pwm res
+HAL_PIN(pwm_volt);      // *parameter*, dc link / voltage limit (V), default 320
+HAL_PIN(pwm_res);       // *parameter*, pwm resolution in steps of pwm_volt, default 4800
 
-HAL_PIN(cur_res);    // current res
-HAL_PIN(cur_noise);  // current noise
+HAL_PIN(cur_res);       // *parameter*, current resolution, not used
+HAL_PIN(cur_noise);     // *parameter*, current noise, not used
 
-HAL_PIN(fb_res);    // fb res
-HAL_PIN(fb_noise);  // fb noise
-HAL_PIN(fb_delay);  // fb delay
+HAL_PIN(fb_res);        // *parameter*, position feedback steps per turn, default 4096
+HAL_PIN(fb_noise);      // *parameter*, feedback noise, not used
+HAL_PIN(fb_delay);      // *parameter*, feedback delay, not used
 
-HAL_PIN(curpid_mult);  // curpid iterations / cycle
-HAL_PIN(motsim_mult);  // motsim iterations / curpid cycle
+HAL_PIN(curpid_mult);   // *parameter*, current loop iterations per cycle, not used
+HAL_PIN(motsim_mult);   // *parameter*, model iterations per current loop cycle, not used
 
 
-HAL_PIN(id_error_sum);
-HAL_PIN(iq_error_sum);
-HAL_PIN(cur_bw);
+HAL_PIN(id_error_sum);  // *output*, d current PI integrator (V)
+HAL_PIN(iq_error_sum);  // *output*, q current PI integrator (V)
+HAL_PIN(cur_bw);        // *parameter*, current loop bandwidth (rad/s), default 500
 
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -220,7 +257,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(pos) = mod(PIN(pos));
   PIN(vel) += PIN(acc) * period;
 
-  PIN(pos_fb) = ((int)(PIN(pos) / 2.0 / M_PI * PIN(fb_res))) * 2.0 * M_PI / PIN(fb_res);
+  PIN(pos_fb) = ((int)(PIN(pos) / 2.0 * M_1_PI * PIN(fb_res))) * 2.0 * M_PI / PIN(fb_res);
 }
 
 

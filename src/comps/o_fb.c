@@ -7,35 +7,50 @@
 #include "stm32f4xx_conf.h"
 #include "hw/hw.h"
 
+/**
+* ## Brief
+* `o_fb` (F4 logic board, hardware v4) turns the A and B lines of the fb0 feedback connector into digital outputs, e.g. to send an encoder or step/dir style signal to another device. No template loads it.
+*
+* ## Component Explanation
+*
+* 1. **Setup (hw_init)**:
+* - Enables the fb0 A and B RS485 transmitters (FB0_A_EN, FB0_B_EN high) and configures the A and B pins as push-pull outputs. The fb0 connector can then no longer be used as a feedback input.
+*
+* 2. **Output (rt)**:
+* - Once per rt period, the A line is driven from `a` and the B line from `b`. The output rate is therefore limited to the rt frequency.
+*/
+
 HAL_COMP(o_fb);
 
-HAL_PIN(a);
-HAL_PIN(b);
+HAL_PIN(a);  // *input*, fb0 line A output, > 0 = high
+HAL_PIN(b);  // *input*, fb0 line B output, > 0 = high
 
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct o_fb_ctx_t * ctx = (struct o_fb_ctx_t *)ctx_ptr;
   // struct o_fb_pin_ctx_t * pins = (struct o_fb_pin_ctx_t *)pin_ptr;
 
-  GPIO_InitTypeDef GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+  LL_GPIO_InitTypeDef GPIO_InitStructure;
 
-  GPIO_InitStructure.GPIO_Pin = FB0_A_EN_PIN;
-  GPIO_Init(FB0_A_EN_PORT, &GPIO_InitStructure);
+  LL_GPIO_StructInit(&GPIO_InitStructure);
+  GPIO_InitStructure.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStructure.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStructure.Pull  = LL_GPIO_PULL_NO;
 
-  GPIO_InitStructure.GPIO_Pin = FB0_B_EN_PIN;
-  GPIO_Init(FB0_B_EN_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_A_EN_PIN;
+  LL_GPIO_Init(FB0_A_EN_PORT, &GPIO_InitStructure);
 
-  GPIO_SetBits(FB0_A_EN_PORT, FB0_A_EN_PIN);
-  GPIO_SetBits(FB0_B_EN_PORT, FB0_B_EN_PIN);
+  GPIO_InitStructure.Pin = FB0_B_EN_PIN;
+  LL_GPIO_Init(FB0_B_EN_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_A_PIN;
-  GPIO_Init(FB0_A_PORT, &GPIO_InitStructure);
+  LL_GPIO_SetOutputPin(FB0_A_EN_PORT, FB0_A_EN_PIN);
+  LL_GPIO_SetOutputPin(FB0_B_EN_PORT, FB0_B_EN_PIN);
 
-  GPIO_InitStructure.GPIO_Pin = FB0_B_PIN;
-  GPIO_Init(FB0_B_PORT, &GPIO_InitStructure);
+  GPIO_InitStructure.Pin = FB0_A_PIN;
+  LL_GPIO_Init(FB0_A_PORT, &GPIO_InitStructure);
+
+  GPIO_InitStructure.Pin = FB0_B_PIN;
+  LL_GPIO_Init(FB0_B_PORT, &GPIO_InitStructure);
 }
 
 
@@ -44,15 +59,15 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct o_fb_pin_ctx_t *pins = (struct o_fb_pin_ctx_t *)pin_ptr;
 
   if(PIN(a) > 0) {
-    GPIO_SetBits(FB0_A_PORT, FB0_A_PIN);
+    LL_GPIO_SetOutputPin(FB0_A_PORT, FB0_A_PIN);
   } else {
-    GPIO_ResetBits(FB0_A_PORT, FB0_A_PIN);
+    LL_GPIO_ResetOutputPin(FB0_A_PORT, FB0_A_PIN);
   }
 
   if(PIN(b) > 0) {
-    GPIO_SetBits(FB0_B_PORT, FB0_B_PIN);
+    LL_GPIO_SetOutputPin(FB0_B_PORT, FB0_B_PIN);
   } else {
-    GPIO_ResetBits(FB0_B_PORT, FB0_B_PIN);
+    LL_GPIO_ResetOutputPin(FB0_B_PORT, FB0_B_PIN);
   }
 }
 

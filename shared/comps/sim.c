@@ -5,20 +5,42 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `sim` is a test signal generator. It outputs a sine wave, its first and second integral, a square wave and a ramp, with adjustable amplitude, frequency and offset. It is used to drive a motor or feedback test without a real command, for example `conf/template/com_test.txt` links `hv0.pos = sim0.vel` to turn the field at a fixed speed, and the `pid`, `mpid` and `uf` templates load it. It runs in the rt.
+*
+* ## Component Explanation
+*
+* 1. **Amplitude and frequency**:
+* - `amp` and `freq` are low pass filtered (0.1 % new value per tick), so changes take effect smoothly over about 1000 ticks.
+*
+* 2. **Waveforms**, with `A` = filtered amplitude, `f` = filtered frequency, `o` = `offset`:
+* - `sin = A * sin(2 pi f t) + o`.
+* - `sin2 = A / (2 pi f) * sin(2 pi f t) + o`: a sine whose derivative has amplitude `A`, so as a position it has a peak velocity of `A`.
+* - `sin3 = A / (2 pi f)^2 * sin(2 pi f t) + o`: as a position its peak acceleration is `A`.
+* - `square = +A + o` while the sine is positive, else `-A + o`.
+* - Used as a position, `vel` turns at `f` revolutions per second. It does not include `offset`.
+* - Below 0.01 Hz, `sin2` and `sin3` are 0 (plus `offset`).
+*
+* {{% hint warning %}}
+* The time is wrapped with a simple check after each period (marked TODO in the code). When `freq` changes, the phase of the sine can jump.
+* {{% /hint %}}
+*/
+
 HAL_COMP(sim);
 
-HAL_PIN(amp);
-HAL_PIN(freq);
-HAL_PIN(sin);
-HAL_PIN(msin);
-HAL_PIN(sin2);
-HAL_PIN(msin2);  //const vel, const max vel = amp
-HAL_PIN(sin3);
-HAL_PIN(msin3);  //const max acc = amp
-HAL_PIN(square);
-HAL_PIN(vel);
-HAL_PIN(res);
-HAL_PIN(offset);
+HAL_PIN(amp);     // *parameter*, Amplitude, low pass filtered, default 3.1
+HAL_PIN(freq);    // *parameter*, Frequency (Hz), low pass filtered, default 1
+HAL_PIN(sin);     // *output*, Sine, amp * sin + offset
+HAL_PIN(msin);    // *output*, sin wrapped to +-pi and quantised to 1/res
+HAL_PIN(sin2);    // *output*, Sine with peak derivative amp, amp / (2 pi freq) * sin + offset
+HAL_PIN(msin2);   // *output*, sin2 wrapped to +-pi and quantised to 1/res, constant max velocity = amp
+HAL_PIN(sin3);    // *output*, Sine with peak second derivative amp, amp / (2 pi freq)^2 * sin + offset
+HAL_PIN(msin3);   // *output*, sin3 wrapped to +-pi and quantised to 1/res, constant max acceleration = amp
+HAL_PIN(square);  // *output*, Square wave, +-amp + offset
+HAL_PIN(vel);     // *output*, Ramp, angle turning at freq (rad), wrapped to +-pi
+HAL_PIN(res);     // *parameter*, Quantisation steps per unit for the m outputs, min 1, default 100000
+HAL_PIN(offset);  // *parameter*, Offset added to the sine and square outputs
 
 struct sim_ctx_t {
   float time;

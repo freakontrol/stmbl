@@ -16,33 +16,67 @@
 extern volatile uint32_t ADC_DMA_Buffer0[ADC_SAMPLES_IN_RT];  //240
 extern volatile uint32_t ADC_DMA_Buffer1[ADC_SAMPLES_IN_RT];
 
+/**
+* ## Brief
+* `adc` (F4 logic board) converts the raw sin/cos samples of the two feedback connectors, which the ADCs capture by DMA, into scaled sin/cos values for the feedback components, and can stream the raw samples to Servoterm as a scope. The feedback templates wire it, e.g. conf/template/res_fb0.txt (`res0.sin = adc0.sin0`, `res0.cos = adc0.cos0`, `res0.quad = adc0.quad`, `adc0.res_mode = res0.res_mode`) and conf/template/enc_fb0.txt (`enc_fb0.sin = adc0.sin0l`, `enc_fb0.cos = adc0.cos0l`, `enc_fb0.amp = adc0.amp0`).
+*
+* ## Component Explanation
+*
+* 1. **Sampling**:
+* - ADC1 (sin) and ADC2 (cos) sample in dual mode into a DMA double buffer, 240 samples per rt period (1.2 MHz at 5 kHz rt). Each 32 bit sample holds sin in the lower and cos in the upper 16 bits. `rt` reads the half the DMA is not writing, i.e. the previous rt period.
+* - The transfer-complete interrupt of this DMA (DMA2 stream 0) is what runs the hal rt on the F4. An ADC1/ADC2 overrun would stop the DMA, and with it the rt, for good, so the overrun interrupt (src/main.c `ADC_IRQHandler`) stops the hal and sets its state to `MISC_ERROR`.
+* - The 240 samples form 24 groups of 10: 9 samples of fb0 followed by 1 sample of fb1.
+* - Each raw value is converted into the differential input voltage (V) of the analog front end:
+* ```c
+* V_DIFF(adc, over) = (adc / over / ADC_RES * ADC_REF - INPUT_REF) / INPUT_GAIN
+* ```
+*
+* 2. **Scaling and resolver demodulation (rt)**:
+* - Per group the samples of each channel are summed and converted, then `sin_gain`/`cos_gain` and `sin_offset`/`cos_offset` are applied: `si = flip * sin_gain * V + sin_offset`.
+* - `res_mode` = n > 0 flips the sign of fb0 groups in blocks of n (n groups +1, n groups -1, ...), which demodulates a resolver signal synchronous to its excitation (set by the `res` component).
+*
+* 3. **Outputs (rt)**:
+* - `sin0`/`cos0` and `sin1`/`cos1` are the averages over all 24 groups.
+* - `sin0l`/`cos0l` and `sin1l`/`cos1l` are the last group only, i.e. the newest value, used for sin/cos encoders.
+* - `quad` is used by the encoder components for interpolation.
+* - `amp0`/`amp1` are low pass filtered (0.9/0.1 per rt period) amplitudes `sqrt(s^2 + c^2)` of the last group of fb0/fb1 (the `sin0l`/`cos0l` and `sin1l`/`cos1l` values). uvw and encoder templates use them to detect a connected feedback.
+*
+* 4. **Scope stream to Servoterm (nrt)**:
+* - `rt` copies one raw buffer; `nrt` waits `send_step` nrt calls, converts it and sends all 240 samples over USB as 8 waves: 0/1 = fb0 sin/cos (flipped by `res_mode`, 0 at fb1 positions), 2/3 = fb1 sin/cos (0 at fb0 positions), 4 = the flip sign, 5..7 unused.
+* - Each wave byte is `(value + offset[i]) * gain[i] + 128`, clamped to 1..254; a frame starts with 255 and the buffer ends with 0xFE, which triggers Servoterm.
+*
+* {{% hint info %}}
+* The scope stream blocks `nrt` for 240 USB writes and uses the same USB wave format as the `term` scope, so with both active their frames interleave in Servoterm. Waves 2/3 show fb1 only at every 10th position, so they look like spikes.
+* {{% /hint %}}
+*/
+
 HAL_COMP(adc);
 
-HAL_PIN(sin0);   //sin output
-HAL_PIN(cos0);   //cos output
-HAL_PIN(sin0l);  //sin output, last group only
-HAL_PIN(cos0l);  //cos output, last group only
-HAL_PIN(quad);   //quadrant of sin/cos
-HAL_PIN(amp0);
+HAL_PIN(sin0);       // *output*, fb0 sin, average over the rt period (V)
+HAL_PIN(cos0);       // *output*, fb0 cos, average over the rt period (V)
+HAL_PIN(sin0l);      // *output*, fb0 sin, last group only (V)
+HAL_PIN(cos0l);      // *output*, fb0 cos, last group only (V)
+HAL_PIN(quad);       // *output*, quadrant (1..4) of the last fb0 sin/cos group
+HAL_PIN(amp0);       // *output*, filtered fb0 sin/cos amplitude of the last group (V), after gain/offset
 
-HAL_PIN(sin1);   //sin output
-HAL_PIN(cos1);   //cos output
-HAL_PIN(sin1l);  //sin output, last group only
-HAL_PIN(cos1l);  //cos output, last group only
-HAL_PIN(amp1);
+HAL_PIN(sin1);       // *output*, fb1 sin, average over the rt period (V)
+HAL_PIN(cos1);       // *output*, fb1 cos, average over the rt period (V)
+HAL_PIN(sin1l);      // *output*, fb1 sin, last group only (V)
+HAL_PIN(cos1l);      // *output*, fb1 cos, last group only (V)
+HAL_PIN(amp1);       // *output*, filtered fb1 sin/cos amplitude of the last group (V), after gain/offset
 
-HAL_PIN(res_mode);  //polarity flip mode for resolvers
+HAL_PIN(res_mode);   // *input*, resolver polarity flip every n groups (fb0 only), 0 = off, usually res0.res_mode
 
-HAL_PIN(sin_gain);
-HAL_PIN(cos_gain);
+HAL_PIN(sin_gain);   // *parameter*, sin gain for fb0 and fb1, default 1
+HAL_PIN(cos_gain);   // *parameter*, cos gain for fb0 and fb1, default 1
 
-HAL_PIN(sin_offset);
-HAL_PIN(cos_offset);
+HAL_PIN(sin_offset); // *parameter*, sin offset (V) for fb0 and fb1, default 0
+HAL_PIN(cos_offset); // *parameter*, cos offset (V) for fb0 and fb1, default 0
 
-HAL_PIN(send_step);  //15.0;
+HAL_PIN(send_step);  // *parameter*, send one scope buffer every n nrt calls, 0 = scope off
 
-HAL_PINA(offset, 8);
-HAL_PINA(gain, 8);
+HAL_PINA(offset, 8); // *parameter*, scope wave offsets, one per wave
+HAL_PINA(gain, 8);   // *parameter*, scope wave gains, default 150 (0..3), 80 (4), 0 (5..7)
 
 struct adc_ctx_t {
   volatile float txbuf[8][ADC_SAMPLES_IN_RT];
@@ -97,7 +131,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   volatile uint32_t *ADC_DMA_Buffer;
 
-  if(DMA_GetCurrentMemoryTarget(DMA2_Stream0)) {
+  if(LL_DMA_GetCurrentTargetMem(DMA2, LL_DMA_STREAM_0) == LL_DMA_CURRENTTARGETMEM1) {
     ADC_DMA_Buffer = ADC_DMA_Buffer0;
   } else {
     ADC_DMA_Buffer = ADC_DMA_Buffer1;
@@ -140,17 +174,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     ctx->send = 1;
   }
 
-  float s = V_DIFF(ADC_DMA_Buffer[0] & 0x0000ffff, 1);
-  float c = V_DIFF(ADC_DMA_Buffer[0] >> 16, 1);
-
   PIN(sin0l) = si0[ADC_GROUPS - 1];
   PIN(cos0l) = co0[ADC_GROUPS - 1];
   PIN(sin0)  = sin0all / (float)ADC_GROUPS;
   PIN(cos0)  = cos0all / (float)ADC_GROUPS;
+  // amplitude of the last group, after gain and offset like sin0/cos0, so
+  // sin_gain/cos_gain also scale what enc_fb and uvw check against
+  float s    = si0[ADC_GROUPS - 1];
+  float c    = co0[ADC_GROUPS - 1];
   PIN(amp0)  = PIN(amp0) * 0.9 + sqrtf(s * s + c * c) * 0.1;
 #ifdef FB1
-  s          = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] & 0x0000ffff, 1);
-  c          = V_DIFF(ADC_DMA_Buffer[ADC_OVER_FB0] >> 16, 1);
+  s          = si1[ADC_GROUPS - 1];
+  c          = co1[ADC_GROUPS - 1];
   PIN(sin1l) = si1[ADC_GROUPS - 1];
   PIN(cos1l) = co1[ADC_GROUPS - 1];
   PIN(sin1)  = sin1all / (float)ADC_GROUPS;
