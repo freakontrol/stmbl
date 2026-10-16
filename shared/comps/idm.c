@@ -25,6 +25,8 @@ HAL_PIN(pos);
 HAL_PIN(pos_cmd);
 HAL_PIN(vel_cmd);
 HAL_PIN(acc_cmd);
+HAL_PIN(vel_offset);  // added to the profile's speed, 0 = none; > max_vel keeps one direction (sensorless)
+HAL_PIN(vel_out);     // vel_cmd + vel_offset
 
 HAL_PIN(ji);
 HAL_PIN(fi);
@@ -179,18 +181,18 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         PIN(inertia_sum) += PIN(acc_cmd) * PIN(torque) * period;
       }
 
-      if(ABS(PIN(vel_cmd)) > 0.0) {
+      if(ABS(PIN(vel_cmd) + PIN(vel_offset)) > 0.0) {
         PIN(vel_time) += period;
-        PIN(damping_sum) += PIN(vel_cmd) * PIN(torque) * period;
-        PIN(friction_sum) += SIGN(PIN(vel_cmd)) * PIN(torque) * period;
+        PIN(damping_sum) += (PIN(vel_cmd) + PIN(vel_offset)) * PIN(torque) * period;
+        PIN(friction_sum) += SIGN(PIN(vel_cmd) + PIN(vel_offset)) * PIN(torque) * period;
       }
 
       PIN(time) += period;
       PIN(offset_sum) += PIN(torque) * period;
 
       PIN(inertia) += period / PIN(ji) * PIN(fb_torque) * PIN(acc_cmd) * period;
-      PIN(damping) += period / PIN(di) * PIN(fb_torque) * PIN(vel_cmd) * period;
-      PIN(friction) += period / PIN(fi) * PIN(fb_torque) * SIGN(PIN(vel_cmd)) * period;
+      PIN(damping) += period / PIN(di) * PIN(fb_torque) * (PIN(vel_cmd) + PIN(vel_offset)) * period;
+      PIN(friction) += period / PIN(fi) * PIN(fb_torque) * SIGN(PIN(vel_cmd) + PIN(vel_offset)) * period;
       PIN(offset) += period / PIN(li) * PIN(fb_torque) * period;
 
       if(PIN(sys) > 0.0) {
@@ -251,8 +253,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       }
 
       PIN(inertia) += period / PIN(ji) * PIN(fb_torque) * PIN(acc_cmd) * period;
-      PIN(damping) += period / PIN(di) * PIN(fb_torque) * PIN(vel_cmd) * period;
-      PIN(friction) += period / PIN(fi) * PIN(fb_torque) * SIGN(PIN(vel_cmd)) * period;
+      PIN(damping) += period / PIN(di) * PIN(fb_torque) * (PIN(vel_cmd) + PIN(vel_offset)) * period;
+      PIN(friction) += period / PIN(fi) * PIN(fb_torque) * SIGN(PIN(vel_cmd) + PIN(vel_offset)) * period;
       PIN(offset) += period / PIN(li) * PIN(fb_torque) * period;
 
       PIN(inertia)  = CLAMP(PIN(inertia), 0.000005, 50.0);
@@ -272,6 +274,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
       }
       break;
   }
+  PIN(vel_out) = PIN(vel_cmd) + PIN(vel_offset);
 }
 
 

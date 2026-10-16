@@ -6,29 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+  * Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -48,7 +31,7 @@
   * @{
   */
 
-/* Note: Devices of STM32F3 serie embed 1 out of 2 different ADC IP.   b      */
+/* Note: Devices of STM32F3 series embed 1 out of 2 different ADC IP.   b      */
 /*       - STM32F30x, STM32F31x, STM32F32x, STM32F33x, STM32F35x, STM32F39x:  */
 /*         ADC IP 5Msamples/sec, from 1 to 4 ADC instances and other specific */
 /*         features (refer to reference manual).                              */
@@ -286,6 +269,7 @@
    || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_TIM1_CH1)                  \
    || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_TIM1_CH2)                  \
    || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_TIM1_CH3)                  \
+   || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_TIM2_CH2)                  \
    || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_EXTI_LINE11)               \
    || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_TIM1_TRGO)                 \
    || ((__REG_TRIG_SOURCE__) == LL_ADC_REG_TRIG_EXT_TIM1_TRGO2)                \
@@ -586,7 +570,7 @@
   *         the same ADC common instance to their default reset values.
   * @note   This function is performing a hard reset, using high level
   *         clock source RCC ADC reset.
-  *         Caution: On this STM32 serie, if several ADC instances are available
+  *         Caution: On this STM32 series, if several ADC instances are available
   *         on the selected device, RCC ADC reset will reset
   *         all ADC instances belonging to the common ADC instance.
   *         To de-initialize only 1 ADC instance, use
@@ -671,7 +655,7 @@ ErrorStatus LL_ADC_CommonInit(ADC_Common_TypeDef *ADCxy_COMMON, LL_ADC_CommonIni
 
   /* Note: Hardware constraint (refer to description of functions             */
   /*       "LL_ADC_SetCommonXXX()" and "LL_ADC_SetMultiXXX()"):               */
-  /*       On this STM32 serie, setting of these features is conditioned to   */
+  /*       On this STM32 series, setting of these features is conditioned to   */
   /*       ADC state:                                                         */
   /*       All ADC instances of the ADC common group must be disabled.        */
   if(__LL_ADC_IS_ENABLED_ALL_COMMON_INSTANCE(ADCxy_COMMON) == 0U)
@@ -756,7 +740,7 @@ void LL_ADC_CommonStructInit(LL_ADC_CommonInitTypeDef *ADC_CommonInitStruct)
   *         is in an unknown state.
   *         In this case, perform a hard reset using high level
   *         clock source RCC ADC reset.
-  *         Caution: On this STM32 serie, if several ADC instances are available
+  *         Caution: On this STM32 series, if several ADC instances are available
   *         on the selected device, RCC ADC reset will reset
   *         all ADC instances belonging to the common ADC instance.
   *         Refer to function @ref LL_ADC_CommonDeInit().
@@ -810,7 +794,8 @@ ErrorStatus LL_ADC_DeInit(ADC_TypeDef *ADCx)
     while ((  LL_ADC_REG_IsStopConversionOngoing(ADCx) 
             | LL_ADC_INJ_IsStopConversionOngoing(ADCx)) == 1U)
     {
-      if(timeout_cpu_cycles-- == 0U)
+      timeout_cpu_cycles--;
+      if(timeout_cpu_cycles == 0U)
       {
         /* Time-out error */
         status = ERROR;
@@ -829,7 +814,8 @@ ErrorStatus LL_ADC_DeInit(ADC_TypeDef *ADCx)
     timeout_cpu_cycles = ADC_TIMEOUT_DISABLE_CPU_CYCLES;
     while (LL_ADC_IsDisableOngoing(ADCx) == 1U)
     {
-      if(timeout_cpu_cycles-- == 0U)
+      timeout_cpu_cycles--;
+      if(timeout_cpu_cycles == 0U)
       {
         /* Time-out error */
         status = ERROR;
@@ -990,10 +976,10 @@ ErrorStatus LL_ADC_DeInit(ADC_TypeDef *ADCx)
     /* ADC instance is in an unknown state */
     /* Need to performing a hard reset of ADC instance, using high level      */
     /* clock source RCC ADC reset.                                            */
-    /* Caution: On this STM32 serie, if several ADC instances are available   */
+    /* Caution: On this STM32 series, if several ADC instances are available   */
     /*          on the selected device, RCC ADC reset will reset              */
     /*          all ADC instances belonging to the common ADC instance.       */
-    /* Caution: On this STM32 serie, if several ADC instances are available   */
+    /* Caution: On this STM32 series, if several ADC instances are available   */
     /*          on the selected device, RCC ADC reset will reset              */
     /*          all ADC instances belonging to the common ADC instance.       */
     status = ERROR;
@@ -1155,7 +1141,7 @@ ErrorStatus LL_ADC_REG_Init(ADC_TypeDef *ADCx, LL_ADC_REG_InitTypeDef *ADC_REG_I
     /*    - Set ADC group regular conversion data transfer: no transfer or    */
     /*      transfer by DMA, and DMA requests mode                            */
     /*    - Set ADC group regular overrun behavior                            */
-    /* Note: On this STM32 serie, ADC trigger edge is set to value 0x0 by     */
+    /* Note: On this STM32 series, ADC trigger edge is set to value 0x0 by     */
     /*       setting of trigger source to SW start.                           */
     if(ADC_REG_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
     {
@@ -1217,7 +1203,7 @@ void LL_ADC_REG_StructInit(LL_ADC_REG_InitTypeDef *ADC_REG_InitStruct)
 {
   /* Set ADC_REG_InitStruct fields to default values */
   /* Set fields of ADC group regular */
-  /* Note: On this STM32 serie, ADC trigger edge is set to value 0x0 by       */
+  /* Note: On this STM32 series, ADC trigger edge is set to value 0x0 by       */
   /*       setting of trigger source to SW start.                             */
   ADC_REG_InitStruct->TriggerSource    = LL_ADC_REG_TRIG_SOFTWARE;
   ADC_REG_InitStruct->SequencerLength  = LL_ADC_REG_SEQ_SCAN_DISABLE;
@@ -1253,11 +1239,11 @@ void LL_ADC_REG_StructInit(LL_ADC_REG_InitTypeDef *ADC_REG_InitStruct)
   *            Refer to function @ref LL_ADC_INJ_SetSequencerRanks().
   *          - Set ADC channel sampling time
   *            Refer to function LL_ADC_SetChannelSamplingTime();
-  * @note   Caution to ADC group injected contexts queue: On this STM32 serie, 
+  * @note   Caution to ADC group injected contexts queue: On this STM32 series, 
   *         using successively several times this function will appear has
   *         having no effect.
   *         This is due to ADC group injected contexts queue (this feature
-  *         cannot be disabled on this STM32 serie).
+  *         cannot be disabled on this STM32 series).
   *         To set several features of ADC group injected, use
   *         function @ref LL_ADC_INJ_ConfigQueueContext().
   * @param  ADCx ADC instance
@@ -1295,7 +1281,7 @@ ErrorStatus LL_ADC_INJ_Init(ADC_TypeDef *ADCx, LL_ADC_INJ_InitTypeDef *ADC_INJ_I
     /*    - Set ADC group injected sequencer discontinuous mode               */
     /*    - Set ADC group injected conversion trigger: independent or         */
     /*      from ADC group regular                                            */
-    /* Note: On this STM32 serie, ADC trigger edge is set to value 0x0 by     */
+    /* Note: On this STM32 series, ADC trigger edge is set to value 0x0 by     */
     /*       setting of trigger source to SW start.                           */
     if(ADC_INJ_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
     {
@@ -1778,6 +1764,12 @@ ErrorStatus LL_ADC_REG_Init(ADC_TypeDef *ADCx, LL_ADC_REG_InitTypeDef *ADC_REG_I
   {
     assert_param(IS_LL_ADC_REG_SEQ_SCAN_DISCONT_MODE(ADC_REG_InitStruct->SequencerDiscont));
   }
+  
+  /* ADC group regular continuous mode and discontinuous mode                 */
+  /* can not be enabled simultenaeously                                       */
+  assert_param((ADC_REG_InitStruct->ContinuousMode == LL_ADC_REG_CONV_SINGLE)
+               || (ADC_REG_InitStruct->SequencerDiscont == LL_ADC_REG_SEQ_DISCONT_DISABLE));
+  
   assert_param(IS_LL_ADC_REG_CONTINUOUS_MODE(ADC_REG_InitStruct->ContinuousMode));
   assert_param(IS_LL_ADC_REG_DMA_TRANSFER(ADC_REG_InitStruct->DMATransfer));
   
@@ -1793,7 +1785,7 @@ ErrorStatus LL_ADC_REG_Init(ADC_TypeDef *ADCx, LL_ADC_REG_InitTypeDef *ADC_REG_I
     /*    - Set ADC group regular continuous mode                             */
     /*    - Set ADC group regular conversion data transfer: no transfer or    */
     /*      transfer by DMA, and DMA requests mode                            */
-    /* Note: On this STM32 serie, ADC trigger edge is set when starting        */
+    /* Note: On this STM32 series, ADC trigger edge is set when starting        */
     /*       ADC conversion.                                                  */
     /*       Refer to function @ref LL_ADC_REG_StartConversionExtTrig().      */
     if(ADC_REG_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
@@ -1854,7 +1846,7 @@ void LL_ADC_REG_StructInit(LL_ADC_REG_InitTypeDef *ADC_REG_InitStruct)
 {
   /* Set ADC_REG_InitStruct fields to default values */
   /* Set fields of ADC group regular */
-  /* Note: On this STM32 serie, ADC trigger edge is set when starting         */
+  /* Note: On this STM32 series, ADC trigger edge is set when starting         */
   /*       ADC conversion.                                                    */
   /*       Refer to function @ref LL_ADC_REG_StartConversionExtTrig().        */
   ADC_REG_InitStruct->TriggerSource    = LL_ADC_REG_TRIG_SOFTWARE;
@@ -1921,7 +1913,7 @@ ErrorStatus LL_ADC_INJ_Init(ADC_TypeDef *ADCx, LL_ADC_INJ_InitTypeDef *ADC_INJ_I
     /*    - Set ADC group injected sequencer discontinuous mode               */
     /*    - Set ADC group injected conversion trigger: independent or         */
     /*      from ADC group regular                                            */
-    /* Note: On this STM32 serie, ADC trigger edge is set when starting       */
+    /* Note: On this STM32 series, ADC trigger edge is set when starting       */
     /*       ADC conversion.                                                  */
     /*       Refer to function @ref LL_ADC_INJ_StartConversionExtTrig().      */
     if(ADC_INJ_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
@@ -2006,4 +1998,3 @@ void LL_ADC_INJ_StructInit(LL_ADC_INJ_InitTypeDef *ADC_INJ_InitStruct)
 
 #endif /* USE_FULL_LL_DRIVER */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

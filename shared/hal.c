@@ -26,6 +26,17 @@
 #include "defines.h"
 #include "version.h"
 
+#ifdef HAL_WATCHDOG
+// The rt kicks the watchdog, but only while the nrt loop keeps coming round:
+// a stopped rt (overrun, error) or an nrt stuck for HAL_WATCHDOG_NRT_TICKS
+// then ends in a reset. The nrt may block for a while on a long terminal
+// print (hv hal), so it only has to show progress within that window.
+#ifndef HAL_WATCHDOG_NRT_TICKS
+#define HAL_WATCHDOG_NRT_TICKS 15000  // 1 s at 15 kHz
+#endif
+static volatile uint32_t hal_nrt_runs = 0;
+#endif
+
 hal_t hal;
 
 hal_comp_t *comp_by_name(NAME name) {
@@ -396,7 +407,16 @@ void hal_run_rt() {
 #endif
 
 #ifdef HAL_WATCHDOG
-  hal_reset_watchdog();
+  static uint32_t nrt_seen = 0, nrt_stale = 0;
+  if(hal_nrt_runs != nrt_seen) {
+    nrt_seen  = hal_nrt_runs;
+    nrt_stale = 0;
+  } else if(nrt_stale < HAL_WATCHDOG_NRT_TICKS) {
+    nrt_stale++;
+  }
+  if(nrt_stale < HAL_WATCHDOG_NRT_TICKS) {
+    hal_reset_watchdog();
+  }
 #endif
 }
 
@@ -453,10 +473,6 @@ void hal_run_frt() {
   hal.frt_ticks     = hal_start - hal_end;
   hal.frt_max_ticks = MAX(hal.frt_max_ticks, hal.frt_ticks);
 #endif
-
-#ifdef HAL_WATCHDOG
-  hal_reset_watchdog();
-#endif
 }
 
 void hal_run_nrt() {
@@ -494,7 +510,7 @@ void hal_run_nrt() {
 #endif
 
 #ifdef HAL_WATCHDOG
-  hal_reset_watchdog();
+  hal_nrt_runs++;  // heartbeat for the rt's watchdog kick
 #endif
 }
 

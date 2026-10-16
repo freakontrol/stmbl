@@ -1,0 +1,21 @@
+# induction motor sensorless: link pid, link acim_foc, link sl_acim.
+# obs uses conf0.l = sigma*Ls for both axes (conf0.lq 0). chk_err is not
+# meaningful here: the encoder angle is the rotor's, not the flux's.
+# Set in the config: sl_seq0.i_f (about acim_foc0.id_n),
+# sl_seq0.align_time (about 3 * acim_flux0.tr), sl_seq0.w_hand, obs0.bw.
+# Optional, f3 commutates from its own observer once handed over:
+# hv0.obs_mode = sl_seq0.f3_mode
+# Optional, with a spindle encoder: sl_seq0.vel_enc = <encoder speed,
+# e.g. vel1.vel>, sl_seq0.enc_tol 1 (multiple of acim_flux0.slip_max);
+# then acim_flux0.tr_ks 1 trims tr from the slip error in steady holds.
+# command through ramp0: sl_seq0.vel_cmd = ramp0.vel_cmd (sensorless
+# links vel0.vel); pid takes sl_seq0.vel_ref, keep no pid0.vel_ext_cmd line.
+link sensorless
+sl_seq0.d_in = acim_foc0.d_cmd
+sl_seq0.q_in = acim_foc0.q_cmd
+obs0.slip = acim_flux0.slip
+sl_seq0.slip_max = acim_flux0.slip_max
+acim_flux0.slip_err = sl_seq0.slip_err
+# no tr MRAS here: the observer frame does not depend on tr, so the
+# reactive power residual has no tr in it and the MRAS would only drift
+acim_flux0.tr_ki = 0

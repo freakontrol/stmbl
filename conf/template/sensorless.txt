@@ -1,0 +1,41 @@
+# sensorless start and observer, common part. Use sl_pmsm or sl_acim.
+load obs
+load sl_seq
+sl_seq0.rt_prio = 9.3
+obs0.rt_prio = 9.4
+obs0.r = conf0.r
+obs0.ld = conf0.l
+obs0.lq = conf0.lq
+obs0.polecount = conf0.polecount
+obs0.adv = hv0.adv
+obs0.id = hv0.id_fb
+obs0.iq = hv0.iq_fb
+obs0.ud = hv0.ud_fb
+obs0.uq = hv0.uq_fb
+obs0.pos_ref = angle0.pos
+obs0.vel_ref = angle0.vel
+obs0.track = sl_seq0.track
+sl_seq0.en = fault0.en_pid
+sl_seq0.vel_cmd = vel0.vel
+sl_seq0.polecount = conf0.polecount
+sl_seq0.obs_ok = obs0.ok
+sl_seq0.obs_vel = obs0.vel_m
+pid0.en = sl_seq0.pid_en
+pid0.pos_en = 0
+pid0.vel_fb = obs0.vel_m
+pid0.vel_ext_cmd = sl_seq0.vel_ref
+pid0.acc_ext_cmd = sl_seq0.acc_ref
+angle0.src = sl_seq0.src
+angle0.vel_cmd = sl_seq0.vel_e
+angle0.pos_obs = obs0.pos_c
+angle0.vel_obs = obs0.vel
+hv0.d_cmd = sl_seq0.d_cmd
+hv0.q_cmd = sl_seq0.q_cmd
+term0.wave0 = sl_seq0.state
+term0.wave1 = obs0.chk_err
+term0.wave2 = obs0.vel_m
+term0.wave3 = hv0.iq_fb
+term0.gain0 = 10
+term0.gain1 = 10
+term0.gain2 = 0.05
+term0.gain3 = 1
