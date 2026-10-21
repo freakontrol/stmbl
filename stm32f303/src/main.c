@@ -98,6 +98,12 @@ void hal_reset_watchdog() {
   LL_IWDG_ReloadCounter(IWDG);
 }
 
+// Set when a break came with the PVD output active (3.3 V below the PVD
+// level): io.c's nrt then reports HV_UNDERVOLT_ERROR instead of
+// HV_OVERCURRENT_HW. PVDO itself clears again 100 mV above the level, so
+// the break interrupt latches it here.
+volatile uint32_t pvd_trip = 0;
+
 // Second shutdown path: a comparator break (BRK or BRK2, after the 0xC
 // digital filter) has already cleared MOE in hardware. Raise HV_EN (IPM
 // ITRIP) here, within about a microsecond, instead of waiting for io.c's
@@ -110,6 +116,9 @@ void TIM8_BRK_IRQHandler() {
 #ifdef HV_EN_PIN
   LL_GPIO_SetOutputPin(HV_EN_PORT, HV_EN_PIN);
 #endif
+  if(LL_PWR_IsActiveFlag_PVDO()) {  // after HV_EN: the shutdown comes first
+    pvd_trip = 1;
+  }
   LL_TIM_DisableIT_BRK(TIM8);
 }
 
@@ -206,7 +215,16 @@ int main(void) {
   // a core lockup (fault inside a fault handler) breaks TIM8 in hardware
   // (SYSCFG_CFGR2 LOCKUP_LOCK, SYSCFG clocked in clock_init), whatever the
   // software is doing
-  LL_SYSCFG_SetTIMBreakInputs(LL_SYSCFG_TIMBREAK_LOCKUP);
+  // The F3 is powered from HV: when HV collapses the 3.3 V rail goes with it.
+  // The PVD at level 6 (DS9118 table 27: falling 2.56-2.80 V, typ 2.68 V;
+  // rising typ 2.88 V) breaks TIM8 in hardware (BRK_ACTH, RM0316 8.3.16)
+  // before VDD reaches brownout. PVD_LOCK also freezes PVDE and PLS until
+  // reset. The PWR clock stays on: TIM8_BRK_IRQHandler reads PVDO to tell an
+  // undervoltage from an overcurrent (HV_UNDERVOLT_ERROR).
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
+  LL_PWR_SetPVDLevel(LL_PWR_PVDLEVEL_6);
+  LL_PWR_EnablePVD();
+  LL_SYSCFG_SetTIMBreakInputs(LL_SYSCFG_TIMBREAK_LOCKUP | LL_SYSCFG_TIMBREAK_PVD);
   /* Initialize all configured peripherals */
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA | LL_AHB1_GRP1_PERIPH_GPIOB | LL_AHB1_GRP1_PERIPH_GPIOC | LL_AHB1_GRP1_PERIPH_GPIOF);
   LL_GPIO_InitTypeDef GPIO_InitStruct;

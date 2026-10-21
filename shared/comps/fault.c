@@ -33,7 +33,7 @@
 * - `11` HV_VOLT_ERROR: `dc_volt > max_dc_volt` or `dc_volt < min_dc_volt`, filtered.
 * - `7` MOT_TEMP_ERROR: `mot_temp > max_mot_temp`, filtered.
 * - `17` IPM_TEMP_ERROR: `ipm_temp > max_ipm_temp` (the bridge junction estimate of `ipm0`), filtered. `ipm_temp` stays 0 when `ipm` is not loaded, so the check never trips then.
-* - Any `hv_error > 0`: its value is used as fault code, e.g. `8` HV_CRC_ERROR, `9` HV_TIMEOUT_ERROR, `12` HV_FAULT_ERROR, `13` HV_CURRENT_OFFSET_FAULT, `14` HV_OVERCURRENT_FILTERED, `15` HV_OVERCURRENT_PEAK, `16` HV_OVERCURRENT_HW.
+* - Any `hv_error > 0`: its value is used as fault code, e.g. `8` HV_CRC_ERROR, `9` HV_TIMEOUT_ERROR, `12` HV_FAULT_ERROR, `13` HV_CURRENT_OFFSET_FAULT, `14` HV_OVERCURRENT_FILTERED, `15` HV_OVERCURRENT_PEAK, `16` HV_OVERCURRENT_HW, `18` HV_UNDERVOLT_ERROR (the F3's 3.3 V, which it takes from HV, fell below its PVD level of about 2.7 V and broke TIM8).
 * - `0` is NO_ERROR. The fault text is printed by `nrt` on state change. A fault taken while already disabled (in a regenerative stop) can leave SOFT_FAULT again before `nrt` sees the state (after `fault_hold`, or in the next tick with `fault_hold = 0`); `rt` keeps its code until `nrt` has printed it, so it is not lost.
 *
 * 3. **Derating** (`scale`, 0..1, the minimum of):

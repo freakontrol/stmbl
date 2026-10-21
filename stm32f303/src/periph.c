@@ -27,6 +27,16 @@ static void gpio_af(GPIO_TypeDef *port, uint32_t pins, uint32_t af) {
   LL_GPIO_Init(port, &(LL_GPIO_InitTypeDef){.Pin = pins, .Mode = LL_GPIO_MODE_ALTERNATE, .Speed = LL_GPIO_SPEED_FREQ_LOW, .OutputType = LL_GPIO_OUTPUT_PUSHPULL, .Pull = LL_GPIO_PULL_NO, .Alternate = af});
 }
 
+// No HSE: LED on for good, nothing else configured. Error_Handler can't be
+// used this early, GPIOA has no clock yet.
+static void hse_failed(void) {
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
+  LL_GPIO_SetOutputPin(LED_PORT, LED_PIN);
+  LL_GPIO_SetPinMode(LED_PORT, LED_PIN, LL_GPIO_MODE_OUTPUT);
+  while(1) {
+  }
+}
+
 // HSE 8 MHz * 9 = 72 MHz SYSCLK/HCLK, APB1 36 MHz, APB2 72 MHz,
 // TIM8 and ADCs from the PLL (TIM8 144 MHz), USART3 from SYSCLK, RTC from LSI.
 // SysTick 1 kHz, priority 14.
@@ -42,9 +52,16 @@ void clock_init(void) {
   NVIC_SetPriority(DebugMonitor_IRQn, 0);
   NVIC_SetPriority(PendSV_IRQn, 0);
 
-  // oscillators
+  // oscillators. A dead HSE crystal must not leave the F3 silent: give it
+  // 200000 polls (about 25 ms at 72 MHz, over 100 ms at the 8 MHz HSI this
+  // normally runs on; a crystal starts in a few ms) and then stop with the
+  // LED on. TIM8 is not set up yet, so its pins are inputs and HV_EN's pull-up
+  // keeps the IPM off.
   LL_RCC_HSE_Enable();
-  while(!LL_RCC_HSE_IsReady()) {
+  for(uint32_t n = 0; !LL_RCC_HSE_IsReady(); n++) {
+    if(n > 200000) {
+      hse_failed();
+    }
   }
   LL_RCC_HSI_Enable();
   while(!LL_RCC_HSI_IsReady()) {
@@ -175,11 +192,14 @@ void tim8_init(void) {
   // tripped at 1 A at 150. RM0316 20.3.16: "BRK2 must only be used with OSSR =
   // OSSI = 1" (outputs to their idle level, all switches off, when MOE
   // drops).
-  // One write for all of BDTR (RM0316 20.4.18): the LOCK bits are frozen by
+  // One write for all of BDTR (RM0316 20.4.20): the LOCK bits are frozen by
   // the first write after reset, so a lock set by a later write never takes.
-  // LOCK level 1: DTG, BKE/BKP/BKF, BK2E/BK2P/BK2F, AOE and OISx are then
-  // read-only until reset, so no read-modify-write of BDTR can change the
-  // break setup. MOE, which io0 toggles, stays writable. AOE and OISx are 0.
+  // BK2P and BK2E in that same write is RM0316 20.3.16 procedure 2 (BDTR
+  // locked, BRK2 active high): MOE and BIE off, wait 4 timer clocks, clear
+  // B2IF. LOCK level 1 makes DTG, BKE/BKP, AOE and OISx/OISxN read-only until
+  // reset (the LOCK field description; the BDTR note says the BK2 and filter
+  // bits may lock too, depending on the level). MOE, which io0 toggles, stays
+  // writable. AOE and OISx are 0.
   WRITE_REG(TIM8->BDTR, (PWM_DEADTIME << TIM_BDTR_DTG_Pos) | LL_TIM_OSSI_ENABLE | LL_TIM_OSSR_ENABLE |
                           LL_TIM_BREAK_POLARITY_HIGH | LL_TIM_BREAK_FILTER_FDIV16_N8 | TIM_BDTR_BKE |
                           LL_TIM_BREAK2_POLARITY_HIGH | LL_TIM_BREAK2_FILTER_FDIV16_N8 | TIM_BDTR_BK2E |

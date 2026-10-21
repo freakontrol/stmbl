@@ -51,6 +51,7 @@
 * ```
 * - `HV_FAULT_ERROR`: the driver's fault pin (PB7, active low) for about 0.33 ms while enabled, unless `ignore_fault_pin` is set.
 * - `HV_OVERCURRENT_HW`: the bridge is enabled but TIM8's MOE bit has been cleared or a break flag (BIF/B2IF) is set. The flags catch a break that lands between the enable edge's MOE and driver enable writes and leaves MOE set again once the comparator releases. The comparators COMP2 (U, PA7), COMP4 (V, PB0) and COMP1 (W, PA1) compare the phase currents with the DAC reference (`dac`, on DAC1 channel 1, output buffer off) and trip the TIM8 break inputs in hardware (COMP4 on BRK, COMP1 and COMP2 on BRK2), all three through the break digital filter (0xC, fDTS/16 with N = 8, about 0.9 us).
+* - `HV_UNDERVOLT_ERROR`: the same break, but taken with the PVD active: the F3's 3.3 V, which comes from HV, fell below about 2.7 V (PVD level 6, main.c), which breaks TIM8 in hardware through SYSCFG PVD_LOCK. The break interrupt latches it and `io`'s nrt relabels the `HV_OVERCURRENT_HW` that rt latched.
 * - Second shutdown path: the break also raises `TIM8_BRK_IRQHandler` (main.c, NVIC priority 0; the rt on TIM8_UP runs at 1 and SysTick at 14, so it preempts the rt). It clears MOE, sets the driver enable pin PA15 high (the IPM's ITRIP) within about a microsecond instead of at the next rt tick (one to two PWM periods later, 67 to 133 us at 15 kHz), so the IPM turns its gate driver off on its own and holds it off for at least 40 us, and then switches the break interrupt (BIE) off so the still-set flag cannot re-enter. `io`'s nrt re-arms it, with the break flags cleared, whenever the bridge is not enabled and not braking; the fault itself is still reported by rt as above.
 * - The 0.33 ms filters use `err_filter` with a limit of `PWM_FREQ / 3000` (5 at 15 kHz): +1 per tick with the error, -0.001 without (-0.01 for the fault pin), and trip at 99 % of the limit (4.95 at 15 kHz).
 * - `fault` shows the current fault code (0 = none) every tick.
@@ -330,8 +331,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   // The sequence ends ~6 us after the tick; if the ADC DMA stalls (it only
   // requests once both ADCs of a pair finish) waiting here forever would hang
-  // the rt with irqs of its priority blocked. Give up after ~50 us and stop
-  // the rt instead: the watchdog then resets the F3.
+  // the rt with irqs of its priority blocked. Give up after 1000 polls
+  // (two DMA ISR reads each, roughly 110-140 us at 72 MHz, longer than a PWM
+  // period) and stop the rt instead: the watchdog then resets the F3.
   for(uint32_t n = 0; !(LL_DMA_IsActiveFlag_TC1(DMA1) && LL_DMA_IsActiveFlag_TC5(DMA2)); n++) {
     if(n > 1000) {
       hal_stop();
@@ -508,7 +510,7 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         ctx->fault_pin_error = 0;
         // a software trip (oc_lim, temperature, voltage, fault pin) takes the
         // bridge off in this tick too, not only the driver enable: MOE off
-        // puts all six outputs in their OSSR idle state at once
+        // puts all six outputs in their OSSI idle state at once (RM0316 table 122)
         LL_TIM_DisableAllOutputs(TIM8);
 #ifdef HV_EN_PIN
         //set driver enable pin
@@ -598,6 +600,20 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 void nrt_func(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct io_ctx_t *ctx      = (struct io_ctx_t *)ctx_ptr;
   struct io_pin_ctx_t *pins = (struct io_pin_ctx_t *)pin_ptr;
+
+  // A break with the PVD active (main.c pvd_trip) is an undervoltage of the
+  // F3's own 3.3 V, not an overcurrent: relabel the latched rt fault. Done
+  // here, in flash, because CCM is full; irqs off so the rt can't change the
+  // fault between the test and the write. The latch is dropped once the
+  // bridge is idle with no fault, so a stale one can't relabel a later trip.
+  extern volatile uint32_t pvd_trip;
+  __disable_irq();
+  if(pvd_trip && ctx->fault == HV_OVERCURRENT_HW) {
+    ctx->fault = HV_UNDERVOLT_ERROR;
+  } else if(!ctx->enabled && ctx->fault == NO_ERROR) {
+    pvd_trip = 0;
+  }
+  __enable_irq();
 
   uint32_t led = (uint32_t)PIN(led);
 

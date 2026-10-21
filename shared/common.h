@@ -176,6 +176,7 @@ typedef enum {
   HV_OVERCURRENT_PEAK,
   HV_OVERCURRENT_HW,
   IPM_TEMP_ERROR,
+  HV_UNDERVOLT_ERROR,  // F3 3.3 V below the PVD level: TIM8 break, not an overcurrent
 } fault_t;
 
 //check if structs can be send at 5kHz with DATABAUD
