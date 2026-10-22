@@ -125,6 +125,13 @@ void reset(char *ptr) {
 }
 COMMAND("reset", reset, "reset STMBL");
 
+// newlib's dtoa and mprec call assert(), which links fiprintf and a second
+// printf core (about 4 KB of flash). They only assert when a malloc inside a
+// float printf or scanf fails. Reset, as a fault would: the gates go off.
+void __assert_func(const char *file, int line, const char *func, const char *expr) {
+  NVIC_SystemReset();
+}
+
 int main(void) {
   // Relocate interrupt vectors
   extern void *g_pfnVectors;

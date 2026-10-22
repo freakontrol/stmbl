@@ -286,7 +286,7 @@ class ELFObject:
         """get sections relevant for the application"""
         res = []
         for section in self.sections:
-            if section.sh_flags & ELFSection.SHF_ALLOC and section.sh_type != ELFSection.SHT_NOBITS:
+            if section.sh_flags & ELFSection.SHF_ALLOC and section.sh_type != ELFSection.SHT_NOBITS and section.sh_size > 0:
                 res.append(section)
         return res
 

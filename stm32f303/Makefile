@@ -235,3 +235,17 @@ include base.mak
 #
 .PHONY: all build clean \
         elf hex bin lss sym tbl
+
+# Flash (112 KB for the app) and CCM (8 KB) are tight: gcc 12 with its newlib
+# overflows both. Code that does not run every rt tick is built for size: the
+# drivers, setup, terminal and config. hal.o is too; its rt part, hal_run_rt,
+# is a loop of calls. The rt components (ls, io, curpid, idq, hv, dq, svm,
+# emf, the observers), angle, main (the rt interrupt) and the link CRC keep
+# $(OPT).
+SIZE_OBJECTS = $(addprefix $(OBJDIR)/,shared/commands.o shared/ringbuf.o \
+  shared/hal.o shared/comps/term.o shared/comps/sim.o stm32f303/src/hal_tbl.o \
+  stm32f303/src/version.o stm32f303/src/usbd_cdc_if.o stm32f303/src/adc.o \
+  stm32f303/src/dac.o stm32f303/src/opamp.o stm32f303/src/tim.o \
+  stm32f303/src/stm32f3xx_hal_msp.o stm32f303/src/periph.o)
+$(OBJDIR)/lib/%.o: CFLAGS += -Os
+$(SIZE_OBJECTS): CFLAGS += -Os
