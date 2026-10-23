@@ -63,6 +63,9 @@ graph: $(GRAPH_FILES_TEMPLATE)
 ALL_COMPS = $(F3COMPS) $(F4COMPS)
 # Define the list of component files (example)
 COMP_DOCS := $(foreach comp,$(ALL_COMPS),docs/stmbldoc/content/docs/hal_components/$(notdir $(comp:.c=.md)))
+# F3 components whose name is also an F4 component (hv) get their own page, <name>_f3.md
+F3_DUP_COMPS := $(filter $(notdir $(HV_SRC_COMPS)),$(notdir $(F4COMPS)))
+COMP_DOCS += $(foreach comp,$(F3_DUP_COMPS),docs/stmbldoc/content/docs/hal_components/$(comp:.c=_f3.md))
 
 # Explicitly define targets for each component file
 docs/stmbldoc/content/docs/hal_components/%.md: $(ALL_COMPS) $(CONFIG_TEMPLATES)

@@ -3,43 +3,72 @@
 #include "angle.h"
 #include "defines.h"
 
+/**
+* ## Brief
+* `rl` is a minimal resistance / inductance measurement that drives `hv0` in voltage mode on the d axis. It runs on the F4 board and is loaded by the `rl` template. It has no nrt function and prints nothing: the results are read from the `r`, `ld` and `et` pins (the template puts `ud_cmd`, `hv0.id_fb`, `r` and `ld` on the scope waves). For a full motor identification use `id_pmsm` / `idpmsm` instead.
+*
+* ## Component Explanation
+*
+* 1. **Setup and start**:
+* - At the console, `link rl`. The template links the `pid` and `pmsm` templates, sets `conf0.max_ac_cur = 15`, and wires `hv0.en = rl0.en_out`, `hv0.d_cmd = rl0.ud_cmd`, `hv0.q_cmd = rl0.uq_cmd`, `hv0.cmd_mode = 0` (voltage) and `hv0.pos = 0`, plus the `hv0` d/q current and voltage feedback into this component.
+* - `rl0.en` is not linked; set `rl0.en = 1` to start. The rotor is held on the d axis at electrical angle 0 by the test current (a PMSM aligns itself; block it if it must not move).
+*
+* 2. **Resistance (`state` 1)**:
+* - `ud_cmd` is an integral current controller: `ud_cmd += ki * period * (r_test_cur - id_fb)`.
+* - After `r_test_time`, while `|id_fb| > 0.1 * r_test_cur`, `ud_fb` and `id_fb` are low-passed into `ur` / `ir` (0.01 per tick) and `r = ur / ir`. After `2 * r_test_time` the state goes to 2.
+*
+* 3. **Inductance (`state` 2)**:
+* - For `l_test_time`, `ud_cmd` alternates every rt tick between `l_test_volt` and `0.1 * l_test_volt`. The voltage and current seen at each level are low-passed into `u0`, `i0` (high) and `u1`, `i1` (low), and
+* ```c
+* ld = |((u1 - u0) / 2) / (i1 - i0)| * period;
+* ```
+* - The average voltage is `0.55 * l_test_volt`, so the mean current is about `5.5 V / r` with the defaults. Lower `l_test_volt` for low resistance motors.
+*
+* 4. **End (`state` 3)**:
+* - Output off, `et = ld / r`, and the component sets its own `en` pin to 0, which returns it to state 0 on the next tick. Set `rl0.en = 1` again to repeat.
+*
+* {{% hint warning %}}
+* Simple, older test. `r` includes the inverter dead time voltage (it is `ud_fb / id_fb`, not a two point fit), so it reads high on low resistance motors; `ld` uses the per-tick dV/dI slope that the `idacim` source documents as unreliable because of the feedback delay. The `ur`, `ir`, `u0`, `u1`, `i0`, `i1` filters are not reset between runs.
+* {{% /hint %}}
+*/
+
 HAL_COMP(rl);
 
-HAL_PIN(r_test_cur);
-HAL_PIN(l_test_volt);
-HAL_PIN(r_test_time);
-HAL_PIN(l_test_time);
+HAL_PIN(r_test_cur);   // *parameter*, current of the r test (A), default 5
+HAL_PIN(l_test_volt);  // *parameter*, high voltage level of the l test (V), low level is 10%, default 10
+HAL_PIN(r_test_time);  // *parameter*, settle time of the r test (s), total time is twice this, default 0.5
+HAL_PIN(l_test_time);  // *parameter*, duration of the l test (s), default 1.5
 
-HAL_PIN(ud_cmd);
-HAL_PIN(ud_fb);
-HAL_PIN(id_fb);
+HAL_PIN(ud_cmd);  // *output*, d axis voltage command to hv0.d_cmd (V)
+HAL_PIN(ud_fb);   // *input*, d axis voltage from hv0.ud_fb (V)
+HAL_PIN(id_fb);   // *input*, d axis current from hv0.id_fb (A)
 
-HAL_PIN(uq_cmd);
-HAL_PIN(uq_fb);
-HAL_PIN(iq_fb);
+HAL_PIN(uq_cmd);  // *output*, q axis voltage command to hv0.q_cmd, always 0
+HAL_PIN(uq_fb);   // *input*, q axis voltage from hv0.uq_fb, unused
+HAL_PIN(iq_fb);   // *input*, q axis current from hv0.iq_fb, unused
 
-HAL_PIN(ki);
+HAL_PIN(ki);  // *parameter*, integral gain of the r test current controller (V/(A s)), default 10
 
-HAL_PIN(en);
-HAL_PIN(en_out);
+HAL_PIN(en);      // *input/output*, set to 1 to start, cleared by the component when done
+HAL_PIN(en_out);  // *output*, enables hv0 during the test
 
-HAL_PIN(state);
+HAL_PIN(state);  // *output*, 0 off, 1 r test, 2 l test, 3 done
 
-HAL_PIN(timer);
-HAL_PIN(counter);
+HAL_PIN(timer);    // *output*, time in the current test (s)
+HAL_PIN(counter);  // *output*, toggles between 1 and -1 each tick in the l test
 
-HAL_PIN(r);
-HAL_PIN(ur);
-HAL_PIN(ir);
+HAL_PIN(r);   // *output*, measured resistance ur / ir (ohm)
+HAL_PIN(ur);  // *output*, filtered voltage of the r test (V)
+HAL_PIN(ir);  // *output*, filtered current of the r test (A)
 
-HAL_PIN(ld);
-HAL_PIN(lq);
-HAL_PIN(u0);
-HAL_PIN(u1);
-HAL_PIN(i0);
-HAL_PIN(i1);
+HAL_PIN(ld);  // *output*, measured d axis inductance (H)
+HAL_PIN(lq);  // *output*, unused
+HAL_PIN(u0);  // *output*, filtered voltage at the high level of the l test (V)
+HAL_PIN(u1);  // *output*, filtered voltage at the low level of the l test (V)
+HAL_PIN(i0);  // *output*, filtered current at the high level of the l test (A)
+HAL_PIN(i1);  // *output*, filtered current at the low level of the l test (A)
 
-HAL_PIN(et);
+HAL_PIN(et);  // *output*, electrical time constant ld / r (s)
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct rl_pin_ctx_t *pins = (struct rl_pin_ctx_t *)pin_ptr;

@@ -2,13 +2,25 @@
 #include "hal.h"
 #include "defines.h"
 
+/**
+* ## Brief
+* `avg` scales and offsets a signal and low pass filters it (first order). F4 component, typically used to turn an analog spindle speed input into a velocity command, e.g. `avg0.mult = 0.1047` (rpm to rad/s), `ramp0.vel_ext_cmd = avg0.out`.
+*
+* ## Component Explanation
+* 1. **Output** (`rt`):
+* ```c
+* out = LP(in * mult + offset)   // first order low pass at lpf Hz
+* ```
+* - Until `mult` is set the output is only `offset`.
+*/
+
 HAL_COMP(avg);
 
-HAL_PIN(in);
-HAL_PIN(out);
-HAL_PIN(lpf);
-HAL_PIN(mult);
-HAL_PIN(offset);
+HAL_PIN(in);      // *input*, Signal
+HAL_PIN(out);     // *output*, Filtered in * mult + offset
+HAL_PIN(lpf);     // *parameter*, Filter cutoff (Hz), default 100
+HAL_PIN(mult);    // *parameter*, Multiplier, no default (0)
+HAL_PIN(offset);  // *parameter*, Offset added after mult, default 0
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct avg_ctx_t * ctx = (struct avg_ctx_t *)ctx_ptr;

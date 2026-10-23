@@ -1,0 +1,31 @@
+# Z axis (fanuc_a6-3000, vertical, 10 mm screw) as the example config ships:
+# friction and gravity feedforward from id_sys, no dob. Plant: the config's
+# inertia, f/d/o as measured, 0.3 Nm of static friction on top (Stribeck
+# step), gravity as a constant -4.59 Nm on the load (positive pos = up).
+# Two 20 mm moves, up then down, 73 mm/s at 1000 mm/s2 (the 21 Oct bench
+# profile), each followed by a 0.4 s dwell. Stiction means the stop ends at
+# whatever torque the move left, anywhere inside gravity +- (f + fs) =
+# 1.6..7.6 Nm: today the hold torque after an up move differs from the one
+# after a down move (the bench read 18 vs 3 A with dob). The expects only
+# bound the band; the mean torque over each dwell is the number to watch.
+title Z holds after an up and a down move, feedforward config
+config conf/fanuc_a6-3000.txt
+f4 pid0.hold_en = 0
+plant f=2.691968 fs=0.3 d=0.008362
+lcnc scale 10
+at 0.05 lcnc enable 1
+# gravity comes once the loop holds: the plant has no brake
+at 0.06 plant load=-4.5907
+at 0.1 lcnc move 20 73 1000
+at 0.8 lcnc move -20 73 1000
+trace lcnc.pos plant.pos_mm plant.vel pid0.pos_error pid0.torque_cmd pid0.fb_torque_cmd hv0.iq_fb
+expect max fault0.last_fault < 0.5 from 0.06
+expect absmax pid0.pos_error < 0.1 from 0.1
+expect final plant.pos_mm > -0.05
+expect final plant.pos_mm < 0.05
+# the hold torque after each move stays inside the stiction band
+expect mean pid0.torque_cmd > 1.6 from 0.6 to 0.8
+expect mean pid0.torque_cmd < 7.6 from 0.6 to 0.8
+expect mean pid0.torque_cmd > 1.6 from 1.3 to 1.5
+expect mean pid0.torque_cmd < 7.6 from 1.3 to 1.5
+run 1.5

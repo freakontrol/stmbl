@@ -1,0 +1,33 @@
+# Same as z_hold, with the filters template and dob as the Z bench ran it on
+# 21 Oct: dob0.k 1, bw 30, max 4, friction feedforward off, the gravity
+# offset kept. With k 1 dob drives the pid output to 0 and its own
+# estimate d_est keeps the last move's torque, so the hold after an up move
+# and after a down move differ by about 2 (f + fs); dob0.max 4 is below
+# gravity + f + fs, which is why the bench's d_est sat on its clamp.
+title Z holds after an up and a down move, dob config
+config conf/fanuc_a6-3000.txt
+f4 pid0.hold_en = 0
+plant f=2.691968 fs=0.3 d=0.008362
+f4 link filters
+f4 dob0.j = 0.004382
+f4 dob0.bw = 30
+f4 dob0.max = 4
+f4 dob0.k = 1
+f4 conf0.f = 0
+f4 conf0.d = 0
+lcnc scale 10
+at 0.05 lcnc enable 1
+# gravity comes once the loop holds: the plant has no brake
+at 0.06 plant load=-4.5907
+at 0.1 lcnc move 20 73 1000
+at 0.8 lcnc move -20 73 1000
+trace lcnc.pos plant.pos_mm plant.vel pid0.pos_error pid0.torque_cmd dob0.d_est dob0.out hv0.iq_fb
+expect max fault0.last_fault < 0.5 from 0.06
+expect absmax pid0.pos_error < 0.05 from 0.1
+expect final plant.pos_mm > -0.05
+expect final plant.pos_mm < 0.05
+expect mean dob0.out > 1.6 from 0.6 to 0.8
+expect mean dob0.out < 7.6 from 0.6 to 0.8
+expect mean dob0.out > 1.6 from 1.3 to 1.5
+expect mean dob0.out < 7.6 from 1.3 to 1.5
+run 1.5

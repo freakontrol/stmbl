@@ -17,11 +17,15 @@ weight: 7
    * No Error (Green LED on top illuminated. Good!)
    * Drive disabled (Yellow LED on top. Drive ready to go but disabled.)
    * Autophasing (Green and Yellow)
+   * All LEDs on top off for a moment: the drive is in a brake delay while enabling or disabling (`fault0.brake_en_delay`, `fault0.brake_dis_delay`)
 ### Errors
-   * Soft fault, resettable (Red LED blinks according to the list below)
-   * Hard fault, bad! (All LEDs on top blink.)
+   * Soft fault, resettable (Red LED blinks according to the list below). Set the enable to 0 to clear it, for example with `disable` in Servoterm or by toggling the enable in LinuxCNC. The fault is held for at least `fault0.fault_hold` (0.02 s by default) before an enable of 0 clears it, so a fault taken while the drive was already disabling (for example in a regenerative stop) still reaches LinuxCNC.
 
-Count the number of blinks of the red LED. Each number indicates a different class of faults.
+The current firmware does not use the hard fault state, so all LEDs blinking is not expected.
+
+If the crystal (HSE) on the LV board does not start, the F4 stays on its internal clock and does not start the hal, so there is no fault code and no F3 link. USB needs the crystal too, so the board does not show up on USB at all. With the hardware watchdog on (`wdg_hw`) the F4 resets after about 1.5 s and retries until the crystal starts.
+
+Count the number of blinks of the red LED. Each number indicates a different class of faults. The LED blinks N times (300ms on, 300ms off), then pauses for another 600ms before the code repeats. Servoterm also prints the fault as `ERROR: Fault N: <text>`. With LinuxCNC over smart serial, the `fault_code` pin of the `stbl` remote reads N while the fault is set (see [LinuxCNC](/docs/getting_started/linuxcnc.md)).
 
 
  | LED Blink Times | Error                                 | Possible Solution                                          |
@@ -32,22 +36,30 @@ Count the number of blinks of the red LED. Each number indicates a different cla
    | 4               | Joint Feedback Error                | Ensure joint feedback is properly connected and configured.|
    | 5               | Position Error                      | Review positioning mechanisms and settings.                |
    | 6               | Saturation Error                    | Adjust parameters to avoid saturation.                     |
-   | 7               | Motor temperature high              | Check for overheating issues or motor ptc misconfiguration.   |
-   | 8               | HV Side serial CRC Error           | Ensure data integrity during communication with the side.|
-   | 9               | HV Side comms Timeout Error        | HV side is not powered or programmed correctly.             |
-   | 10              | HV Side over-temperature           | Check the fan, air intake/output obstruction or dust in the heatsink.  |
-   | 11              | HV Voltage out of range             | Check if power supply is stable and if the dynamic braking circuit is working. |
-   | 12              | HV Side Fault                      | Investigate specific faults reported by the HV side.      |
-   | 13              | HV current offset fault             | Damaged F3 micro ADC?            |
-   | 14              | HV Overcurrent RMS                  | Reduce average current consumption to stay within limits.  |
-   | 15              | HV Overcurrent Peak                 | Limit peak current spikes to prevent overcurrent issues.   |
-   | 16              | HV Overcurrent HW                   | The motor power size is too high (or the bridge is broken) |
+   | 7               | Motor temperature high              | The modelled motor temperature (I²t model, `fault0.mot_temp = iit0.temp`) is above `conf0.max_mot_temp`. Lower the RMS current, or check `conf0.max_ac_cur`. |
+   | 8               | HV serial CRC Error                 | Not raised by the current firmware. CRC errors on the F4-F3 link are only counted in `hv0.crc_error`. |
+   | 9               | HV comms Timeout Error              | No answer from the F3, or a link dropout while enabled (counted in `hv0.link_drops`). The HV side is not powered or programmed correctly, the F4-F3 ribbon cable is bad, or the F3 is overloaded at the PWM rate (rt overrun). A fault code the F3 reports itself (10 to 16, 18) is shown instead of 9. |
+   | 10              | HV over-temperature                 | Above `conf0.max_hv_temp` (90°C by default), or above the F3 limit of 110°C. Check the fan, air intake/output obstruction or dust in the heatsink.  |
+   | 11              | HV Voltage out of range             | Above `conf0.max_dc_volt` (380V by default), below `conf0.low_dc_volt` (24V by default) while enabled, or above the F3 limit of 400V. Check if the power supply is stable. Overvoltage while braking is regeneration: no brake chopper is driven, so decelerate more slowly, add bulk capacitance or an external chopper (see [Supply](/docs/supply.md)). |
+   | 12              | HV Fault                            | The fault pin of the power module (IPM) is active. |
+   | 13              | HV current offset fault             | A current offset above 5A was measured at F3 start-up. It stays set until reset. The motor must not carry current while the drive starts. Otherwise a damaged F3 ADC or current sensing? |
+   | 14              | HV overcurrent filtered             | A filtered peak: the phase current was above 0.95 × 35A for about 0.33ms. Check the current-loop and commutation settings. |
+   | 15              | HV Overcurrent Peak                 | The phase current was above 1.3 × `conf0.max_ac_cur` (at least 5A, at most 35A) for a single PWM cycle, or above 35A. Check the current-loop and commutation settings and `conf0.max_ac_cur`. |
+   | 16              | HV Overcurrent HW                   | The hardware comparators tripped (against `hv0.dac`). Short circuit or damaged module, or the comparator level is too low. |
+   | 17              | IPM junction overtemperature        | The modelled junction temperature of the power module is above `conf0.max_ipm_temp` (140°C by default). Lower the current or improve cooling. |
+   | 18              | HV undervoltage (F3 supply)         | The F3's own 3.3 V, which it takes from HV, fell below about 2.7 V (its PVD level). This breaks the bridge in hardware like an overcurrent. HV collapsed or dropped out while enabled: check the HV supply, its fuse and contactor. |
 
 ## HV Side
 
 ### Normal operation
    * Green LED at power input
 ### Errors
-   * Red LED blinks fast - Bootloader but no or broken firmware
-   * Red LED blinks slow - No communication with F4
+The red LED on the HV board blinks a code in the same way as the LV side (N blinks, then a pause). It shows the higher of the link fault and the HV fault:
+
+   * 1 blink - No communication with F4 (no packets from the F4)
+   * 2 blinks - The F3 HAL is not running
+   * 3 blinks - CRC errors on the link from the F4
+   * 10 to 16 and 18 blinks - The HV fault codes from the table above (17 is computed on the F4 only)
+   * Red LED flashes fast (50ms on, 50ms off) - F3 bootloader, but no or broken firmware
+   * Red LED on steadily - The F3 firmware stopped at a setup error, or its crystal (HSE) did not start
    * Red LED does not blink _AND_ F4 not plugged in - No firmware or bootloader

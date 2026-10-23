@@ -1,0 +1,99 @@
+# Fanuc alpha 6/3000, vertical axis with a
+# holding brake, ball screw 10 mm/rev, no
+# counterweight, absolute Fanuc encoder,
+# LinuxCNC on sserial. Kira Z axis, 21 Oct 2026,
+# IKCM30F60GD (water cooled) power board.
+#
+# Sources, marked per line:
+#   [plate] nameplate / Fanuc datasheet
+#   [id]    measured with the id_* templates
+#   [calc]  derived from the lines above it
+#   [board] specific to this drive, measure yours
+# Fanuc gives currents in A rms; STMBL currents are
+# peak (A pk = A rms x 1.414).
+#
+# [plate] A06B-0128-B175: 4 pole pairs, 127 V,
+#   Is 10 A rms (14.1 A pk), Ts 6 Nm,
+#   Jm 0.0026 kgm2, thermal time constant 50 min
+# measured on this motor for comparison:
+#   DMM R line-line 0.56 ohm (0.28 per phase,
+#   cable included); id_pmsm reads 0.35
+#
+# Run the id_* templates with sserial out of the
+# config: their stop/start (and resets) can drop
+# the F3 link while sserial is linked.
+link pid
+link pmsm
+link misc
+link fanuc_fb0
+link ocdac
+link sserial
+# feedback: absolute encoder, linrev in mm
+# the scale comes from LinuxCNC:
+#   setp hm2_7i94.0.stbl.0.N.scale 10
+linrev0.abs_en = 1
+linrev0.abs_rev = encf0.turns
+linrev0.abs_pos = encf0.pos
+linrev0.abs_state = fb_switch0.mot_state_fb
+linrev0.abs_neg = conf0.mot_fb_rev
+sserial0.pos_advance = 0.00029 # X/Y value, fit yours
+# motor
+conf0.polecount = 4 # [plate] pole pairs
+conf0.out_rev = 1
+conf0.r = 0.35 # [id] id_pmsm 16 A, ohm
+conf0.l = 0.0011425 # [id] Ld, H
+conf0.lq = 0.0016785 # [id] Lq, H
+pmsm_ttc0.mtpa = 1 # Ld < Lq
+conf0.psi = 0.070443 # [id] id_pmsm emf
+# [calc] Kt = 1.5 x 4 x psi = 0.423 Nm/A pk
+conf0.j = 0.003348 # [id] id_mot, rotor + brake
+conf0.mot_fb_offset = 0.529761 # [id] id_pmsm
+conf0.com_fb_offset = 2.126089 # [id] id_pmsm
+hv0.drop_k = 0.898741 # [id] id_pmsm 16 A
+hv0.drop_knee = 0.65 # [id] id_pmsm 16 A
+hv0.adv = 0.000364 # [id] id_tune
+# limits
+conf0.max_vel = 314 # [plate] 3000 rpm
+conf0.max_acc = 21000
+conf0.max_ac_cur = 25 # [board] IKCM30 board
+conf0.max_force = 10.5 # [calc] 25 A x Kt
+# [calc] DC current at 25 A pk and 3000 rpm:
+#   10.5 Nm x 314 rad/s + copper ~3.6 kW / 280 V
+conf0.max_dc_cur = 13
+conf0.low_dc_volt = 200 # HV off = fault 11
+iit0.cur_boost = 1.768 # [calc] 25 / 14.1 A pk
+# [calc] max_time = tc / (cur_boost^2 x 50/70)
+iit0.max_time = 1344 # [plate] tc 50 min
+# over current comparator: drive specific,
+# measure per board (id_dac, three phases)
+ocdac0.dac0 = 147 # [board] 300 deg phase
+ocdac0.k = 5.65 # [board]
+ocdac0.cur = 32.5 # 1.3 x max_ac_cur
+# brake on out0, released only while enabled
+io0.out0 = fault0.mot_brake
+fault0.brake_during_phasing = 1
+fault0.brake_dis_delay = 1 # hold while it grips
+fault0.brake_en_delay = 0
+# short brake on a link loss or stop: it has to
+# carry gravity, 4.6 Nm / Kt = 11 A, so chop
+# above that (at most 0.8 x the oc limit)
+fault0.sbrake_en = 1
+hv io0.sbrake_cur = 20
+# load + loop: axis specific, redo per machine
+# id_sys / id_frf / id_pid, 21 Oct 2026
+conf0.j_sys = 0.001034 # [id] id_sys, load
+conf0.f = 2.691968 # [id] id_sys, screw + guides
+conf0.d = 0.008362 # [id] id_sys
+conf0.o = 4.5907 # [id] id_sys, gravity, Nm
+# standstill hold: without it Z stands at 17.9 A after an up stop
+# and 3.3 A after a down stop (sim, friction measured 22 Oct).
+# no dob: hold_en 1 (10.8 / 10.8 A). with dob (link filters,
+# conf0.f/d 0, dob0.max 8) use hold_en 2 (bench 23 Oct: 10.8 A,
+# arms at one count in 0.2 s, rest 0.5 mrad of elastic sag)
+pid0.hold_en = 1
+conf0.j_lpf = 0 # [id] id_frf: no mode below 60 Hz
+# id_pid with ids0.max_acc = 200, ids0.max_vel = 50:
+# the default 500 rad/s2 needs ~11 Nm going up
+conf0.pos_bw = 27.5 # [id] id_pid
+conf0.vel_bw = 302.5 # [id] id_pid
+conf0.vel_d = 5 # [id] id_pid

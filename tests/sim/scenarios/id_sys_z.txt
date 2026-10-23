@@ -1,0 +1,30 @@
+# Identification regression: id_sys on the Z plant (vertical, gravity
+# outweighs the friction) with known load inertia, sliding and static
+# friction. The moving fit gives j_sys, f, d, o; the breakaway test at the
+# end reads the band at rest: 7.68 Nm up, 1.50 Nm down (fs 3.09, static
+# load 4.59), at id_sys's soft gains instead of the drive's own (idm0.brk 1;
+# the default 0 skips it).
+title id_sys on Z with the breakaway test
+config conf/fanuc_a6-3000.txt
+f4 pid0.hold_en = 0
+plant f=2.691968 fs=0.4 d=0.008362
+f4 link id_sys
+f4 idm0.brk = 1
+f4 fault0.en = 0
+at 0.1 f4 fault0.en = 1
+at 0.15 plant load=-4.5907
+trace idm0.state idm0.inertia idm0.friction idm0.damping idm0.offset idm0.torque_ext pid0.torque_cmd plant.pos_mm
+expect max fault0.last_fault < 0.5 from 0.15
+expect final idm0.state > 1.45
+expect final idm0.brk_res > 0.5
+expect final idm0.offset > 4.45
+expect final idm0.offset < 4.75
+expect final idm0.friction > 2.55
+expect final idm0.friction < 2.85
+expect final idm0.brk_t_pos > 7.55
+expect final idm0.brk_t_pos < 7.85
+expect final idm0.brk_t_neg > 1.35
+expect final idm0.brk_t_neg < 1.65
+expect final idm0.brk_o > 4.45
+expect final idm0.brk_o < 4.75
+run 220

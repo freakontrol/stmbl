@@ -6,27 +6,52 @@
 #include "defines.h"
 #include "angle.h"
 
+/**
+* ## Brief
+* `dq` turns three phase values (normally the measured phase currents) into the stationary alpha/beta frame (Clarke transform) and then into the rotating d/q frame (Park transform) at the rotor angle `pos`. It runs on the F3 (HV board) as `dq0`, loaded by `stm32f303/src/main.c` (rt_prio 2): `dq0.u/v/w = io0.iu/iv/iw`, `dq0.pos = ls0.pos`, `dq0.mode = ls0.phase_mode`, and `d`/`q` feed `curpid0` and are sent back to the F4 by `ls0`. `si`/`co` go to `hv0` for its dead time compensation.
+*
+* ## Component Explanation
+*
+* 1. **Clarke transform** (rt), selected by `mode`:
+* - 0 (90 deg 3 phase): `a = u - v`, `b = w - v`, `y = (u + v + w) / 3`.
+* - 2 (120 deg 3 phase, the normal case): `a = (2u - v - w) / 3`, `b = (v - w) / sqrt(3)`, `y = (u + v + w) / 3`. This is amplitude invariant, so a peak phase current of 1 A gives a 1 A vector.
+* - 3 (180 deg 2 phase): `a = 0`, `b = (u - w) / 2`, `y = (u + w) / 2`.
+* - 4 (180 deg 3 phase): `a = v`, `b = (u - w) / 2`, `y = (u + w) / 2`.
+* - Any other mode (including 1, 90 deg 4 phase) gives 0 on all outputs.
+*
+* 2. **Park transform** (rt):
+* - The electrical angle is `pos * polecount` (`polecount` is truncated to an integer).
+* ```c
+* d =  a * cos + b * sin;
+* q = -a * sin + b * cos;
+* ```
+*/
+
 HAL_COMP(dq);
 
-HAL_PIN(mode);
+HAL_PIN(mode);  // *input*, Phase mode, 0 = 90 deg 3ph, 2 = 120 deg 3ph, 3 = 180 deg 2ph, 4 = 180 deg 3ph, others give 0
 
 //U V W inputs
-HAL_PIN(u);
-HAL_PIN(v);
-HAL_PIN(w);
+HAL_PIN(u);  // *input*, U phase value, e.g. current (A)
+HAL_PIN(v);  // *input*, V phase value
+HAL_PIN(w);  // *input*, W phase value
 
 //rotor position
-HAL_PIN(pos);
-HAL_PIN(polecount);  //1
+HAL_PIN(pos);        // *input*, Rotor angle (rad)
+HAL_PIN(polecount);  // *parameter*, Pole pairs, pos is multiplied by it, min 1, default 0 (used as 1)
 
 //a,b,gamma output
-HAL_PIN(a);
-HAL_PIN(b);
-HAL_PIN(y);
+HAL_PIN(a);  // *output*, Alpha component
+HAL_PIN(b);  // *output*, Beta component
+HAL_PIN(y);  // *output*, Zero sequence component (mean of the phases)
 
 //d,q output
-HAL_PIN(d);
-HAL_PIN(q);
+HAL_PIN(d);  // *output*, D-axis component
+HAL_PIN(q);  // *output*, Q-axis component
+
+// sin and cos of the electrical angle, for the f3's dead time sign
+HAL_PIN(si);  // *output*, Sine of the electrical angle
+HAL_PIN(co);  // *output*, Cosine of the electrical angle
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct dq_ctx_t * ctx = (struct dq_ctx_t *)ctx_ptr;
@@ -43,13 +68,13 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     case PHASE_90_3PH:  // 90°
       a = u - v;
       b = w - v;
-      y = u / 3.0 + v / 3.0 + w / 3.0;
+      y = (u + v + w) / 3.0;
       break;
 
     case PHASE_120_3PH:  // 120°
-      a = u * 2.0 / 3.0 - v / 3.0 - w / 3.0;
-      b = v / M_SQRT3 - w / M_SQRT3;
-      y = u / 3.0 + v / 3.0 + w / 3.0;
+      a = (u * 2.0 - v - w) / 3.0;
+      b = (v - w) * M_SQRT1_3;
+      y = (u + v + w) / 3.0;
       break;
 
     case PHASE_180_2PH:  // 180°
@@ -87,6 +112,9 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 
   PIN(d) = d;
   PIN(q) = q;
+
+  PIN(si) = si;
+  PIN(co) = co;
 }
 
 hal_comp_t dq_comp_struct = {

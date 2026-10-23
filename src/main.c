@@ -26,9 +26,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "main.h"
+#include "f4_clock.h"
+#include "f4_wdg.h"
 #include "commands.h"
+#include "hw/hw.h"
 
-extern RCC_ClocksTypeDef RCC_Clocks;
+extern LL_RCC_ClocksTypeDef RCC_Clocks;
 
 uint32_t hal_get_systick_value() {
   return (SysTick->VAL);
@@ -43,16 +46,31 @@ uint32_t hal_get_systick_freq() {
 }
 
 volatile uint64_t systime = 0;
+static uint32_t reset_flags;  // RCC_CSR reset flags of the last reset, see f4_clock.h
 
 void SysTick_Handler(void) {
   systime++;
 }
 
+// HAL (USB, flash) timebase: the 1 kHz SysTick above, no HAL_Init()
+uint32_t HAL_GetTick(void) {
+  return (uint32_t)systime;
+}
+
+// encf req_sync: request word to send on the next frt timer edge, 0 = none.
+// Written first thing in the highest priority interrupt, so the encoder
+// latches at a fixed time after the timer update, whatever the rt is doing.
+volatile uint16_t fb0_req_word;
+
 //20kHz
 void TIM_SLAVE_HANDLER(void) {
-  TIM_ClearITPendingBit(TIM_SLAVE, TIM_IT_Update);
+  if(fb0_req_word) {
+    SPI3->DR     = fb0_req_word;
+    fb0_req_word = 0;
+  }
+  LL_TIM_ClearFlag_UPDATE(TIM_SLAVE);
   hal_run_frt();
-  if(TIM_GetITStatus(TIM_SLAVE, TIM_IT_Update) == SET) {
+  if(LL_TIM_IsActiveFlag_UPDATE(TIM_SLAVE)) {
     hal_stop();
     hal.hal_state = FRT_TOO_LONG;
   }
@@ -60,29 +78,76 @@ void TIM_SLAVE_HANDLER(void) {
 
 //5 kHz interrupt for hal. at this point all ADCs have been sampled,
 //see setup_res() in setup.c if you are interested in the magic behind this.
+// fb0 encoder counter and A/B pins, latched as close to the sin/cos samples
+// as the rt can get, for enc_fb. Reading them has no side effects, so this
+// runs whichever fb0 component is loaded.
+volatile uint32_t fb0_cnt_latch;
+volatile uint32_t fb0_idr_latch;
+// rt periods started, counted with the DMA TC flag clear (sserial ages its
+// position by it, see there)
+volatile uint32_t rt_tick;
+
 void DMA2_Stream0_IRQHandler(void) {
-  DMA_ClearITPendingBit(DMA2_Stream0, DMA_IT_TCIF0);
+  fb0_cnt_latch = FB0_ENC_TIM->CNT;
+  fb0_idr_latch = FB0_A_PORT->IDR;
+  // the frt (higher priority) reads rt_tick and the TC flag together
+  __disable_irq();
+  rt_tick++;
+  LL_DMA_ClearFlag_TC0(DMA2);
+  __enable_irq();
   hal_run_rt();
-  if(DMA_GetITStatus(DMA2_Stream0, DMA_IT_TCIF0) == SET) {
+  if(LL_DMA_IsActiveFlag_TC0(DMA2)) {
     hal_stop();
     hal.hal_state = RT_TOO_LONG;
   }
 }
 
+// RM0090 13.8.1: an ADC overrun blocks the DMA requests and ignores further
+// triggers until the ADC and DMA are set up again, so the rt (the DMA TC)
+// would stop for good with nothing else noticing. Stop the hal and say so.
+void ADC_IRQHandler(void) {
+  if((ADC1->SR | ADC2->SR) & ADC_SR_OVR) {
+    ADC1->CR1 &= ~ADC_CR1_OVRIE;
+    ADC2->CR1 &= ~ADC_CR1_OVRIE;
+    ADC1->SR = ~ADC_SR_OVR;
+    ADC2->SR = ~ADC_SR_OVR;
+    hal_stop();
+    hal.hal_state = MISC_ERROR;
+  }
+}
+
+// Jump to the ROM DFU bootloader from the app. The F4 bootloader on boards in
+// the field starts the PLL and jumps to the ROM with it still running, so a
+// reset-based entry only works with a new F4 bootloader. AN2606 wants clocks,
+// PLL and interrupts back at reset before a jump to system memory.
 void bootloader(char *ptr) {
   hal_stop();
 
-  NVIC_DisableIRQ(TIM_SLAVE_IRQ);
-  NVIC_DisableIRQ(DMA2_Stream0_IRQn);
-  NVIC_DisableIRQ(SysTick_IRQn);
+  // AN2606: interrupts disabled and none pending. PRIMASK stays clear: the
+  // ROM's USB DFU runs on interrupts and does not enable them.
+  for(int i = 0; i < 8; i++) {
+    NVIC->ICER[i] = 0xFFFFFFFF;
+    NVIC->ICPR[i] = 0xFFFFFFFF;
+  }
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL  = 0;
+  SCB->ICSR     = SCB_ICSR_PENDSTCLR_Msk;
 
   void (*SysMemBootJump)(void);
   volatile uint32_t addr = 0x1FFF0000;
 
-  RCC_DeInit();
-  SysTick->CTRL = 0;
-  SysTick->LOAD = 0;
-  SysTick->VAL  = 0;
+  // LL_RCC_DeInit writes SW = HSI and clears PLLON back to back; PLLON can't
+  // be cleared while the PLL still clocks the core (RM0090 6.2.6), and
+  // LL_RCC_DeInit then waits forever for PLLRDY to drop. Finish the switch
+  // first, as SystemInit does.
+  LL_RCC_HSI_Enable();
+  while(!LL_RCC_HSI_IsReady()) {
+  }
+  LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_HSI);
+  while(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_HSI) {
+  }
+  LL_RCC_DeInit();
 
   RCC->AHB1RSTR = 0x22E017FF;
   RCC->AHB1RSTR = 0;
@@ -95,7 +160,17 @@ void bootloader(char *ptr) {
   RCC->APB2RSTR = 0x4777933;
   RCC->APB2RSTR = 0;
 
-  SYSCFG->MEMRMP = 0x01;
+  // AN2606: peripheral clocks off, enables back at their reset values
+  RCC->AHB1ENR = 0x00100000;  // CCM data RAM only
+  RCC->AHB2ENR = 0;
+  RCC->AHB3ENR = 0;
+  RCC->APB1ENR = 0;
+  RCC->APB2ENR = 0;
+
+  // No SYSCFG->MEMRMP = 1: it never took effect before SYSCFG got its clock,
+  // and the jump works on the ROM's own vectors without the remap (AN2606
+  // names the remap only for dual-bank parts).
+  wdg_kick();  // the ROM DFU feeds a hardware watchdog from here on (AN2606 Table 73)
   SysMemBootJump = (void (*)(void))(*((uint32_t *)(addr + 4)));
   __set_MSP(*(uint32_t *)addr);
   SysMemBootJump();
@@ -124,13 +199,21 @@ void about(char *ptr) {
 #ifdef __CM4_CMSIS_VERSION
   printf("CMSIS      %i.%i\n", __CM4_CMSIS_VERSION_MAIN, __CM4_CMSIS_VERSION_SUB);
 #endif
-#ifdef __STM32F4XX_STDPERIPH_VERSION
-  printf("StdPeriph  %i.%i.%i\n", __STM32F4XX_STDPERIPH_VERSION_MAIN, __STM32F4XX_STDPERIPH_VERSION_SUB1, __STM32F4XX_STDPERIPH_VERSION_SUB2);
+#ifdef __STM32F4xx_CMSIS_VERSION
+  printf("F4 CMSIS   %i.%i.%i\n", __STM32F4xx_CMSIS_VERSION_MAIN, __STM32F4xx_CMSIS_VERSION_SUB1, __STM32F4xx_CMSIS_VERSION_SUB2);
 #endif
 #ifdef __STM32F3xx_HAL_VERSION
   printf("HAL lib... TODO: print version\n");
 #endif
   printf("CPU ID     %lx %lx %lx\n",U_ID[0], U_ID[1], U_ID[2]);
+  if(hse_failed) {
+    printf("clock      HSE failed, running on HSI, hal not started\n");
+  }
+  printf("watchdog   %s\n", wdg_is_hw() ? "hardware IWDG (WDG_SW = 0)" : "off (WDG_SW = 1)");
+  printf("reset      0x%08lx%s%s%s%s%s%s%s\n", reset_flags, reset_flags ? ":" : " (none: entered without a reset)",
+         (reset_flags & RCC_CSR_LPWRRSTF) ? " low-power" : "", (reset_flags & RCC_CSR_WWDGRSTF) ? " WWDG" : "",
+         (reset_flags & RCC_CSR_IWDGRSTF) ? " IWDG" : "", (reset_flags & RCC_CSR_SFTRSTF) ? " software" : "",
+         (reset_flags & RCC_CSR_PORRSTF) ? " power-on" : ((reset_flags & RCC_CSR_BORRSTF) ? " brown-out" : ""), (reset_flags & RCC_CSR_PINRSTF) ? " pin" : "");
   printf("size: %lu crc:%lx\n", version_info.image_size, version_info.image_crc);
   volatile const version_info_t *bt_version_info = (void *)0x08000188;
   printf("######## Bootloader info ########\n");
@@ -179,6 +262,14 @@ int main(void) {
   extern void *g_pfnVectors;
   SCB->VTOR = (uint32_t)&g_pfnVectors;
 
+  // .ccm is NOLOAD, so the startup leaves it alone: zero it like .bss
+  extern uint32_t _sccm, _eccm;
+  for(uint32_t *p = &_sccm; p < &_eccm; p++) {
+    *p = 0;
+  }
+
+  reset_flags = reset_flags_take();
+  wdg_init();
   setup();
   hal_init(0.0002, 0.00005);
   // hal load comps
@@ -186,10 +277,16 @@ int main(void) {
   hal_parse("flashloadconf");
   hal_parse("loadconf");
   hal_parse("relink");
-  hal_parse("start");
+  if(hse_failed) {
+    // on the HSI the rt runs 5x slow and the F3 link and USB cannot work;
+    // leave the hal stopped rather than run it at the wrong rate
+    hal.hal_state = MISC_ERROR;
+  } else {
+    hal_parse("start");
+  }
 
-  TIM_Cmd(TIM_MASTER, ENABLE);
-  TIM_ITConfig(TIM_SLAVE, TIM_IT_Update, ENABLE);
+  LL_TIM_EnableCounter(TIM_MASTER);
+  LL_TIM_EnableIT_UPDATE(TIM_SLAVE);
 
   while(1)  //run non realtime stuff
   {
@@ -202,5 +299,6 @@ int main(void) {
 void Wait(uint32_t ms) {
   uint64_t t = systime + ms;
   while(t >= systime) {
+    wdg_kick();  // the nrt kicks the watchdog, see f4_wdg.c
   }
 }

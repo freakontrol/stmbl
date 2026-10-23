@@ -1,0 +1,29 @@
+# Identification regression: id_brk (idm0.brk_only) on the Z plant with
+# known static friction and gravity. Breakaway should read gravity + f + fs
+# = 7.68 Nm going up and gravity - f - fs = 1.50 Nm going down: fs 3.09,
+# static load 4.59. Gravity outweighs the friction here, so both readings
+# are positive.
+title id_brk against known stiction and gravity
+config conf/fanuc_a6-3000.txt
+f4 pid0.hold_en = 0
+plant f=2.691968 fs=0.4 d=0.008362
+f4 link id_brk
+f4 fault0.en = 0
+at 0.1 f4 fault0.en = 1
+# gravity comes once the loop holds: the plant has no brake
+at 0.15 plant load=-4.5907
+trace idm0.state idm0.torque_ext pid0.torque_cmd pid0.pos_error plant.pos_mm plant.vel
+expect max fault0.last_fault < 0.5 from 0.15
+expect final idm0.brk_res > 0.5
+expect final idm0.state > 1.45
+expect final idm0.brk_t_pos > 7.55
+expect final idm0.brk_t_pos < 7.85
+expect final idm0.brk_t_neg > 1.35
+expect final idm0.brk_t_neg < 1.65
+expect final idm0.brk_fs > 2.95
+expect final idm0.brk_fs < 3.25
+expect final idm0.brk_o > 4.45
+expect final idm0.brk_o < 4.75
+# the axis moves win and comes back; nothing runs away
+expect p2p plant.pos_mm < 0.05 from 1.0
+run 20

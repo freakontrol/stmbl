@@ -1,13 +1,24 @@
 # Optimization level, can be [0, 1, 2, 3, s].
 #     0 = turn off optimization. s = optimize for size.
 #
-OPT = -O3
+OPT = -O2  # -O3 only added 2.4 KB of flash and 40 B of CCM (2026-10-03)
 # OPT = -O1         # for debugging
 
-# Object files directory
-# Warning: this will be removed by make clean!
+# PWM and rt frequency [Hz]: 10000, 15000 or 20000 (shared/f3hw.h). The f4
+# image embeds this f3 image, so pass it to the f4 make as well:
+#   make PWM_FREQ=10000
+PWM_FREQ ?= 15000
+
+# Object files directory, one per frequency so a switch never links stale
+# objects. Warning: this will be removed by make clean!
 #
+ifeq ($(PWM_FREQ),15000)
 OBJDIR = obj_hvf3
+PWM_SUFFIX =
+else
+OBJDIR = obj_hvf3_$(PWM_FREQ)
+PWM_SUFFIX = -$(shell expr $(PWM_FREQ) / 1000)k
+endif
 
 # Target file name (without extension)
 TARGET = $(OBJDIR)/hvf3
@@ -17,11 +28,7 @@ INCDIRS += stm32f303/inc
 INCDIRS += stm32f303/inc/comps
 INCDIRS += stm32f303/inc/shared_comps
 SOURCES += stm32f303/src/main.c
-SOURCES += stm32f303/src/adc.c
-SOURCES += stm32f303/src/dac.c
-SOURCES += stm32f303/src/opamp.c
-SOURCES += stm32f303/src/stm32f3xx_hal_msp.c
-SOURCES += stm32f303/src/tim.c
+SOURCES += stm32f303/src/periph.c
 SOURCES += stm32f303/src/stm32f3xx_it.c
 SOURCES += stm32f303/src/usbd_cdc_if.c
 SOURCES += stm32f303/src/version.c
@@ -29,6 +36,12 @@ SOURCES += stm32f303/src/version.c
 SOURCES += stm32f303/src/hal_tbl.c
 
 CFLAGS += -DHAL_MAX_CTX=1024
+CFLAGS += -DHAL_WATCHDOG
+CFLAGS += -DPWM_FREQ=$(PWM_FREQ)
+CFLAGS += -DHAL_WATCHDOG_NRT_TICKS=$(PWM_FREQ)  # 1 s
+CFLAGS += -DPWM_SUFFIX='"$(PWM_SUFFIX)"'
+# term.c's ring is 64 on the f4; 8 here keeps the f3's HAL ctx inside 1024
+CFLAGS += -DTERM_BUF_SIZE=8
 
 include stm32f303/comps.mak
 
@@ -49,27 +62,14 @@ INCDIRS += lib/CMSIS/Device/ST/STM32F3xx/Include/
 SOURCES += lib/CMSIS/Device/ST/STM32F3xx/Source/Templates/gcc/startup_stm32f303xc.s
 SOURCES += lib/CMSIS/Device/ST/STM32F3xx/Source/Templates/system_stm32f3xx.c
 
-#stm32f3 HAL Driver
+#stm32f3 LL drivers (HAL is not used by the hv firmware)
 HAL_DRV_DIR = lib/STM32F3xx_HAL_Driver/
+CPPFLAGS += -DUSE_FULL_LL_DRIVER
 
 INCDIRS += $(HAL_DRV_DIR)/Inc
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_adc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_adc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_cortex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_crc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_crc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_dac.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_dac_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_gpio.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_opamp.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_opamp_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rcc.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_rcc_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_tim.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_tim_ex.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart.c
-SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_hal_uart_ex.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_gpio.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_rcc.c
+SOURCES += $(HAL_DRV_DIR)/Src/stm32f3xx_ll_usart.c
 
 LDSCRIPT = stm32f303/STM32F303CBTx_FLASH.ld
 
@@ -98,7 +98,10 @@ CFLAGS += -std=gnu11
 CFLAGS += -ffunction-sections
 CFLAGS += -fdata-sections
 CFLAGS += -Wall
-CFLAGS += -fno-builtin ## from old
+# no -fno-builtin: sqrtf/fabsf must compile to vsqrt/vabs, not libm calls.
+# GCC then also turns zeroing/copy loops into memset/memcpy calls; in rt code
+# running from CCM or SRAM that would be a hidden call into flash, so not that.
+CFLAGS += -fno-tree-loop-distribute-patterns
 CFLAGS += -nostartfiles
 CFLAGS += -Wfatal-errors
 CFLAGS += -Wno-pointer-sign #for usb lib...
@@ -112,6 +115,10 @@ CFLAGS += -fno-signaling-nans
 CFLAGS += -fno-rounding-math
 CFLAGS += -fno-signed-zeros
 CFLAGS += -fno-math-errno
+# x / c as x * (1 / c): the rt divided by constants (ADC scaling, /3, filter
+# time constants) 16 times a tick at ~14 cycles each. One extra rounding on
+# 12 bit ADC data.
+CFLAGS += -freciprocal-math
 #CFLAGS += -Wstrict-prototypes
 #CFLAGS += -Wextra
 #CFLAGS += -Wpointer-arith
@@ -144,7 +151,7 @@ LDFLAGS += -lm
 LDFLAGS += -Wl,-Map=$(TARGET).map,--cref
 LDFLAGS += -Wl,--gc-sections
 
-# LDFLAGS += -specs=nano.specs -u _printf_float -u _scanf_float
+LDFLAGS += -specs=nano.specs -u _printf_float -u _scanf_float
 LDFLAGS += -lc -specs=nosys.specs #fixes sbrk missing? present in eclipse?
 LDFLAGS += -T$(LDSCRIPT)
 
@@ -172,8 +179,18 @@ ADDRESS = 0x8004000
 #
 all: gccversion build showsize
 
-hv_firmware.o: obj_hvf3/hvf3.bin
-	$(OBJCOPY) --rename-section .data=.hv_firmware -I binary obj_hvf3/hvf3.bin -B arm -O elf32-littlearm hv_firmware.o
+# objcopy names the symbols after the input path; the f4 links against the
+# obj_hvf3/hvf3.bin names whatever the frequency
+HV_SYM_IN = _binary_$(subst /,_,$(TARGET))_bin
+HV_SYMS = $(foreach x,start end size,--redefine-sym $(HV_SYM_IN)_$(x)=_binary_obj_hvf3_hvf3_bin_$(x))
+
+# hv_firmware.o is shared by all frequencies: rebuild it from this one's bin
+# every time, but only touch it (and so relink the f4) when it changes
+hv_firmware.o: $(TARGET).bin FORCE
+	$(OBJCOPY) --rename-section .data=.hv_firmware -I binary $(TARGET).bin -B arm -O elf32-littlearm $(HV_SYMS) $(OBJDIR)/hv_firmware.o
+	@cmp -s $(OBJDIR)/hv_firmware.o hv_firmware.o || cp $(OBJDIR)/hv_firmware.o hv_firmware.o
+
+FORCE:
 
 build: tbl elf hex bin lss sym hv_firmware.o
 
@@ -191,7 +208,7 @@ stm32f303/inc/commandslist.h: tools/create_cmd.py $(SOURCES)
 	@$(MKDIR) -p $(dir $@)
 	@$(PYTHON) tools/create_cmd.py $@ $(SOURCES)
 
-stm32f303/src/hal_tbl.c: tools/create_hal_tbl.py $(COMPS)
+stm32f303/src/hal_tbl.c: tools/create_hal_tbl.py $(COMPS) stm32f303/comps.mak
 	@echo Generating HAL table
 	@$(MKDIR) -p $(dir $@)
 	@$(PYTHON) tools/create_hal_tbl.py $@ $(COMPS)
@@ -216,7 +233,7 @@ tbl: stm32f303/src/hal_tbl.c stm32f303/inc/commandslist.h
 #
 clean:
 	@echo Cleaning project:
-	rm -rf $(OBJDIR)
+	rm -rf obj_hvf3 obj_hvf3_*
 	rm -rf stm32f303/inc/commandslist.h
 	rm -rf stm32f303/inc/comps/*
 	rm -rf stm32f303/inc/shared_comps/*
@@ -227,6 +244,16 @@ clean:
 #
 include base.mak
 
+# Rebuild every object when the compiler flags change: make only tracks
+# sources and headers, and a stale hal.o without HAL_WATCHDOG's kicks resets
+# the f3 every 5 ms.
+FLAGS_STAMP = $(OBJDIR)/flags.stamp
+$(FLAGS_STAMP): FORCE
+	@mkdir -p $(OBJDIR)
+	@echo '$(CC) $(CPPFLAGS) $(CFLAGS) $(ASFLAGS)' | cmp -s - $@ || echo '$(CC) $(CPPFLAGS) $(CFLAGS) $(ASFLAGS)' > $@
+$(OBJECTS): $(FLAGS_STAMP)
+FORCE:
+
 # Include the dependency files
 #
 -include $(OBJECTS:.o=.d)
@@ -235,3 +262,17 @@ include base.mak
 #
 .PHONY: all build clean \
         elf hex bin lss sym tbl
+
+# Flash (112 KB for the app) and CCM (8 KB) are tight: gcc 12 with its newlib
+# overflows both. Code that does not run every rt tick is built for size: the
+# drivers, setup, terminal and config. hal.o is too; its rt part, hal_run_rt,
+# is a loop of calls. The rt components (ls, io, curpid, idq, hv, dq, svm,
+# emf, the observers), angle, main (the rt interrupt) and the link CRC keep
+# $(OPT).
+SIZE_OBJECTS = $(addprefix $(OBJDIR)/,shared/commands.o shared/ringbuf.o \
+  shared/hal.o shared/comps/term.o shared/comps/sim.o stm32f303/src/hal_tbl.o \
+  stm32f303/src/version.o stm32f303/src/usbd_cdc_if.o stm32f303/src/adc.o \
+  stm32f303/src/dac.o stm32f303/src/opamp.o stm32f303/src/tim.o \
+  stm32f303/src/stm32f3xx_hal_msp.o stm32f303/src/periph.o)
+$(OBJDIR)/lib/%.o: CFLAGS += -Os
+$(SIZE_OBJECTS): CFLAGS += -Os

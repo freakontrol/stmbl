@@ -26,6 +26,17 @@
 #include "defines.h"
 #include "version.h"
 
+#ifdef HAL_WATCHDOG
+// The rt kicks the watchdog, but only while the nrt loop keeps coming round:
+// a stopped rt (overrun, error) or an nrt stuck for HAL_WATCHDOG_NRT_TICKS
+// then ends in a reset. The nrt may block for a while on a long terminal
+// print (hv hal), so it only has to show progress within that window.
+#ifndef HAL_WATCHDOG_NRT_TICKS
+#define HAL_WATCHDOG_NRT_TICKS 15000  // 1 s at 15 kHz
+#endif
+static volatile uint32_t hal_nrt_runs = 0;
+#endif
+
 hal_t hal;
 
 hal_comp_t *comp_by_name(NAME name) {
@@ -396,7 +407,16 @@ void hal_run_rt() {
 #endif
 
 #ifdef HAL_WATCHDOG
-  hal_reset_watchdog();
+  static uint32_t nrt_seen = 0, nrt_stale = 0;
+  if(hal_nrt_runs != nrt_seen) {
+    nrt_seen  = hal_nrt_runs;
+    nrt_stale = 0;
+  } else if(nrt_stale < HAL_WATCHDOG_NRT_TICKS) {
+    nrt_stale++;
+  }
+  if(nrt_stale < HAL_WATCHDOG_NRT_TICKS) {
+    hal_reset_watchdog();
+  }
 #endif
 }
 
@@ -453,10 +473,6 @@ void hal_run_frt() {
   hal.frt_ticks     = hal_start - hal_end;
   hal.frt_max_ticks = MAX(hal.frt_max_ticks, hal.frt_ticks);
 #endif
-
-#ifdef HAL_WATCHDOG
-  hal_reset_watchdog();
-#endif
 }
 
 void hal_run_nrt() {
@@ -494,7 +510,7 @@ void hal_run_nrt() {
 #endif
 
 #ifdef HAL_WATCHDOG
-  hal_reset_watchdog();
+  hal_nrt_runs++;  // heartbeat for the rt's watchdog kick
 #endif
 }
 
@@ -762,16 +778,9 @@ void hal_print_pin(hal_pin_inst_t *p) {
   }
 }
 
-char *findline(char *ptr) {
-  for(int i = 0; i < 64; i++) {
-    if(ptr[i] == 0) {
-      return (0);
-    }
-    if(ptr[i] == '\n') {
-      return (ptr + i + 1);
-    }
-  }
-  return (0);
+char *findline(char *ptr) {  // start of the next line, however long this one is
+  char *nl = strchr(ptr, '\n');
+  return (nl ? nl + 1 : 0);
 }
 
 uint32_t hal_parse_(char *cmd);
@@ -813,7 +822,7 @@ uint32_t hal_parse_(char *cmd) {
 
   uint32_t found = 0;
 
-  foo = sscanf(cmd, " %[a-zA-Z_]%li.%[a-zA-Z0-9_] = %f", sinkc, &sinki, sinkp, &value);
+  foo = sscanf(cmd, " %63[a-zA-Z_]%li.%63[a-zA-Z0-9_] = %f", sinkc, &sinki, sinkp, &value);
   if(sinki < 0) {
     for(int i = 0; i < hal.comp_inst_count; i++) {
       if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
@@ -858,7 +867,7 @@ uint32_t hal_parse_(char *cmd) {
       }
       break;
     case 3:
-      foo = sscanf(cmd, " %[a-zA-Z_]%li.%[a-zA-Z0-9_] = %[a-zA-Z_]%li.%[a-zA-Z0-9_]", sinkc, &sinki, sinkp, sourcec, &sourcei, sourcep);
+      foo = sscanf(cmd, " %63[a-zA-Z_]%li.%63[a-zA-Z0-9_] = %63[a-zA-Z_]%li.%63[a-zA-Z0-9_]", sinkc, &sinki, sinkp, sourcec, &sourcei, sourcep);
       if(sinki < 0) {
         for(int i = 0; i < hal.comp_inst_count; i++) {
           if(!strcmp(hal.comp_insts[i].comp->name, sinkc)) {
@@ -970,7 +979,7 @@ void hal_linked_pins(char *ptr) {
   uint32_t sinki = 0;
   char sinkp[64];
   int foo;
-  foo = sscanf(ptr, " %[a-zA-Z_]%lu.%[a-zA-Z0-9_]", sinkc, &sinki, sinkp);
+  foo = sscanf(ptr, " %63[a-zA-Z_]%lu.%63[a-zA-Z0-9_]", sinkc, &sinki, sinkp);
   if(foo == 3) {
     hal_pin_inst_t *pin = pin_inst_by_name(sinkc, sinki, sinkp);
     if(pin) {

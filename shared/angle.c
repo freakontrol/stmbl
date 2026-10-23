@@ -107,7 +107,14 @@ inline float minus(float a, float b) {
 }
 
 inline float mod(float a) {
-  if(a + M_PI < 0.0f) {
+  // the rt callers stay within +-3 pi: a compare and subtract, no fmodf
+  if(a >= -M_PI && a < M_PI) {
+    return a;
+  } else if(a >= M_PI && a < 3.0 * M_PI) {
+    return a - 2.0 * M_PI;
+  } else if(a < -M_PI && a >= -3.0 * M_PI) {
+    return a + 2.0 * M_PI;
+  } else if(a + M_PI < 0.0f) {
     return -(fmodf(-(a + M_PI), M_PI * 2.0) - M_PI);
   } else {
     return fmodf(a + M_PI, M_PI * 2.0) - M_PI;
@@ -148,4 +155,38 @@ float err_filter(float *ctx, float max, float dens, float err) {
     return (0.0);
   }
   return (1.0);
+}
+/*
+ * atan2_fast: the arm_atan2_f32 polynomial from CMSIS-DSP V1.10.0
+ * (FastMathFunctions/arm_atan2_f32.c), max error about 3e-7 rad.
+ * Copyright (C) 2010-2022 ARM Limited or its affiliates. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0, you may not use this code
+ * except in compliance with the License. You may obtain a copy of the License
+ * at www.apache.org/licenses/LICENSE-2.0. Distributed on an AS IS BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+ *
+ * Changed from the original: one division (min/max octant reduction instead
+ * of y/x then 1/x), and (0, 0) returns 0 like atan2f.
+ */
+float atan2_fast(float y, float x) {
+  static const float c[10] = {0.0f, 1.0000001638308195518f, -0.0000228941363602264f, -0.3328086544578890873f, -0.004404814619311061f,
+                              0.2162217461808173258f, -0.0207504842057097504f, -0.1745263362250363339f, 0.1340557235283553386f, -0.0323664125927477625f};
+  float ax = fabsf(x), ay = fabsf(y);
+  float hi = MAX(ax, ay);
+  if(hi == 0.0f) {
+    return 0.0f;
+  }
+  float t = MIN(ax, ay) / hi;  // atan on [0, 1]
+  float a = c[9];
+  for(int i = 8; i >= 0; i--) {
+    a = t * a + c[i];
+  }
+  if(ay > ax) {
+    a = (float)(M_PI / 2) - a;
+  }
+  if(x < 0.0f) {
+    a = (float)M_PI - a;
+  }
+  return y < 0.0f ? -a : a;
 }

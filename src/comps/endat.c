@@ -9,102 +9,136 @@
 #include <string.h>
 #include <endat.h>
 
+/**
+* ## Brief
+* `endat` is an experimental driver for Heidenhain EnDat 2.1 absolute encoders on the FB0 connector of the F4 board. It uses SPI3 in bidirectional single-wire mode for clock and data and the protocol helpers in `shared/endat.c`. No config template loads it.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (nrt_init)**:
+* - SPI3 master, prescaler 32 (about 1.3 MHz clock), clock = PC10, bidirectional data = PC12.
+* - Line driver enables: PD10 for the clock (always on), PD15 for the data line (on only while sending).
+*
+* 2. **Request state machine (rt)**, selected by `endat_state`:
+* - 0: reset error; 1: select memory "state"; 2: read error register; 3: read warning register; 4: select parameter memory 0; 5: read position length; 6: read encoder type; 7: select parameter memory 1; 8: read multiturn bits; 9/10: read resolution low/high word; 11: select parameter memory 2; 12: read maximum velocity; 13: read position.
+* - If `req > 0` it overrides the command byte (e.g. 7 = read position).
+* - After a successful reply `endat_state` is incremented, after a failed one it is reset to 0 (so the whole parameter sequence is read again).
+* - In state 12 `error`/`state` follow the encoder error bit (F1): error bit set or failed reply -> `error = 1`, `state = 0`, `endat_state = 0`; otherwise `state = 1`, `error = 0`. In all other states `state = 0`.
+*
+* 3. **Transfer (rt)**:
+* - The mode command (2 + 6 bits, or 32 bits with address and data) is sent (bit order prepared by `endat_tx()`) with the data driver enabled, then the driver is switched off and `bytes` bytes (max 8) are clocked in.
+* - Before receiving, a byte left in the SPI receive register from the last frame is dropped. SPI3 is disabled one SPI clock after the second to last byte, so exactly `bytes` bytes are clocked from the encoder. If a byte does not arrive within a polling timeout, the received data is set to 0 instead of hanging the rt function.
+* - The received bits are shifted right by `skip` and then until the first 1 (start bit) is found; the total shift is shown on `shift` (max 32).
+* - The reply is decoded by `endat_rx()`: for a position read the error bit goes to `f1`, the single-turn value (`pos_len` bits) and multiturn value (`mpos_len` bits) to `pos`/`mpos`, the 5 CRC bits to `crc`. Parameter reads fill `endat_error`, `endat_warning`, `type`, `pos_res`, `max_vel`, and update `pos_len`/`mpos_len` from the encoder memory.
+* ```c
+* pos = mod(pos_raw * 2 * pi / 2^pos_len);   // rad, +-pi
+* ```
+*
+* 4. **Debug output (nrt)**:
+* - If `print_time > 0`, `timer` counts up in rt and every `print_time` seconds the nrt function prints the last request, received raw bits, position, multiturn and CRC bits.
+*
+* {{% hint danger %}}
+* Experimental and incomplete. The CRC is read but never checked. The state handling looks inconsistent: the position read (13) takes the default branch, so after one successful read `endat_state` becomes 14, which sends nothing and falls back to 0; after the parameter sequence it then stays in state 12 (reading max velocity), so `pos` is no longer updated unless `req` is set to 7. `state` never reaches 3, so `fb_switch` will not accept it as a valid feedback. SPI3 is shared with `encf`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(endat);
 
 
-HAL_PIN(pos);
-HAL_PIN(mpos);
+HAL_PIN(pos);            // *output*, Single-turn position (rad, +-pi)
+HAL_PIN(mpos);           // *output*, Raw multiturn value
 
-HAL_PIN(f1);
-HAL_PIN(crc);
-HAL_PIN(shift);
-HAL_PIN(timer);
-HAL_PIN(swap);
-HAL_PIN(skip);
-HAL_PIN(bytes);
+HAL_PIN(f1);             // *output*, Error bit F1 of the last position reply
+HAL_PIN(crc);            // *output*, Received CRC bits (not checked)
+HAL_PIN(shift);          // *output*, Total right shift applied to find the start bit
+HAL_PIN(timer);          // *output*, Debug print timer (s)
+HAL_PIN(swap);           // *parameter*, > 0 = receive with CPHA = 0 (default 1)
+HAL_PIN(skip);           // *parameter*, Received bits skipped before the start bit search (default 10)
+HAL_PIN(bytes);          // *parameter*, Number of bytes to receive, max 8 (default 7)
 
-HAL_PIN(error);
-HAL_PIN(state);
+HAL_PIN(error);          // *output*, 1 = error bit set or reply failed (only in state 12)
+HAL_PIN(state);          // *output*, 0 = not valid, 1 = valid (only in state 12)
 
-HAL_PIN(endat_error);
-HAL_PIN(endat_warning);
-HAL_PIN(endat_state);
-HAL_PIN(pos_len);
-HAL_PIN(mpos_len);
-HAL_PIN(pos_res);
-HAL_PIN(type);
-HAL_PIN(max_vel);
+HAL_PIN(endat_error);    // *output*, Encoder error register
+HAL_PIN(endat_warning);  // *output*, Encoder warning register
+HAL_PIN(endat_state);    // *input/output*, Request state machine step 0..13 (default 13 = read position)
+HAL_PIN(pos_len);        // *input/output*, Single-turn bits (default 18, updated from encoder memory)
+HAL_PIN(mpos_len);       // *input/output*, Multiturn bits (default 12, updated from encoder memory)
+HAL_PIN(pos_res);        // *output*, Resolution read from encoder memory
+HAL_PIN(type);           // *output*, Encoder type read from encoder memory
+HAL_PIN(max_vel);        // *output*, Maximum velocity read from encoder memory
 
-HAL_PIN(req);
+HAL_PIN(req);            // *parameter*, Command byte override, 0 = use state machine
 
-HAL_PIN(print_time);
+HAL_PIN(print_time);     // *parameter*, Debug print interval (s), 0 = off
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct endat_ctx_t *ctx = (struct endat_ctx_t *)ctx_ptr;
   struct endat_pin_ctx_t *pins = (struct endat_pin_ctx_t *)pin_ptr;
-  GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
 
   //TX enable for mosi
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_15;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   //tx enable for clock
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_10;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_10;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   //SPI3
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3, ENABLE);
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_SPI3);
 
-  SPI3->CR1 |= SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+  SPI3->CR1 |= SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
 
   //PC12 spi3 mosi
   //PC10 spi3 clock
-  GPIO_PinAFConfig(GPIOC, GPIO_PinSource12, GPIO_AF_SPI3);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_12;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_12;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_6;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  GPIO_PinAFConfig(GPIOC, GPIO_PinSource10, GPIO_AF_SPI3);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_10;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_10;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_6;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  GPIO_SetBits(GPIOD, GPIO_Pin_10);  //clock tx enable
+  LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_10);  //clock tx enable
 
   // DMA_InitTypeDef dma_rx_config;
-  // dma_rx_config.DMA_Channel            = DMA_Channel_0;
-  // dma_rx_config.DMA_PeripheralBaseAddr = (uint32_t)&FB0_SPI->DR;
-  // dma_rx_config.DMA_Memory0BaseAddr    = (uint32_t)&tim_data;
-  // dma_rx_config.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  // dma_rx_config.DMA_BufferSize         = ARRAY_SIZE(tim_data);
-  // dma_rx_config.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  // dma_rx_config.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  // dma_rx_config.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-  // dma_rx_config.DMA_MemoryDataSize     = DMA_PeripheralDataSize_HalfWord;
-  // dma_rx_config.DMA_Mode               = DMA_Mode_Normal;
-  // dma_rx_config.DMA_Priority           = DMA_Priority_VeryHigh;
-  // dma_rx_config.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  // dma_rx_config.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  // dma_rx_config.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  // dma_rx_config.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  // dma_rx_config.Channel            = LL_DMA_CHANNEL_0;
+  // dma_rx_config.PeriphOrM2MSrcAddress = (uint32_t)&FB0_SPI->DR;
+  // dma_rx_config.MemoryOrM2MDstAddress    = (uint32_t)&tim_data;
+  // dma_rx_config.Direction                = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  // dma_rx_config.NbData         = ARRAY_SIZE(tim_data);
+  // dma_rx_config.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  // dma_rx_config.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  // dma_rx_config.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_HALFWORD;
+  // dma_rx_config.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_HALFWORD;
+  // dma_rx_config.Mode               = LL_DMA_MODE_NORMAL;
+  // dma_rx_config.Priority           = LL_DMA_PRIORITY_VERYHIGH;
+  // dma_rx_config.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  // dma_rx_config.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  // dma_rx_config.MemBurst        = LL_DMA_MBURST_SINGLE;
+  // dma_rx_config.PeriphBurst    = LL_DMA_PBURST_SINGLE;
 
-  // DMA_Cmd(DMA1_Stream2, DISABLE);
-  // DMA_DeInit(DMA1_Stream2);
-  // DMA_Init(DMA1_Stream2, &dma_rx_config);
+  // LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_2);
+  // LL_DMA_DeInit(DMA1, LL_DMA_STREAM_2);
+  // LL_DMA_Init(DMA1, LL_DMA_STREAM_2, &dma_rx_config);
 
   PIN(pos_len)     = 18;  // 17
   PIN(mpos_len)    = 12;  // 15
@@ -210,12 +244,12 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
-  SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+  SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
 
   uint32_t bits = endat_tx(req, addr, 0, df.dataa, &(ctx->data));
   df2.data      = df.data;
 
-  GPIO_SetBits(GPIOD, GPIO_Pin_15);  //tx enable
+  LL_GPIO_SetOutputPin(GPIOD, LL_GPIO_PIN_15);  //tx enable
   SPI3->CR1 |= SPI_CR1_BIDIOE;       //enable output
   SPI3->CR1 |= SPI_CR1_SPE;          //enable spi
 
@@ -228,20 +262,38 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   SPI3->CR1 &= ~SPI_CR1_BIDIOE;        //disable output, this activates the clock
-  GPIO_ResetBits(GPIOD, GPIO_Pin_15);  //tx disable
+  LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_15);  //tx disable
 
   SPI3->CR1 &= ~SPI_CR1_SPE;  //disable spi
   if(PIN(swap) > 0.0) {
-    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
   } else {
-    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | SPI_BaudRatePrescaler_32;
+    SPI3->CR1 = SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_CR1_BIDIMODE | LL_SPI_BAUDRATEPRESCALER_DIV32;
   }
-  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi
+  (void)SPI3->DR;  // drop a byte left over from the last frame (RXNE, OVR)
+  (void)SPI3->SR;
+  SPI3->CR1 |= SPI_CR1_SPE;  //enable spi, BIDIOE = 0 starts the clock
 
-  df.data = 0;
-  for(int i = 0; i < MIN(sizeof(df.data), PIN(bytes)); i++) {
-    while(!(SPI3->SR & SPI_SR_RXNE))
-      ;
+  // RM0090 28.3.8, master bidirectional receive: the clock runs as long as
+  // SPE is set, so after RXNE n-1 wait one SPI clock and clear SPE; the last
+  // byte then completes and no further one is clocked. Left running to the
+  // end of this function, it would clock the encoder on and leave a stale
+  // byte and OVR for the next frame.
+  df.data   = 0;
+  int nbytes = MIN(sizeof(df.data), PIN(bytes));
+  for(int i = 0; i < nbytes; i++) {
+    if(i == nbytes - 1) {
+      for(volatile int d = 0; d < 64; d++) {  // > 1 SPI clock (32 PCLK1 cycles)
+      }
+      SPI3->CR1 &= ~SPI_CR1_SPE;
+    }
+    uint32_t t = 0;
+    while(!(SPI3->SR & SPI_SR_RXNE) && ++t < 20000) {  // a byte is ~6 us
+    }
+    if(t >= 20000) {  // never happens with SPE set; don't hang the rt if it does
+      df.data = 0;
+      break;
+    }
     df.dataa[i] = SPI3->DR;
   }
 

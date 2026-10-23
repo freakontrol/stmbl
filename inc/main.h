@@ -2,3 +2,4 @@
 #include <stdint.h>
 
 void Wait(uint32_t ms);
+void bootloader(char *ptr);

@@ -3,9 +3,22 @@
 #include "hal.h"
 #include "defines.h"
 
+/**
+* ## Brief
+* `jog` provides terminal commands to jog an axis. F4 component, used in `conf/template/jog_cmd.txt` together with `stp` (`stp0.jog = jog0.jog`).
+*
+* ## Component Explanation
+* 1. **Commands**:
+* - `jogl` sets `jog` to -1, `jogr` to 1, `jogx` to 0.
+*
+* 2. **Timeout** (`rt`):
+* - If no command is received for 0.75 s, `jog` returns to 0, so the command has to be repeated (e.g. by holding the key in the terminal) to keep moving.
+* - The jog state is a global variable, all instances share it.
+*/
+
 HAL_COMP(jog);
 
-HAL_PIN(jog);
+HAL_PIN(jog);  // *output*, -1 = left, 0 = stop, 1 = right
 
 static volatile float jog;
 static volatile float jog_timeout;

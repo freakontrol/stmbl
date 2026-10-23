@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="com.st.stm32cube.ide.mcu.debug.launch.launchConfigurationType">
+    <booleanAttribute key="com.st.stm32cube.ide.mcu.debug.launch.enable_live_expr" value="true"/>
+    <booleanAttribute key="com.st.stm32cube.ide.mcu.debug.launch.enable_swv" value="false"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.launch.formatVersion" value="2"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.launch.loadList" value="{&quot;fItems&quot;: [{&quot;fIsFromMainTab&quot;: true, &quot;fPath&quot;: &quot;obj_app/stmbl.elf&quot;, &quot;fProjectName&quot;: &quot;stmbl&quot;, &quot;fPerformBuild&quot;: true, &quot;fDownload&quot;: true, &quot;fLoadSymbols&quot;: true}]}"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.launch.override_start_address_mode" value="default"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.launch.remoteCommand" value="target remote"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.launch.startServer" value="true"/>
+    <booleanAttribute key="com.st.stm32cube.ide.mcu.debug.launch.swd_mode" value="true"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.launch.vector_table" value=""/>
+    <booleanAttribute key="com.st.stm32cube.ide.mcu.debug.launch.verify_flash_download" value="true"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.stlink.frequency" value="0"/>
+    <booleanAttribute key="com.st.stm32cube.ide.mcu.debug.stlink.halt_all_on_reset" value="false"/>
+    <stringAttribute key="com.st.stm32cube.ide.mcu.debug.stlink.reset_strategy" value="connect_under_reset"/>
+    <booleanAttribute key="com.st.stm32cube.ide.mcu.debug.stlink.swd_mode" value="true"/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.imageFileName" value=""/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.ipAddress" value="localhost"/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.jtagDevice" value="ST-LINK (ST-LINK GDB server)"/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.jtagDeviceId" value="com.st.stm32cube.ide.mcu.debug.stlink"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.loadImage" value="true"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.loadSymbols" value="true"/>
+    <intAttribute key="org.eclipse.cdt.debug.gdbjtag.core.portNumber" value="61234"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.setPcRegister" value="true"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.setResume" value="true"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.setStopAt" value="true"/>
+    <stringAttribute key="org.eclipse.cdt.debug.gdbjtag.core.stopAt" value="main"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.useFileForImage" value="false"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.useProjBinaryForImage" value="true"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.useProjBinaryForSymbols" value="true"/>
+    <booleanAttribute key="org.eclipse.cdt.debug.gdbjtag.core.useRemoteTarget" value="true"/>
+    <stringAttribute key="org.eclipse.cdt.dsf.gdb.DEBUG_NAME" value="${gnu_tools_for_stm32_compiler_path}/arm-none-eabi-gdb"/>
+    <stringAttribute key="org.eclipse.cdt.launch.PROGRAM_NAME" value="obj_app/stmbl.elf"/>
+    <stringAttribute key="org.eclipse.cdt.launch.PROJECT_ATTR" value="stmbl"/>
+    <booleanAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_AUTO_ATTR" value="false"/>
+    <stringAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_ID_ATTR" value="cdt.managedbuild.toolchain.gnu.cross.base.1001"/>
+    <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
+        <listEntry value="/stmbl"/>
+    </listAttribute>
+    <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_TYPES">
+        <listEntry value="4"/>
+    </listAttribute>
+</launchConfiguration>

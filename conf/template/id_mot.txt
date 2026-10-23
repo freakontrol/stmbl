@@ -3,6 +3,7 @@ load idm
 idm0.rt_prio = 4
 
 idm0.en = fault0.en_out
+idm0.pos_fb = fb_switch0.pos_fb
 pid0.pos_ext_cmd = idm0.pos_cmd
 pid0.vel_ext_cmd = idm0.vel_cmd
 pid0.acc_ext_cmd = idm0.acc_cmd
@@ -10,17 +11,33 @@ pid0.acc_ext_cmd = idm0.acc_cmd
 pid0.j_mot = idm0.inertia
 pid0.d = idm0.damping
 pid0.f = idm0.friction
-pid0.l = idm0.load
+pid0.o = idm0.offset
+
+# idm's estimators converge only with each estimate fed back into the
+# feedforward, offset included. li 0.005 gives the offset loop a 25 s time
+# constant, inside 1% on a ~110 s run.
+idm0.li = 0.005
 
 pid0.pos_bw = idm0.pos_bw
 pid0.vel_bw = idm0.vel_bw
-pid0.vel_d = idm0.vel_d
+# vel_d_pid is vel_d, or 1e6 (velocity integrator parked) during the
+# breakaway test (id_brk, or id_sys with idm0.brk 1)
+pid0.vel_d = idm0.vel_d_pid
 
 idm0.torque = pid0.torque_cmd
 idm0.fb_torque = pid0.fb_torque_cmd
+# breakaway test: the ramp torque, limited to max_force
+pid0.torque_ext_cmd = idm0.torque_ext
+idm0.brk_max = conf0.max_force
+idm0.cur_cmd = hv0.q_cmd
+idm0.cur_fb = hv0.iq_fb
+idm0.scale = fault0.scale
 
 vel1.torque = 0
 vel2.torque = 0
+
+# the bare motor: conf0.j_sys would add the coupled axis's inertia
+pid0.j_sys = 0
 
 conf0.max_pos_error = 0
 conf0.max_sat = 10

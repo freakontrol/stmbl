@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "angle.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 
 /*
@@ -29,11 +30,39 @@ word C:
 2..15: checksum/multiturn?
 */
 
+/**
+* ## Brief
+* `encs` reads Sanyo Denki serial absolute encoders (tested with PA035C, 2.5 Mbit/s) on the Z line of the FB0 connector of the F4 board. It is loaded by `conf/template/encs_fb0.txt` (used e.g. by `conf/bene_sanyo.txt`), which links `encs0.pos` to `fb_switch0.mot_pos` and `mot_abs_pos`, `encs0.state` to `fb_switch0.mot_state` and `encs0.error` to `fault0.mot_fb_error`.
+*
+* ## Component Explanation
+*
+* 1. **Hardware (hw_init)**:
+* - The half-duplex data line is FB0 Z (PD14), the line driver enable is FB0 Z TXEN (PD15).
+* - Transmit: the request is bit-banged by DMA2 stream 1 (channel 7, TIM8 update) writing a 24 word pattern to the GPIO set/reset register. TIM8 runs with prescaler 1 and period 32, about 2.545 MHz per bit.
+* - Receive: TIM4 channel 3 captures every edge on PD14 (both polarities), DMA1 stream 7 (channel 2) stores up to 300 capture times.
+* - The request frame is fixed: start bit, sync, frame code, encoder address 0, command code CDF1 ("absolute lower 24 bit data request") and a precomputed CRC.
+*
+* 2. **Reply decoding (rt)**, done on the reply to the request of the previous rt cycle:
+* - The time between edges is divided by 33 timer ticks per bit and rounded; every odd-numbered interval is written as 1s, the rest of the 54 bit frame is filled with 1 (idle line).
+* - The frame consists of three 18 bit words (start bit, 16 data bits, stop bit). Only the start (0) and stop (1) bits are checked.
+* - Position: 16 bits from word B plus the MSB (bit 16) from word C, 17 bit single turn:
+* ```c
+* pos = (pos0_15 / 65536 + pos16) * pi - pi;   // rad, -pi..pi
+* ```
+*
+* 3. **Request (rt)**:
+* - PD14 is switched to output, TX enable set, the TX DMA is started and the rt function busy-waits until it completes (about 9 us), then PD14 is switched back to the timer input, the capture timer is reset and the RX DMA is restarted.
+*
+* {{% hint warning %}}
+* The CRC, the alarm/status fields and the multiturn bits of the reply are not checked or used. The GPIO mode register access is hard coded for PD14 (V4 board). DMA2 stream 1 is also used by `encm` and `dmm`, and TIM8 by `yaskawa`, so these cannot be loaded together with `encs`.
+* {{% /hint %}}
+*/
+
 HAL_COMP(encs);
 
-HAL_PIN(pos);
-HAL_PIN(error);
-HAL_PIN(state);
+HAL_PIN(pos);    // *output*, Single-turn position, 17 bit (rad, -pi..pi)
+HAL_PIN(error);  // *output*, 1 = start/stop bits of the reply wrong
+HAL_PIN(state);  // *output*, 0 = error, 3 = position valid
 
 static volatile uint32_t request_buf[24];
 static volatile uint16_t tim_data[300];
@@ -82,48 +111,50 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct encs_pin_ctx_t *pins = (struct encs_pin_ctx_t *)pin_ptr;
 
   //TX enable
-  GPIO_InitTypeDef GPIO_InitStruct;
-  GPIO_InitStruct.GPIO_Pin   = FB0_Z_TXEN_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_25MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_Z_TXEN_PORT, &GPIO_InitStruct);
-  GPIO_ResetBits(FB0_Z_TXEN_PORT, FB0_Z_TXEN_PIN);
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_GPIO_StructInit(&GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = FB0_Z_TXEN_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_MEDIUM;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB0_Z_TXEN_PORT, &GPIO_InitStruct);
+  LL_GPIO_ResetOutputPin(FB0_Z_TXEN_PORT, FB0_Z_TXEN_PIN);
 
   //TX
-  GPIO_InitStruct.GPIO_Pin   = FB0_Z_PIN;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(FB0_Z_PORT, &GPIO_InitStruct);
-  GPIO_PinAFConfig(FB0_Z_PORT, FB0_Z_PIN_SOURCE, FB0_ENC_TIM_AF);
+  GPIO_InitStruct.Pin   = FB0_Z_PIN;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(FB0_Z_PORT, &GPIO_InitStruct);
+  LL_GPIO_SetAFPin_8_15(FB0_Z_PORT, FB0_Z_PIN, FB0_ENC_TIM_AF);  // TX pin is switched to AF later, PD14
 
   //RX DMA
-  DMA_InitTypeDef dma_rx_config;
-  dma_rx_config.DMA_Channel            = DMA_Channel_2;
-  dma_rx_config.DMA_PeripheralBaseAddr = (uint32_t)&FB0_ENC_TIM->CCR3;
-  dma_rx_config.DMA_Memory0BaseAddr    = (uint32_t)&tim_data;
-  dma_rx_config.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  dma_rx_config.DMA_BufferSize         = ARRAY_SIZE(tim_data);
-  dma_rx_config.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  dma_rx_config.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  dma_rx_config.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-  dma_rx_config.DMA_MemoryDataSize     = DMA_PeripheralDataSize_HalfWord;
-  dma_rx_config.DMA_Mode               = DMA_Mode_Normal;
-  dma_rx_config.DMA_Priority           = DMA_Priority_VeryHigh;
-  dma_rx_config.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  dma_rx_config.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  dma_rx_config.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  dma_rx_config.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
+  LL_DMA_InitTypeDef dma_rx_config;
+  LL_DMA_StructInit(&dma_rx_config);
+  dma_rx_config.Channel            = LL_DMA_CHANNEL_2;
+  dma_rx_config.PeriphOrM2MSrcAddress = (uint32_t)&FB0_ENC_TIM->CCR3;
+  dma_rx_config.MemoryOrM2MDstAddress    = (uint32_t)&tim_data;
+  dma_rx_config.Direction                = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  dma_rx_config.NbData         = ARRAY_SIZE(tim_data);
+  dma_rx_config.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  dma_rx_config.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  dma_rx_config.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_HALFWORD;
+  dma_rx_config.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_HALFWORD;
+  dma_rx_config.Mode               = LL_DMA_MODE_NORMAL;
+  dma_rx_config.Priority           = LL_DMA_PRIORITY_VERYHIGH;
+  dma_rx_config.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  dma_rx_config.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  dma_rx_config.MemBurst        = LL_DMA_MBURST_SINGLE;
+  dma_rx_config.PeriphBurst    = LL_DMA_PBURST_SINGLE;
 
-  DMA_Cmd(DMA1_Stream7, DISABLE);
-  DMA_DeInit(DMA1_Stream7);
-  DMA_Init(DMA1_Stream7, &dma_rx_config);
+  dma_stream_stop(DMA1_Stream7);
+  LL_DMA_DeInit(DMA1, LL_DMA_STREAM_7);
+  LL_DMA_Init(DMA1, LL_DMA_STREAM_7, &dma_rx_config);
 
   //timer setup
-  RCC_APB1PeriphClockCmd(FB0_ENC_TIM_RCC, ENABLE);
+  LL_APB1_GRP1_EnableClock(FB0_ENC_TIM_RCC);
   FB0_ENC_TIM->CR1 &= ~TIM_CR1_CEN;
   FB0_ENC_TIM->CCMR2 = TIM_CCMR2_CC3S_0;                                // cc3 input ti3
   FB0_ENC_TIM->CCER  = TIM_CCER_CC3E | TIM_CCER_CC3P | TIM_CCER_CC3NP;  // cc3 en, rising edge, falling edge
@@ -168,45 +199,47 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   request_buf[pos++] = tx_high;
 
   //DMA tx config
-  DMA_InitTypeDef dma_tx_config;
-  dma_tx_config.DMA_Channel            = DMA_Channel_7;  //TIM8_UP
-  dma_tx_config.DMA_PeripheralBaseAddr = (uint32_t)&FB0_Z_PORT->BSRRL;
-  dma_tx_config.DMA_Memory0BaseAddr    = (uint32_t)&request_buf;
-  dma_tx_config.DMA_DIR                = DMA_DIR_MemoryToPeripheral;
-  dma_tx_config.DMA_BufferSize         = pos;
-  dma_tx_config.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  dma_tx_config.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  dma_tx_config.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
-  dma_tx_config.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Word;
-  dma_tx_config.DMA_Mode               = DMA_Mode_Normal;
-  dma_tx_config.DMA_Priority           = DMA_Priority_VeryHigh;
-  dma_tx_config.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  dma_tx_config.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  dma_tx_config.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  dma_tx_config.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_DeInit(DMA2_Stream1);
-  DMA_Init(DMA2_Stream1, &dma_tx_config);
+  LL_DMA_InitTypeDef dma_tx_config;
+  LL_DMA_StructInit(&dma_tx_config);
+  dma_tx_config.Channel            = LL_DMA_CHANNEL_7;  //TIM8_UP
+  dma_tx_config.PeriphOrM2MSrcAddress = (uint32_t)&FB0_Z_PORT->BSRR;
+  dma_tx_config.MemoryOrM2MDstAddress    = (uint32_t)&request_buf;
+  dma_tx_config.Direction                = LL_DMA_DIRECTION_MEMORY_TO_PERIPH;
+  dma_tx_config.NbData         = pos;
+  dma_tx_config.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  dma_tx_config.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  dma_tx_config.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_WORD;
+  dma_tx_config.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_WORD;
+  dma_tx_config.Mode               = LL_DMA_MODE_NORMAL;
+  dma_tx_config.Priority           = LL_DMA_PRIORITY_VERYHIGH;
+  dma_tx_config.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  dma_tx_config.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  dma_tx_config.MemBurst        = LL_DMA_MBURST_SINGLE;
+  dma_tx_config.PeriphBurst    = LL_DMA_PBURST_SINGLE;
+  LL_DMA_DeInit(DMA2, LL_DMA_STREAM_1);
+  LL_DMA_Init(DMA2, LL_DMA_STREAM_1, &dma_tx_config);
 
   //TIM8 tx bitbang timer
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM8, ENABLE);
-  TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-  TIM_TimeBaseStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
-  TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
-  TIM_TimeBaseStructure.TIM_Period            = 32;  //14MHz
-  TIM_TimeBaseStructure.TIM_Prescaler         = 1;
-  TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
-  TIM_TimeBaseInit(TIM8, &TIM_TimeBaseStructure);
-  TIM_ARRPreloadConfig(TIM8, ENABLE);
-  TIM_DMACmd(TIM8, TIM_DMA_Update, ENABLE);
-  TIM_Cmd(TIM8, ENABLE);
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_TIM8);
+  LL_TIM_InitTypeDef TIM_TimeBaseStructure;
+  LL_TIM_StructInit(&TIM_TimeBaseStructure);
+  TIM_TimeBaseStructure.ClockDivision     = LL_TIM_CLOCKDIVISION_DIV1;
+  TIM_TimeBaseStructure.CounterMode       = LL_TIM_COUNTERMODE_UP;
+  TIM_TimeBaseStructure.Autoreload            = 32;  //14MHz
+  TIM_TimeBaseStructure.Prescaler         = 1;
+  TIM_TimeBaseStructure.RepetitionCounter = 0;
+  LL_TIM_Init(TIM8, &TIM_TimeBaseStructure);
+  LL_TIM_EnableARRPreload(TIM8);
+  LL_TIM_EnableDMAReq_UPDATE(TIM8);
+  LL_TIM_EnableCounter(TIM8);
 }
 
 static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct encs_ctx_t *ctx      = (struct encs_ctx_t *)ctx_ptr;
   struct encs_pin_ctx_t *pins = (struct encs_pin_ctx_t *)pin_ptr;
 
-  int count = ARRAY_SIZE(tim_data) - DMA1_Stream7->NDTR;
-  DMA_Cmd(DMA1_Stream7, DISABLE);
+  int count = ARRAY_SIZE(tim_data) - LL_DMA_GetDataLength(DMA1, LL_DMA_STREAM_7);
+  dma_stream_stop(DMA1_Stream7);
 
   for(int i = 0; i < 10; i++) {
     data.enc_data[i] = 0;
@@ -241,17 +274,16 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   }
 
   //request
-  FB0_Z_TXEN_PORT->BSRRL = FB0_Z_TXEN_PIN;  //TX enable
+  FB0_Z_TXEN_PORT->BSRR = FB0_Z_TXEN_PIN;  //TX enable
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_1;
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_0;  //set tx pin to output
   TIM8->ARR = 32;                             //2.545 Mhz
-  DMA_Cmd(DMA2_Stream1, DISABLE);
-  DMA_ClearFlag(DMA2_Stream1, DMA_FLAG_TCIF1);
-  DMA_Cmd(DMA2_Stream1, ENABLE);
+  dma_stream_stop(DMA2_Stream1);
+  LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_1);
   //wait for DMA transfer complete
-  while(DMA_GetFlagStatus(DMA2_Stream1, DMA_FLAG_TCIF1) == RESET)
+  while(LL_DMA_IsActiveFlag_TC1(DMA2) == RESET)
     ;
-  FB0_Z_TXEN_PORT->BSRRH = FB0_Z_TXEN_PIN;     //TX disable
+  FB0_Z_TXEN_PORT->BSRR = (uint32_t)(FB0_Z_TXEN_PIN) << 16;     //TX disable
   FB0_Z_PORT->MODER &= ~GPIO_MODER_MODER14_0;  //set tx pin to af
   FB0_Z_PORT->MODER |= GPIO_MODER_MODER14_1;
 
@@ -263,9 +295,8 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   FB0_ENC_TIM->CR1 |= TIM_CR1_CEN;  // enable tim
 
   //start rx DMA
-  DMA_Cmd(DMA1_Stream7, DISABLE);
-  DMA_ClearFlag(DMA1_Stream7, DMA_FLAG_TCIF7);
-  DMA_Cmd(DMA1_Stream7, ENABLE);
+  dma_stream_stop(DMA1_Stream7);
+  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_7);
 }
 
 hal_comp_t encs_comp_struct = {

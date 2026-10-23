@@ -25,45 +25,100 @@
 #include "math.h"
 #include "defines.h"
 #include "stm32f4xx_conf.h"
+#include "dma_util.h"
 #include "hw/hw.h"
 #include "sserial.h"
 #include "crc8.h"
 #include "setup.h"
 #include <string.h>
 
+/**
+* ## Brief
+* The `sserial` component makes the drive a Mesa smart serial (sserial / LBP) remote, so LinuxCNC's hostmot2 driver can talk to it like a Mesa daughter card (card name `stbl`). LinuxCNC sends position and velocity commands, 4 digital outputs, enable, index enable and the `linrev` scale; the drive answers with position and velocity feedback, current, 4 digital inputs, fault, index enable and a fault code. On the F4 board it is loaded by `conf/template/sserial.txt` (and `sserial_dummy.txt`), which feeds `sserial0.pos_cmd` / `pos_cmd_d` through `linrev0` and `vel_int0` into the controller, links `fault0.en = sserial0.enable`, `sserial0.fault_code = fault0.last_fault`, `linrev0.scale = sserial0.scale`, `sserial0.pos_fb = linrev0.fb_out`, sets `sserial0.pos_advance = 0.0003`, `sserial0.current = hv0.iq_fb` and `io0.clock_scale = sserial0.clock_scale`.
+*
+* ## Component Explanation
+*
+* 1. **Hardware** (`hw_init`):
+* - 2.5 Mbit/s, 8N1. UART4 TX on PA0 with `DMA1_Stream4`, USART1 RX on PA10 into a 128 byte circular DMA ring buffer (`DMA2_Stream5`), TX enable on PB7 driven high permanently. These are the CMD connector pins of the v4 board; `siserial` and `smart_torque` use the same hardware.
+* - The unit number reported to LinuxCNC is the XOR of the three words of the 96 bit chip unique ID.
+* - Defaults: `clock_scale = 1`, `phase = 0`; `pos_extrap = 1` is set at load (`nrt_init`), before the template's pin settings. All other pins start at 0.
+*
+* 2. **Feedback snapshot** (`rt`, 5 kHz):
+* - Each rt period stores `pos_fb`, `vel_fb` and the rt tick count into one of two slots and then switches the active slot with a single word write, so the frt, which can preempt the rt, always reads a complete pair.
+* - The template sets `sserial0.rt_prio = 2.3`, after `linrev0` (2.1) and `vel_int0` (2.2), so the snapshot holds this period's `linrev0` output.
+*
+* 3. **Packet parser** (`frt`, 20 kHz):
+* - Each frt cycle looks at the LBP command byte at the ring buffer read position and handles at most one packet once enough bytes are there:
+* - Local read: cookie (`0x5a`), status (always 0), card name `stbl`; unknown commands answer 0.
+* - Local write: acknowledged with a 0 byte; `0xFF` (reset) and `0xFC` are skipped.
+* - RPC: unit number, discovery (PTOC at 0x018B, GTOC at 0x01A9, 12 input bytes, 12 output bytes; there are no global parameters) and process data.
+* - Memory read / write: reads and writes of the descriptor table (`sserial_slave[]`), with optional address and auto increment, which LinuxCNC uses to read the pin descriptors. A read past the end of the table returns zeros (so the host still gets its reply), a write past it is ignored.
+* - Unknown packets are not consumed; the buffer is flushed by the timeout below.
+*
+* 4. **Process data** (`frt`):
+* - The component starts handling the process data request when all but 5 bytes are in, then busy-waits (at most the time of those 5 bytes) for the rest, so the reply can be sent with little delay.
+* - Data from LinuxCNC (12 bytes): `pos_cmd` float (rad), `vel_cmd` float (rad/s), bits out0..out3, enable, index_enable, then `scale` as a 24 bit unsigned count of 1e-4 (0 to about 1677.72). A float does not fit, because hm2's standard sserial module carries 96 bits per direction. A `scale` of 0 keeps the current `scale` pin, any other value sets it, in every good packet.
+* - Data to LinuxCNC (1 status byte, always 0, then 11 bytes):
+* ```c
+* pos_fb  = snap.pos + (pos_extrap > 0 ? snap.vel * (pos_advance + age) : 0); // float, rad, latency compensation
+* vel_fb  = snap.vel;                                  // float, rad/s
+* current = CLAMP(current / (30.0 / 128.0), -127, 127); // int8, about 0.234 A per LSB, +-30 A
+* ```
+* followed by the bits in0..in3, fault and index_enable, and the byte `fault_code`: the `fault_code` pin (clamped to 0..255) while fault is set, else 0. The template feeds it `fault0.last_fault`, which keeps its value after the fault is gone, so the byte is gated by the fault bit.
+* - `snap` is the last rt snapshot. `age` is the time since the rt period of that snapshot started (from the rt tick count and the progress of the ADC DMA in the current period, clamped to 0..2 rt periods), so the reported position is extrapolated to the moment the reply is sent, which is up to one rt period after the snapshot. The tick and the DMA flag are read on both sides of the DMA count and the read is repeated if they changed, so a period boundary between the reads cannot make the age one rt period (200 us) too old.
+* - `pos_advance` covers the feedback delays the drive cannot see itself: hm2 timing, encoder transport and the loop following the `vel1` observer. It is tuned per axis: `tools/sserial_advance.py` fits LinuxCNC's ferror = a vel + b acc + c over a move and prints the value. On Y (LinuxCNC, 7i94T, 1 kHz servo) 0.0002 left +89 us (+18 um at 200 mm/s); 0.00029 brought it to -1 us, f-error rms 18 to 11 um.
+* - `pos_extrap = 0` sends `snap.pos` without extrapolation; `sserial_uf.txt` sets it, since `pos_fb` is not linked there (velocity only feedback).
+* - If the request CRC-8 is correct, the reply (with its CRC-8) is sent and `pos_cmd`, `pos_cmd_d` (= vel_cmd), `out0`..`out3` and `enable` (and `scale`, see above) are updated. If not, no reply is sent; the last good command is kept for up to 2 bad packets in a row. From the 3rd bad packet in a row `pos_cmd`, `pos_cmd_d`, `out0`..`out3` and `enable` are set to 0 and `connected = 0`, `error = 1`, until a packet with a correct CRC arrives.
+*
+* 5. **Index handling**:
+* - `index_out` follows the index_enable bit from LinuxCNC. The index_enable bit sent back is 0 while `index_clear > 0`, otherwise it echoes the request. In the template, `idx_home0` does the actual homing to the encoder index.
+*
+* 6. **Timeout and connection state** (`frt`):
+* - An internal counter is incremented every frt cycle and reset by every recognised packet. When it exceeds `timeout`, `connected = 0`, `error = 1`, `pos_cmd`, `pos_cmd_d`, `out0`..`out3` and `enable` are set to 0 and the receive buffer is flushed. Otherwise, unless more than 2 process data packets in a row had a bad CRC (see above), `connected = 1` and `error = 0`.
+*
+* 7. **Clock synchronisation** (`frt`):
+* - On every 4th cycle `clock_scale` is set to 0.9 if more than 5 bytes are waiting, 1.1 if 1 to 4 bytes are waiting, else it stays 1.0. `io0` uses this to lengthen or shorten its timer period by one count, so the drive's frt cycle locks to the request rate of the LinuxCNC servo thread.
+*
+* {{% hint warning %}}
+* The status byte in front of the data is always 0; the fault code is in the `fault_code` byte of the process data.
+* {{% /hint %}}
+*/
+
 HAL_COMP(sserial);
 
 // pins
-HAL_PIN(error);
-HAL_PIN(crc_error);  //counts crc errors, is never reset
-HAL_PIN(connected);  //connection status TODO: not stable during startup, needs link to pd
-HAL_PIN(timeout);    // 20khz / 1khz * 2 reads = 40
+HAL_PIN(error);       // *output*, 1 = timeout (no packets from LinuxCNC) or more than 2 bad CRC packets in a row, 0 = ok
+HAL_PIN(crc_error);   // *output*, Counts process data CRC errors, is never reset
+HAL_PIN(connected);   // *output*, 1 = packets are arriving; not stable during startup, needs link to process data
+HAL_PIN(timeout);     // *parameter*, Timeout in frt cycles (default 100 = 5 ms at 20 kHz)
 
-HAL_PIN(pos_cmd);
-HAL_PIN(pos_cmd_d);
-HAL_PIN(pos_fb);
-HAL_PIN(vel_fb);
-HAL_PIN(current);
-HAL_PIN(scale);
+HAL_PIN(pos_cmd);     // *output*, Position command from LinuxCNC (rad)
+HAL_PIN(pos_cmd_d);   // *output*, Velocity command from LinuxCNC (rad/s)
+HAL_PIN(pos_fb);      // *input*, Position feedback sent to LinuxCNC, sampled in rt and extrapolated to the reply time (rad)
+HAL_PIN(vel_fb);      // *input*, Velocity feedback sent to LinuxCNC (rad/s)
+HAL_PIN(current);     // *input*, Current sent to LinuxCNC (A, int8 with 30/128 A per LSB, +-30 A)
+HAL_PIN(scale);       // *output*, Scale from LinuxCNC process data (1e-4 steps), a received 0 keeps the last value
 
-HAL_PIN(clock_scale);
-HAL_PIN(available);
-HAL_PIN(phase);
+HAL_PIN(clock_scale); // *output*, Frt clock trim request for io0: 0.9, 1.0 or 1.1
+HAL_PIN(available);   // *output*, Unread bytes in the RX ring buffer
+HAL_PIN(phase);       // *output*, Frt cycle counter 0..3 for clock_scale
 
-HAL_PIN(in0);
-HAL_PIN(in1);
-HAL_PIN(in2);
-HAL_PIN(in3);
-HAL_PIN(fault);
+HAL_PIN(in0);         // *input*, Digital input 0 sent to LinuxCNC (1 when > 0)
+HAL_PIN(in1);         // *input*, Digital input 1 sent to LinuxCNC (1 when > 0)
+HAL_PIN(in2);         // *input*, Digital input 2 sent to LinuxCNC (1 when > 0)
+HAL_PIN(in3);         // *input*, Digital input 3 sent to LinuxCNC (1 when > 0)
+HAL_PIN(fault);       // *input*, Fault bit sent to LinuxCNC (1 when > 0)
+HAL_PIN(fault_code);  // *input*, Fault code sent to LinuxCNC while fault is set (0..255), else 0
 
-HAL_PIN(out0);
-HAL_PIN(out1);
-HAL_PIN(out2);
-HAL_PIN(out3);
-HAL_PIN(enable);
-HAL_PIN(index_clear);
-HAL_PIN(index_out);
-HAL_PIN(pos_advance);
+HAL_PIN(out0);        // *output*, Digital output 0 from LinuxCNC
+HAL_PIN(out1);        // *output*, Digital output 1 from LinuxCNC
+HAL_PIN(out2);        // *output*, Digital output 2 from LinuxCNC
+HAL_PIN(out3);        // *output*, Digital output 3 from LinuxCNC
+HAL_PIN(enable);      // *output*, Enable from LinuxCNC, 0 on timeout or after more than 2 bad CRC packets in a row
+HAL_PIN(index_clear); // *input*, Index found: clears index_enable in the reply
+HAL_PIN(index_out);   // *output*, Index enable request from LinuxCNC
+HAL_PIN(pos_advance); // *parameter*, Extra time the sent position is advanced by vel_fb, on top of the snapshot age (s), template 0.0003
+HAL_PIN(pos_extrap);  // *parameter*, 1 = pos_fb extrapolated by vel_fb to the reply (default), 0 for a velocity only feedback (sserial_uf)
 
 //TODO: move to ctx
 struct sserial_ctx_t {
@@ -75,6 +130,9 @@ static volatile uint8_t txbuf[128];  //tx dma buffer
 static uint16_t address;             //current address pointer
 static int rxpos;                    //read pointer for rx ringbuffer
 static uint32_t timeout;
+static uint32_t crc_bad;  // process data packets in a row with a bad crc
+// bad packets in a row that keep the last good command; one more drops it
+#define CRC_BAD_HOLD 2
 static lbp_t lbp;
 static const char name[] = LBPCardName;
 static unit_no_t unit;
@@ -82,13 +140,13 @@ static uint32_t max_waste_ticks;
 static uint32_t block_bytes;
 
 #pragma pack(push, 1)
-//*****************************************************************************
+// *****************************************************************************
 uint8_t sserial_slave[] = {
-    0x0B,
-    0x09,
+    0x0C,
+    0x0C,
     0x8B,
     0x01,
-    0xA5,
+    0xA9,
     0x01,
     0x00,
     0x00,  // 0..7
@@ -503,21 +561,80 @@ uint8_t sserial_slave[] = {
     0x01,
     0x74,
     0x01,
-    0x00,
-    0x00,
-    0x30,
+    0xAF,
     0x01,
-    0x49,  // 416..423
+    0xCD,
+    0x01,
+    0x00,  // 416..423
+    0x00,
+    0x49,
     0x01,
     0x00,
+    0x00,
+    0x00,
+    0x00,
+    0xA0,  // 424..431
+    0x08,
+    0x02,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,  // 432..439
+    0x00,
+    0x7F,
+    0x43,
+    0xAF,
+    0x01,
+    0x6E,
+    0x6F,
+    0x6E,  // 440..447
+    0x65,
+    0x00,
+    0x66,
+    0x61,
+    0x75,
+    0x6C,
+    0x74,
+    0x5F,  // 448..455
+    0x63,
+    0x6F,
+    0x64,
+    0x65,
+    0x00,
+    0xA0,
+    0x18,
+    0x02,  // 456..463
+    0x80,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x16,
+    0xB7,
+    0xD1,  // 464..471
+    0x44,
+    0xCD,
+    0x01,
+    0x6E,
+    0x6F,
+    0x6E,
+    0x65,
+    0x00,  // 472..479
+    0x73,
+    0x63,
+    0x61,
+    0x6C,
+    0x65,
     0x00,
 };
 
 const discovery_rpc_t discovery = {
     .ptocp  = 0x018B,
-    .gtocp  = 0x01A5,
-    .input  = 11,
-    .output = 9,
+    .gtocp  = 0x01A9,
+    .input  = 12,
+    .output = 12,
 };
 
 typedef struct {
@@ -530,8 +647,15 @@ typedef struct {
   uint32_t enable : 1;
   uint32_t index_enable : 1;
   uint32_t padding : 2;
-} sserial_out_process_data_t;  //size:9 bytes
-_Static_assert(sizeof(sserial_out_process_data_t) == 9, "sserial_out_process_data_t size error!");
+  // linrev scale from LinuxCNC every packet, 0 = keep the current scale.
+  // 24 bit unsigned, 1e-4 per count: hm2's standard sserial module carries
+  // 96 bits per direction (3 registers), so a float does not fit. hm2
+  // writes (u64)(val / ParmMax * (2^24 - 1)); ParmMax 1677.7214f sits
+  // just below 2^24 * 1e-4, so the truncation lands on val * 1e4 exactly
+  // for every multiple of 1e-4 (checked for all 2^24 counts on the host).
+  uint8_t scale[3];
+} sserial_out_process_data_t;  //size:12 bytes
+_Static_assert(sizeof(sserial_out_process_data_t) == 12, "sserial_out_process_data_t size error!");
 
 typedef struct {
   float pos_fb;
@@ -544,11 +668,10 @@ typedef struct {
   uint32_t fault : 1;
   uint32_t index_enable : 1;
   uint32_t padding : 2;
-} sserial_in_process_data_t;  //size:10 bytes
-_Static_assert(sizeof(sserial_in_process_data_t) == 10, "sserial_in_process_data_t size error!");
-//global name:scale addr:0x12c size:32 dir:0x80
-#define scale_address 300
-//******************************************************************************
+  uint8_t fault_code;  // fault0.last_fault while fault is set, else 0
+} sserial_in_process_data_t;  //size:11 bytes
+_Static_assert(sizeof(sserial_in_process_data_t) == 11, "sserial_in_process_data_t size error!");
+// ******************************************************************************
 #pragma pack(pop)
 
 static sserial_out_process_data_t data_out;
@@ -571,15 +694,15 @@ static uint8_t crc8(uint8_t *addr, uint8_t len) {
 
 static void send(uint8_t len, uint8_t docrc) {
   timeout = 0;
+  // NDTR only takes a write while the stream is off (RM0090 10.5.6)
+  dma_stream_stop(DMA1_Stream4);
   if(docrc) {
     txbuf[len] = crc8((uint8_t *)txbuf, len);
-    DMA_SetCurrDataCounter(DMA1_Stream4, len + 1);
+    LL_DMA_SetDataLength(DMA1, LL_DMA_STREAM_4, len + 1);
   } else {
-    DMA_SetCurrDataCounter(DMA1_Stream4, len);
+    LL_DMA_SetDataLength(DMA1, LL_DMA_STREAM_4, len);
   }
-  DMA_Cmd(DMA1_Stream4, DISABLE);
-  DMA_ClearFlag(DMA1_Stream4, DMA_FLAG_TCIF4);
-  DMA_Cmd(DMA1_Stream4, ENABLE);
+  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_4);
 }
 
 //v3
@@ -595,105 +718,115 @@ static void send(uint8_t len, uint8_t docrc) {
 
 //TODO: lbp command 0xe6 to set mode
 
+// at load, before the template's pin settings (hw_init runs after them)
+static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+  struct sserial_pin_ctx_t *pins = (struct sserial_pin_ctx_t *)pin_ptr;
+  PIN(pos_extrap)                = 1.0;
+}
+
 static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   // struct sserial_ctx_t * ctx = (struct sserial_ctx_t *)ctx_ptr;
   struct sserial_pin_ctx_t *pins = (struct sserial_pin_ctx_t *)pin_ptr;
 
   PIN(timeout) = 100.0;  // 20khz / 1khz * 2 reads = 40
 
-  GPIO_InitTypeDef GPIO_InitStruct;
-  USART_InitTypeDef USART_InitStruct;
-  DMA_InitTypeDef DMA_InitStructure;
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_UART4, ENABLE);
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+
+  LL_GPIO_StructInit(&GPIO_InitStruct);
+  LL_USART_InitTypeDef USART_InitStruct;
+  LL_USART_StructInit(&USART_InitStruct);
+  LL_DMA_InitTypeDef DMA_InitStructure;
+  LL_DMA_StructInit(&DMA_InitStructure);
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_USART1);
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_UART4);
   //USART TX
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource0, GPIO_AF_UART4);
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_0;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_UP;
-  GPIO_Init(GPIOA, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_0;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_8;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   //USART RX
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_USART1);
-  GPIO_InitStruct.GPIO_Pin = GPIO_Pin_10;
-  GPIO_Init(GPIOA, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_10;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_7;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  USART_InitStruct.USART_BaudRate            = 2500000;
-  USART_InitStruct.USART_WordLength          = USART_WordLength_8b;
-  USART_InitStruct.USART_StopBits            = USART_StopBits_1;
-  USART_InitStruct.USART_Parity              = USART_Parity_No;
-  USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-  USART_InitStruct.USART_Mode                = USART_Mode_Rx;
-  USART_Init(USART1, &USART_InitStruct);
-  USART_InitStruct.USART_Mode = USART_Mode_Tx;
-  USART_Init(UART4, &USART_InitStruct);
+  USART_InitStruct.BaudRate            = 2500000;
+  USART_InitStruct.DataWidth          = LL_USART_DATAWIDTH_8B;
+  USART_InitStruct.StopBits            = LL_USART_STOPBITS_1;
+  USART_InitStruct.Parity              = LL_USART_PARITY_NONE;
+  USART_InitStruct.HardwareFlowControl = LL_USART_HWCONTROL_NONE;
+  USART_InitStruct.TransferDirection                = LL_USART_DIRECTION_RX;
+  LL_USART_Init(USART1, &USART_InitStruct);
+  USART_InitStruct.TransferDirection = LL_USART_DIRECTION_TX;
+  LL_USART_Init(UART4, &USART_InitStruct);
 
-  USART_Cmd(USART1, ENABLE);
-  USART_Cmd(UART4, ENABLE);
+  LL_USART_Enable(USART1);
+  LL_USART_Enable(UART4);
 
   //RX DMA
 
-  DMA_Cmd(DMA2_Stream5, DISABLE);
-  DMA_DeInit(DMA2_Stream5);
+  dma_stream_stop(DMA2_Stream5);
+  LL_DMA_DeInit(DMA2, LL_DMA_STREAM_5);
 
   // DMA2-Config
-  DMA_InitStructure.DMA_Channel            = DMA_Channel_4;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) & (USART1->DR);
-  DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t)&rxbuf;
-  DMA_InitStructure.DMA_DIR                = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructure.DMA_BufferSize         = sizeof(rxbuf);
-  DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_Mode               = DMA_Mode_Circular;
-  DMA_InitStructure.DMA_Priority           = DMA_Priority_High;
-  DMA_InitStructure.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructure.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructure.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructure.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_Init(DMA2_Stream5, &DMA_InitStructure);
+  DMA_InitStructure.Channel            = LL_DMA_CHANNEL_4;
+  DMA_InitStructure.PeriphOrM2MSrcAddress = (uint32_t) & (USART1->DR);
+  DMA_InitStructure.MemoryOrM2MDstAddress    = (uint32_t)&rxbuf;
+  DMA_InitStructure.Direction                = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+  DMA_InitStructure.NbData         = sizeof(rxbuf);
+  DMA_InitStructure.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructure.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructure.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
+  DMA_InitStructure.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_BYTE;
+  DMA_InitStructure.Mode               = LL_DMA_MODE_CIRCULAR;
+  DMA_InitStructure.Priority           = LL_DMA_PRIORITY_HIGH;
+  DMA_InitStructure.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructure.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructure.MemBurst        = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructure.PeriphBurst    = LL_DMA_PBURST_SINGLE;
+  LL_DMA_Init(DMA2, LL_DMA_STREAM_5, &DMA_InitStructure);
 
-  DMA_Cmd(DMA2_Stream5, ENABLE);
+  LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_5);
 
-  USART_DMACmd(USART1, USART_DMAReq_Rx, ENABLE);
+  LL_USART_EnableDMAReq_RX(USART1);
 
   //TX DMA
 
-  DMA_Cmd(DMA1_Stream4, DISABLE);
-  DMA_DeInit(DMA1_Stream4);
+  dma_stream_stop(DMA1_Stream4);
+  LL_DMA_DeInit(DMA1, LL_DMA_STREAM_4);
 
   // DMA2-Config
-  DMA_InitStructure.DMA_Channel            = DMA_Channel_4;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) & (UART4->DR);
-  DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t)&txbuf;
-  DMA_InitStructure.DMA_DIR                = DMA_DIR_MemoryToPeripheral;
-  DMA_InitStructure.DMA_BufferSize         = sizeof(txbuf);
-  DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_MemoryDataSize     = DMA_PeripheralDataSize_Byte;
-  DMA_InitStructure.DMA_Mode               = DMA_Priority_Low;
-  DMA_InitStructure.DMA_Priority           = DMA_Priority_High;
-  DMA_InitStructure.DMA_FIFOMode           = DMA_FIFOMode_Disable;
-  DMA_InitStructure.DMA_FIFOThreshold      = DMA_FIFOThreshold_HalfFull;
-  DMA_InitStructure.DMA_MemoryBurst        = DMA_MemoryBurst_Single;
-  DMA_InitStructure.DMA_PeripheralBurst    = DMA_PeripheralBurst_Single;
-  DMA_Init(DMA1_Stream4, &DMA_InitStructure);
+  DMA_InitStructure.Channel            = LL_DMA_CHANNEL_4;
+  DMA_InitStructure.PeriphOrM2MSrcAddress = (uint32_t) & (UART4->DR);
+  DMA_InitStructure.MemoryOrM2MDstAddress    = (uint32_t)&txbuf;
+  DMA_InitStructure.Direction                = LL_DMA_DIRECTION_MEMORY_TO_PERIPH;
+  DMA_InitStructure.NbData         = sizeof(txbuf);
+  DMA_InitStructure.PeriphOrM2MSrcIncMode      = LL_DMA_PERIPH_NOINCREMENT;
+  DMA_InitStructure.MemoryOrM2MDstIncMode          = LL_DMA_MEMORY_INCREMENT;
+  DMA_InitStructure.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
+  DMA_InitStructure.MemoryOrM2MDstDataSize     = LL_DMA_MDATAALIGN_BYTE;
+  DMA_InitStructure.Mode               = LL_DMA_MODE_NORMAL;
+  DMA_InitStructure.Priority           = LL_DMA_PRIORITY_HIGH;
+  DMA_InitStructure.FIFOMode           = LL_DMA_FIFOMODE_DISABLE;
+  DMA_InitStructure.FIFOThreshold      = LL_DMA_FIFOTHRESHOLD_1_2;
+  DMA_InitStructure.MemBurst        = LL_DMA_MBURST_SINGLE;
+  DMA_InitStructure.PeriphBurst    = LL_DMA_PBURST_SINGLE;
+  LL_DMA_Init(DMA1, LL_DMA_STREAM_4, &DMA_InitStructure);
 
-  USART_DMACmd(UART4, USART_DMAReq_Tx, ENABLE);
+  LL_USART_EnableDMAReq_TX(UART4);
 
   //tx enable
-  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_7;
-  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_OUT;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStruct.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin   = LL_GPIO_PIN_7;
+  GPIO_InitStruct.Mode  = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull  = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  GPIO_SetBits(GPIOB, GPIO_Pin_7);
+  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_7);
 
   //generate unit number from 96bit unique chip ID
   unit.unit = U_ID[0] ^ U_ID[1] ^ U_ID[2];
@@ -710,17 +843,55 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   PIN(phase)       = 0;
 }
 
-// static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
-//   struct sserial_pin_ctx_t *pins = (struct sserial_pin_ctx_t *)pin_ptr;
-//   //struct sserial_ctx_t *mem = (struct sserial_ctx_t *)ctx_ptr;
-//   PIN(phase) = 0;
-// }
+// pos_fb is computed once per rt period, but the reply goes out whenever
+// LinuxCNC's packet arrives, 0 to 200 us later, so a moving axis reported
+// a position up to one period old (+-0.04 one-sample f-error spikes at
+// 170/s on Y). The rt (after linrev, see rt_prio in sserial.txt) keeps
+// pos_fb, vel_fb and its period; the reply extrapolates by the time since
+// that period started. Two slots, swapped by one word write, as the frt
+// can preempt the rt halfway through a store.
+extern volatile uint32_t rt_tick;  // main.c, DMA2_Stream0_IRQHandler
+static struct {
+  float pos;
+  float vel;
+  uint32_t tick;
+} fb_snap[2];
+static volatile uint32_t fb_snap_i;
+
+static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
+  struct sserial_pin_ctx_t *pins = (struct sserial_pin_ctx_t *)pin_ptr;
+  uint32_t i     = fb_snap_i ^ 1;
+  fb_snap[i].pos  = PIN(pos_fb);
+  fb_snap[i].vel  = PIN(vel_fb);
+  fb_snap[i].tick = rt_tick;
+  fb_snap_i       = i;
+}
+
+// time since the rt period of the last snapshot started [s]
+static float fb_age(uint32_t tick) {
+  // the adc dma restarts its count at every rt period: its progress is the
+  // time into the current one
+  // the period may end (TC set, count reloaded) between the reads: read the
+  // tick and flag on both sides of the count and retry if they differ, else
+  // the old period's count lands on the new period's tick, one period too old
+  uint32_t ticks, ndtr, flag;
+  do {
+    ticks = rt_tick;
+    flag  = LL_DMA_IsActiveFlag_TC0(DMA2);
+    ndtr  = LL_DMA_GetDataLength(DMA2, LL_DMA_STREAM_0);
+  } while(ticks != rt_tick || flag != LL_DMA_IsActiveFlag_TC0(DMA2));
+  if(flag) {  // a period started, its irq not yet in
+    ticks++;
+  }
+  float age = (float)(ticks - tick) + (float)(ADC_SAMPLES_IN_RT - ndtr) / (float)ADC_SAMPLES_IN_RT;
+  return CLAMP(age, 0.0, 2.0) / (float)RT_FREQ;
+}
 
 static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   struct sserial_pin_ctx_t *pins = (struct sserial_pin_ctx_t *)pin_ptr;
   //struct sserial_ctx_t *mem = (struct sserial_ctx_t *)ctx_ptr;
   //next received packet will be written to bufferpos
-  uint32_t bufferpos = sizeof(rxbuf) - DMA_GetCurrDataCounter(DMA2_Stream5);
+  uint32_t bufferpos = sizeof(rxbuf) - LL_DMA_GetDataLength(DMA2, LL_DMA_STREAM_5);
   //how many packets we have the the rx buffer for processing
   uint32_t available = (bufferpos - rxpos + sizeof(rxbuf)) % sizeof(rxbuf);
 
@@ -799,20 +970,22 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           }
           wait_ticks = t1 - t2;
           //next received packet will be written to bufferpos
-          bufferpos = sizeof(rxbuf) - DMA_GetCurrDataCounter(DMA2_Stream5);
+          bufferpos = sizeof(rxbuf) - LL_DMA_GetDataLength(DMA2, LL_DMA_STREAM_5);
           //how many packets we have the the rx buffer for processing
           available = (bufferpos - rxpos + sizeof(rxbuf)) % sizeof(rxbuf);
         } while(available < discovery.output + 2 && wait_ticks <= max_waste_ticks);
         //TODO: fault handling on timeout...
         //set input pins
-        data_in.pos_fb  = PIN(pos_fb) + PIN(vel_fb) * PIN(pos_advance);
-        data_in.vel_fb  = PIN(vel_fb);
+        uint32_t si     = fb_snap_i;
+        data_in.pos_fb  = fb_snap[si].pos + (PIN(pos_extrap) > 0.0 ? fb_snap[si].vel * (PIN(pos_advance) + fb_age(fb_snap[si].tick)) : 0.0);
+        data_in.vel_fb  = fb_snap[si].vel;
         data_in.current = CLAMP(PIN(current) / (30.0f / 128.0f), -127, 127);
         data_in.in_0    = (PIN(in0) > 0) ? 1 : 0;
         data_in.in_1    = (PIN(in1) > 0) ? 1 : 0;
         data_in.in_2    = (PIN(in2) > 0) ? 1 : 0;
         data_in.in_3    = (PIN(in3) > 0) ? 1 : 0;
         data_in.fault   = (PIN(fault) > 0) ? 1 : 0;
+        data_in.fault_code = data_in.fault ? CLAMP(PIN(fault_code), 0, 255) : 0;  // last_fault outlives the fault
 
         //copy output pins from rx buffer
         for(int i = 0; i < discovery.output; i++) {
@@ -830,13 +1003,13 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         }
         if(crc_reuest(discovery.output + 1)) {
           //send buffer
-          DMA_SetCurrDataCounter(DMA1_Stream4, discovery.input + 1);
-          DMA_Cmd(DMA1_Stream4, DISABLE);
-          DMA_ClearFlag(DMA1_Stream4, DMA_FLAG_TCIF4);
-          DMA_Cmd(DMA1_Stream4, ENABLE);
           txbuf[discovery.input] = crc8((uint8_t *)txbuf, discovery.input);
+          dma_stream_stop(DMA1_Stream4);
+          LL_DMA_SetDataLength(DMA1, LL_DMA_STREAM_4, discovery.input + 1);
+          LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_4);
           //send(discovery.input, 1);
           timeout = 0;
+          crc_bad = 0;
           //set output pins
 
           PIN(pos_cmd)   = data_out.pos_cmd;
@@ -846,18 +1019,28 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
           PIN(out2)      = data_out.out_2;
           PIN(out3)      = data_out.out_3;
           PIN(enable)    = data_out.enable;
+          // in process data: a global only reaches the drive before process
+          // data starts, and hm2 2.9's change check skips round values
+          uint32_t scale_raw = data_out.scale[0] | (data_out.scale[1] << 8) | (data_out.scale[2] << 16);
+          if(scale_raw) {
+            PIN(scale) = scale_raw / 10000.0f;  // divide: 10 comes out as exactly 10
+          }
         } else {
+          // bad packet: count it and keep the last good command for up to
+          // CRC_BAD_HOLD packets. Zeroing enable on every one dropped
+          // fault0.en on a single bad packet. The RPC header resets the
+          // timeout, so a run of bad packets is caught here, not there.
           PIN(crc_error)
           ++;
-          PIN(connected) = 0;
-          PIN(error)     = 1;
-          PIN(pos_cmd)   = 0;
-          PIN(pos_cmd_d) = 0;
-          PIN(out0)      = 0;
-          PIN(out1)      = 0;
-          PIN(out2)      = 0;
-          PIN(out3)      = 0;
-          PIN(enable)    = 0;
+          if(++crc_bad > CRC_BAD_HOLD) {
+            PIN(pos_cmd)   = 0;
+            PIN(pos_cmd_d) = 0;
+            PIN(out0)      = 0;
+            PIN(out1)      = 0;
+            PIN(out2)      = 0;
+            PIN(out3)      = 0;
+            PIN(enable)    = 0;
+          }
         }
         rxpos += discovery.output + 2;
       }
@@ -872,11 +1055,13 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         } else {  //address not included in command = cmd+crc
           rxpos += 2;
         }
-        //TODO: causes timeouts...
-        //if((address + (1 << lbp.ds)) < ARRAY_SIZE(sserial_slave)) {  //check if address is valid
-        memcpy((void *)txbuf, &sserial_slave[address], (1 << lbp.ds));
+        //an address past the table reads zeros: the host still gets its reply
+        if((address + (1 << lbp.ds)) <= ARRAY_SIZE(sserial_slave)) {  //check if address is valid
+          memcpy((void *)txbuf, &sserial_slave[address], (1 << lbp.ds));
+        } else {
+          memset((void *)txbuf, 0, (1 << lbp.ds));
+        }
         send((1 << lbp.ds), 1);
-        //}
         if(lbp.ai) {  //auto increment address by datasize
           address += (1 << lbp.ds);
         }
@@ -892,17 +1077,12 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
         } else {  //address not included in command = cmd+crc
           rxpos += 1;
         }
-        //TODO: check size
-        if((address + (1 << lbp.ds)) < ARRAY_SIZE(sserial_slave)) {  //check if address is valid
+        if((address + (1 << lbp.ds)) <= ARRAY_SIZE(sserial_slave)) {  //check if address is valid
           for(int i = 0; i < (1 << lbp.ds); i++) {
             sserial_slave[address + i] = rxbuf[(rxpos + i) % sizeof(rxbuf)];
           }
         }
         rxpos += (1 << lbp.ds) + 1;
-        //update globals
-        float tmp;
-        memcpy(&tmp, &sserial_slave[scale_address], 4);
-        PIN(scale) = tmp;
         if(lbp.ai) {  //auto increment address by datasize
           address += (1 << lbp.ds);
         }
@@ -923,6 +1103,9 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     PIN(out3)      = 0;
     PIN(enable)    = 0;
     rxpos          = bufferpos;
+  } else if(crc_bad > CRC_BAD_HOLD) {
+    PIN(connected) = 0;
+    PIN(error)     = 1;
   } else {
     PIN(connected) = 1;
     PIN(error)     = 0;
@@ -934,9 +1117,9 @@ static void frt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
 const hal_comp_t sserial_comp_struct = {
     .name      = "sserial",
     .nrt       = 0,  //nrt_func,
-    .rt        = 0,
+    .rt        = rt_func,
     .frt       = frt_func,
-    .nrt_init  = 0,
+    .nrt_init  = nrt_init,
     .hw_init   = hw_init,
     .rt_start  = 0,
     .frt_start = 0,

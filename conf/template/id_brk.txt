@@ -1,0 +1,39 @@
+# breakaway torque at standstill only (idm0.brk_only): the test id_sys
+# ends with, with the drive's own gains and conf0.o in the feedforward.
+# the trajectory holds the axis where it stands, idm ramps an extra torque
+# (idm0.brk_rate, 3 Nm/s) until the axis moves idm0.brk_win (0.002 rad),
+# positive then negative, and prints the static friction (half the
+# difference) and the static load (the mean, gravity on a vertical axis)
+# next to conf0.f and conf0.o. the axis moves brk_win each way and comes
+# back; about 15 s on a vertical axis. the velocity integrator is parked
+# for the run (pid0.vel_d = idm0.vel_d_pid, 1e6 while ramping).
+# starts on enable; disable to abort or clear. run it with dob0.k = 0
+# (dob cancels the ramp) and the brake released.
+load idm
+idm0.rt_prio = 4
+idm0.brk_only = 1
+idm0.en = fault0.en_out
+idm0.pos_fb = fb_switch0.pos_fb
+pid0.pos_ext_cmd = idm0.pos_cmd
+pid0.vel_ext_cmd = idm0.vel_cmd
+pid0.acc_ext_cmd = idm0.acc_cmd
+pid0.torque_ext_cmd = idm0.torque_ext
+idm0.torque = pid0.torque_cmd
+idm0.vel_d = conf0.vel_d
+pid0.vel_d = idm0.vel_d_pid
+idm0.brk_max = conf0.max_force
+idm0.o_ref = conf0.o
+idm0.f_ref = conf0.f
+# stop on a derated current (brk_res -2) and read the torque the current makes
+idm0.cur_cmd = hv0.q_cmd
+idm0.cur_fb = hv0.iq_fb
+idm0.scale = fault0.scale
+
+term0.wave0 = idm0.torque_ext
+term0.gain0 = 10
+term0.wave1 = pid0.torque_cmd
+term0.gain1 = 10
+term0.wave2 = pid0.pos_error
+term0.gain2 = 2000
+term0.wave3 = idm0.state
+term0.gain3 = 10

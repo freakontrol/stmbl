@@ -81288,7 +81288,7 @@
 				)
 			)
 		)
-		(property "Value" "0.002"
+		(property "Value" "0.003"
 			(at 0 2.6 0)
 			(layer "F.Fab")
 			(uuid "c87b0bbc-d803-4e3f-8378-1d7e552fbe92")
@@ -81559,7 +81559,7 @@
 				)
 			)
 		)
-		(property "Value" "0.002"
+		(property "Value" "0.003"
 			(at 0 2.6 0)
 			(layer "F.Fab")
 			(uuid "eb35ecec-b0a4-409d-9dc5-48061f42491b")
@@ -81830,7 +81830,7 @@
 				)
 			)
 		)
-		(property "Value" "0.002"
+		(property "Value" "0.003"
 			(at 0 2.6 0)
 			(layer "F.Fab")
 			(uuid "c8515fd4-493d-4796-af81-a4d994cfb8f0")
@@ -117150,7 +117150,7 @@
 			(uuid "824c8eb7-9b56-4fe0-b7f1-194bc3645ae1")
 		)
 	)
-	(footprint "stmbl:IKCM30F60GAXKMA1_2"
+	(footprint "stmbl:IKCM30F60GDXKMA1"
 		(layer "B.Cu")
 		(uuid "64f37d22-0677-4971-954e-864fbeeeee65")
 		(at 154.126031 138.888474 -90)
@@ -117168,7 +117168,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "IKCM30F60GAXKMA1"
+		(property "Value" "IKCM30F60GDXKMA1"
 			(at -14.7 14.3 90)
 			(layer "B.SilkS")
 			(hide yes)
@@ -117181,7 +117181,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Footprint" "stmbl:IKCM30F60GAXKMA1_2"
+		(property "Footprint" "stmbl:IKCM30F60GDXKMA1"
 			(at 0 0 -90)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -117193,7 +117193,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/Infineon-IKCM30F60GA-DS-v02_06-EN.pdf?fileId=5546d4624fb7fef2014fcb83cab8790a"
+		(property "Datasheet" "https://www.infineon.com/cms/en/product/power/intelligent-power-modules-ipm/ikcm30f60gd/"
 			(at 0 0 -90)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -117295,7 +117295,7 @@
 				(justify mirror)
 			)
 		)
-		(property "digikey part number" "IKCM30F60GAXKMA1-ND"
+		(property "digikey part number" "IKCM30F60GDXKMA1-ND"
 			(at 0 0 0)
 			(layer "B.Fab")
 			(hide yes)
@@ -117399,7 +117399,7 @@
 				(justify mirror)
 			)
 		)
-		(property "mouser part number" "726-IKCM30F60GAXKMA1"
+		(property "mouser part number" "726-IKCM30F60GDXKMA1"
 			(at 0 0 0)
 			(layer "B.Fab")
 			(hide yes)
@@ -118104,7 +118104,7 @@
 			(pintype "passive")
 			(uuid "1b3abef9-fbd3-4012-aead-8e3470feb2c0")
 		)
-		(model "${STMBL}/stmbl.pretty/Infineon_-_IKCM30F60GAXKMA1.step"
+		(model "${STMBL}/stmbl.pretty/Infineon_-_IKCM30F60GDXKMA1.step"
 			(offset
 				(xyz -15.1 16 0.2)
 			)
