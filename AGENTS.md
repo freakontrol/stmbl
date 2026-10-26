@@ -22,7 +22,7 @@ STMBL is servo drive firmware for two MCUs on one drive:
 
 ## Working on code
 
-- Build every firmware change before calling it done: `make -j16 DOCS=0` builds both MCUs. Details and the GCC version check: [build.md](docs/procedures/build.md).
+- Build every firmware change before calling it done: `make -j16 DOCS=0` builds both MCUs. Details and the GCC version check: [build.md](docs/procedures/build.md). CI (`.github/workflows/firmware.yml`) builds with GCC 12.2 and runs the sim on every push.
 - Run `make format` (clang-format) before a pull request.
 - Run the host simulation for anything that touches control, feedback or fault paths: `make -C tests/sim test`. Doc tool tests: `python3 -m unittest discover -s tests`.
 - The F3 image fills most of its flash and its CCM RAM. Check the size output after F3 changes and on a new compiler.
@@ -53,6 +53,9 @@ This firmware drives motors on real machines. An agent must never start motion, 
 - [commissioning.md](docs/procedures/commissioning.md): new servo axis (limits to `pos_advance`) or induction motor spindle
 - [capture-and-analysis.md](docs/procedures/capture-and-analysis.md): scope waves, triggered captures, recordings, fitting
 - [faults-and-hal-traps.md](docs/procedures/faults-and-hal-traps.md): fault codes and HAL pitfalls
+- [components.md](docs/procedures/components.md): adding or changing a HAL component
+- [sim-scenarios.md](docs/procedures/sim-scenarios.md): host simulation regression scenarios
+- [review-checklist.md](docs/procedures/review-checklist.md): checklist before a change is done
 
 `.claude/skills/` holds thin Claude Code skills that point at these pages; the pages are the source, so edit them, not the skills.
 

@@ -9,7 +9,7 @@ The full table with causes and fixes is on the [errors page](../stmbldoc/content
 | 1 | Command error (smart serial) | Normal while LinuxCNC (re)loads; otherwise the sserial link |
 | 2, 3, 4 | Motor, commutation, joint feedback | Encoder cable and config |
 | 5 | Position error | Loop tuning, mechanics, `conf0.max_pos_error` |
-| 6 | Saturation | Torque at its limit too long: load, tuning, `conf0.max_force`, `conf0.max_sat` |
+| 6 | Saturation | Torque at its limit too long: load, tuning, `conf0.max_force`, `conf0.max_sat`; right after a runtime `link`: a torque-path comp without `rt_prio` |
 | 7 | Motor temperature (I²t model) | RMS current vs `iit0` settings |
 | 9 | HV link timeout | **Is HV on?** Then the F4-F3 cable, F3 firmware |
 | 10 | HV over-temperature | Fan, heatsink |

@@ -35,12 +35,13 @@ Flashing targets are in [flashing.md](flashing.md).
 
 ## GCC version check (upstream)
 
-Upstream builds with **GCC 12.2** (the Debian bookworm package). Code size changes with the compiler, so a change that fits with a newer GCC can overflow the F3 with 12.2, and the other way round. Before proposing a change upstream that touches F3 code or anything shared, build it with GCC 12.2 too:
+Upstream builds with **GCC 12.2** (the Debian bookworm package). Code size changes with the compiler, so a change that fits with a newer GCC can overflow the F3 with 12.2, and the other way round. The `Firmware build` GitHub Actions workflow (`.github/workflows/firmware.yml`) builds every push and pull request with it. To check locally before pushing:
 
 ```sh
 docker run --rm -v "$PWD":/src -w /src debian:bookworm bash -c '
   apt-get update -qq &&
-  apt-get install -y -qq --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi binutils-arm-none-eabi make python3 >/dev/null &&
+  apt-get install -y -qq --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi binutils-arm-none-eabi make python3 git >/dev/null &&
+  git config --global --add safe.directory /src &&
   arm-none-eabi-gcc --version | head -1 &&
   make -j16 DOCS=0 && make clean >/dev/null'
 ```
