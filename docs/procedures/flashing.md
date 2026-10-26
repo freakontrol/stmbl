@@ -10,24 +10,28 @@ User instructions: [introduction.md, Flashing firmware](../stmbldoc/content/docs
 4. **Drive disabled**, motor at rest, a vertical axis on its brake.
 5. **Take LinuxCNC out of the loop.** If the config uses smart serial (`link sserial`), stop LinuxCNC or remove the `sserial0` lines first, so nothing enables or commands the drive while it comes back up.
 
+## F4 bootloader first (hard step)
+
+Before writing any F4 app, read the bootloader line of `about` ("STMBL-Bootloader vX.Y.Z <git hash>"). **If the bootloader was not built from main at or after f95f64fd (9 Oct 2026, "f4: DFU entry without locking up"; 2dc1295f on the older main_rework line), write the new bootloader first, then the app.** The version number alone doesn't tell: v0.10.0 was set on 2 Oct, a week before that fix, so check the hash (`git merge-base --is-ancestor f95f64fd <hash>` in this repo). When in doubt, update it; it costs a few seconds.
+
+```sh
+make boot_btburn       # F4 bootloader at 0x08000000, keeps app and config
+```
+
+Old bootloaders start the ROM DFU with the PLL still running. An app flash through them can fail mid-erase, and after a power cycle the old bootloader hangs with nothing on USB (seen on a board with v0.9.18). Recovery then needs BOOT0 held high at power-up: short the boot pads while connecting 24 V, and flash bootloader and app from the ROM DFU.
+
+**Don't use `make all_btburn` on a configured board.** It writes `f4.bin`, which carries `conf/festo.txt` as the config and replaces the saved one. It is for blank boards only.
+
 ## F4 app
+
+Only after the bootloader check above:
 
 ```sh
 make -j16 DOCS=0
 make btburn            # F4 app at 0x08010000, keeps bootloader and config
 ```
 
-Then connect Servoterm and check `about`: the version and git hash must be the new build.
-
-## F4 bootloader
-
-Only when the bootloader itself changed, or once on boards with a bootloader older than v0.10.0 (those crash in the ROM on the bad-CRC and PA13 paths, so a failed app flash leaves the board invisible on USB):
-
-```sh
-make boot_btburn       # F4 bootloader at 0x08000000
-```
-
-**Don't use `make all_btburn` on a configured board.** It writes `f4.bin`, which carries `conf/festo.txt` as the config and replaces the saved one. It is for blank boards only.
+Then connect Servoterm and check `about`: the app and the bootloader lines must both show the new builds.
 
 ## F3 (HV board)
 
@@ -42,7 +46,7 @@ Flashing the F3 over its own USB port (`make f3_all_btburn`) is for a blank HV b
 
 ## After
 
-1. `about` and `hv about` show the expected builds.
+1. `about` (app and bootloader lines) and `hv about` show the expected builds.
 2. `showconf` matches the backup; `confcrc` if you keep CRCs.
 3. If you removed `sserial0` lines, restore them (`appendconf <line>` or the config editor), then `flashsaveconf` with the drive disabled and `reset`.
 4. Check the fault LED and `fault0.state` before the operator enables.
