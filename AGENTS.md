@@ -50,7 +50,7 @@ This firmware drives motors on real machines. An agent must never start motion, 
 - [build.md](docs/procedures/build.md): toolchain, make targets, GCC 12.2 upstream check
 - [flashing.md](docs/procedures/flashing.md): F4 app, bootloader, F3 `hv_update`, config backup and restore
 - [bench-safety.md](docs/procedures/bench-safety.md): brakes, resets, HV-off traps, drive-local moves
-- [commissioning.md](docs/procedures/commissioning.md): new axis, from limits to `pos_advance`
+- [commissioning.md](docs/procedures/commissioning.md): new servo axis (limits to `pos_advance`) or induction motor spindle
 - [capture-and-analysis.md](docs/procedures/capture-and-analysis.md): scope waves, triggered captures, recordings, fitting
 - [faults-and-hal-traps.md](docs/procedures/faults-and-hal-traps.md): fault codes and HAL pitfalls
 
