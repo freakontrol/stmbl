@@ -1,3 +1,5 @@
+# incremental position command: link enc_cmd. conf0.cmd_res =
+# counts per rev: quadrature lines x 4, step/dir steps per rev
 load enc_cmd
 enc_cmd0.rt_prio = 2
 enc_cmd0.res = conf0.cmd_res

@@ -127,7 +127,7 @@ The STMBL PID works differently than common PID loops: the gains are set as band
 ### Command
 
 * conf0.cmd_rev command reverse
-* conf0.cmd_res command resolution (1/rev)
+* conf0.cmd_res command resolution (1/rev): quadrature lines x 4, step/dir steps per rev
 
 ### Limits
 

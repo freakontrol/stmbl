@@ -67,7 +67,7 @@ HAL_PIN(com_fb_rev);     // *parameter*, commutation feedback direction
 HAL_PIN(com_fb_res);     // *parameter*, commutation feedback resolution (counts/rev), not linked by any template
 
 HAL_PIN(cmd_rev);        // *parameter*, command direction
-HAL_PIN(cmd_res);        // *parameter*, command resolution (counts/rev)
+HAL_PIN(cmd_res);        // *parameter*, command resolution (counts/rev; quadrature lines x 4, step/dir steps)
 
 HAL_PIN(max_dc_volt);    // *parameter*, upper DC link overvoltage limit (V), fault
 HAL_PIN(max_hv_temp);    // *parameter*, upper driver overtemperature limit (deg C)

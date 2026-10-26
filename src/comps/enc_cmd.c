@@ -22,7 +22,7 @@
 * - A and B get the timer alternate function with pull-ups, the fault pin and its enable are push-pull outputs.
 *
 * 2. **Signal type (`mode`, read once in hw_init)**:
-* - `mode = 0` (default): quadrature. The timer runs in X4 encoder mode (counts on TI1 and TI2 edges), auto-reload = `2 * res - 1`.
+* - `mode = 0` (default): quadrature. The timer runs in X4 encoder mode (counts every edge of A and B, so 4 counts per line), auto-reload = `res - 1`.
 * - `mode = 1`: step/dir, step on A, direction on B. `mode = 2`: dir/step, direction on A, step on B. Direction high counts up.
 * - In step/dir the timer is a free running 32 bit up counter clocked by the rising edges of the step input. Each edge of the direction input captures the count in hardware (input capture), and the TIM2 interrupt (priority 1, above the rt) adds the steps since the last direction edge with the old sign. So the step at which the direction changed is exact whatever the interrupt latency; it only has to be taken before the next direction edge, else the capture overflow flag marks it as lost. The STM32 encoder modes cannot decode step/dir: they count a step pulse's rising and falling edge with opposite signs.
 * - `mode = 3` (up/down) is not supported, and neither is step/dir on `remap` 1..3 (16 bit timers, their DMA belongs to the feedback components). Then `error` is set and the timer is not set up.
@@ -33,22 +33,26 @@
 * ```c
 * pos = mod(counter * 2 * pi / res);   // rad, wrapped to +-pi
 * ```
-* - Because the counter range is `2 * res` counts, `pos` wraps twice per counter period; the multiturn tracking is done downstream (e.g. `rev0`). The bene config comments `cmd_res` as "cmd counts / rev * 2".
+* - In quadrature `res` is counts per revolution at X4, so lines x 4 (a 2000 line encoder is `res = 8000`), the same convention as `enc_fb`. The counter wraps once per revolution; the multiturn tracking is done downstream (e.g. `rev0`).
 * - Step/dir: the rt takes a pending direction edge, reads the count and adds the steps since the last edge with the current sign, with interrupts off. The signed step count is kept modulo `res`, and `pos = mod(steps * 2 * pi / res)`, so in step/dir `res` is steps per revolution.
-* - `res` is clamped to >= 1. If it changes at runtime the auto-reload register is updated (quadrature only).
+* - `res` is clamped to >= 1, and in quadrature on the 16 bit timers (`remap` 1..3) to <= 65536. If it changes at runtime the auto-reload register is updated (quadrature only).
 *
 * 4. **Error and fault output (rt)**:
 * - The template links `error` to `fault0.cmd_error`, so it trips fault 1 (CMD error).
 * - A `fault` of 0 drives the fault line low (e.g. `enc_cmd0.fault = fault0.fault` or an inverted enable signal).
 *
 * {{% hint warning %}}
-* With TIM1/TIM4 (`remap` 1..3) the counter is 16 bit, so `res` must stay <= 32768 in quadrature. The pin/timer definitions exist only for the V4 board.
+* Breaking change: before this version quadrature `res` was counts per revolution at 2 counts per line (lines x 2), with auto-reload `2 * res - 1`. Configs that use quadrature `enc_cmd` need `res` (`conf0.cmd_res`) doubled. With an old value the drive moves twice the commanded distance, and with commutation from the command input (autophasing) the commutation angle is wrong. Step/dir is unchanged.
+* {{% /hint %}}
+*
+* {{% hint warning %}}
+* With TIM1/TIM4 (`remap` 1..3) the counter is 16 bit, so quadrature `res` is clamped to 65536. The pin/timer definitions exist only for the V4 board.
 * {{% /hint %}}
 */
 
 HAL_COMP(enc_cmd);
 
-HAL_PIN(res);           // *parameter*, Counts per revolution (quadrature: auto-reload = 2 * res - 1; step/dir: steps per revolution), default 4096
+HAL_PIN(res);           // *parameter*, Quadrature: counts per revolution at X4 (lines x 4, <= 65536 on remap 1..3); step/dir: steps per revolution; default 4096
 HAL_PIN(pos);           // *output*, Command position (rad, +-pi)
 HAL_PIN(a);             // *output*, Raw level of the A input (0/1)
 HAL_PIN(b);             // *output*, Raw level of the B input (0/1)
@@ -105,6 +109,14 @@ void TIM2_IRQHandler(void) {
   } else {
     TIM2->SR = 0;
   }
+}
+
+// quadrature res clamped to the 16 bit timers (remap 1..3), ARR = res - 1
+static int quad_res(struct enc_cmd_ctx_t *ctx, int r) {
+  if(ctx->tim != CMD_ENC_TIM && r > 65536) {
+    r = 65536;
+  }
+  return r;
 }
 
 static void nrt_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
@@ -263,7 +275,8 @@ static void hw_init(void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
     return;
   }
 
-  LL_TIM_SetAutoReload(ctx->tim, ctx->e_res * 2 - 1);
+  ctx->e_res = quad_res(ctx, ctx->e_res);
+  LL_TIM_SetAutoReload(ctx->tim, ctx->e_res - 1);
   // quad
   // X4 on TI1/TI2, both direct, non-inverted, no prescaler, input_filter
   // (0..15) as the IC1F/IC2F code.
@@ -318,11 +331,14 @@ static void rt_func(float period, void *ctx_ptr, hal_pin_inst_t *pin_ptr) {
   if(r < 1) {
     r = 1;
   }
+  if(!ctx->step) {
+    r = quad_res(ctx, r);
+  }
 
   if(ctx->e_res != r) {
     ctx->e_res = r;
     if(!ctx->step) {
-      LL_TIM_SetAutoReload(ctx->tim, ctx->e_res * 2 - 1);
+      LL_TIM_SetAutoReload(ctx->tim, ctx->e_res - 1);
     }
   }
 
