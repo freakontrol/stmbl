@@ -30,7 +30,7 @@ The hardware can also carry SSI, BiSS (half-duplex SPI) and Hyperface (SIN/COS +
 ### Command connector wiring:
 
 {{% hint info %}}
-`link enc_cmd` decodes quadrature by default. For Step/Dir set `enc_cmd0.mode = 1` (step on pins 1/2, dir on 3/6; `mode = 2` swaps them). Up/down is not supported. A lost direction change gives fault 1 (CMD error). The Enable input on pins 7/8 is `io0.C78`, which no config template links. Link it by hand if you need it.
+`link enc_cmd` decodes quadrature by default, with `conf0.cmd_res` = counts per turn at X4 (lines x 4, so a 2000 line encoder is 8000). Older firmware counted lines x 2: double `cmd_res` in quadrature configs from before this change, or the drive moves twice the commanded distance. For Step/Dir set `enc_cmd0.mode = 1` (step on pins 1/2, dir on 3/6; `mode = 2` swaps them). Up/down is not supported. A lost direction change gives fault 1 (CMD error). The Enable input on pins 7/8 is `io0.C78`, which no config template links. Link it by hand if you need it.
 {{% /hint %}}
 
 | Pin | Color     | Smart Serial | Step/Dir (`enc_cmd0.mode = 1`) | Quadrature  |
