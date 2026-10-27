@@ -1,0 +1,35 @@
+# Build the firmware with the compiler upstream uses (GCC 12.2, Debian
+# bookworm), so a flash or CCM overflow shows up before a merge, and run
+# the host simulation scenarios.
+name: Firmware build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-gcc12:
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - name: Install toolchain
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi binutils-arm-none-eabi make python3 git ca-certificates
+          arm-none-eabi-gcc --version | head -1
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build F4 and F3
+        run: |
+          # add_version_info.py runs git; the checkout is owned by another uid
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          make -j"$(nproc)" DOCS=0
+
+  sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host simulation scenarios
+        run: make -C tests/sim test -j"$(nproc)"
